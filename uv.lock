@@ -734,8 +734,8 @@ wheels = [
 
 [[package]]
 name = "wireshark-mcp"
-version = "0.2.0"
-source = { virtual = "." }
+version = "0.2.1"
+source = { editable = "." }
 dependencies = [
     { name = "mcp" },
 ]

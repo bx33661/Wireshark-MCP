@@ -64,27 +64,57 @@ Your task is to analyze a pcap file using Wireshark MCP tools.
 - Create a report.md with your findings.
 ```
 
-## Core Functions
+## Available Tools
 
-### Packet Analysis
-- `wireshark_get_packet_list(pcap_file, limit, offset, display_filter)`: Get a summary list of packets (like Wireshark's top pane).
-- `wireshark_get_packet_details(pcap_file, frame_number)`: Get full details for a SINGLE packet (like Wireshark's bottom pane).
-- `wireshark_follow_stream(pcap_file, stream_index, protocol, ...)`: Reassemble and view complete stream content with pagination and search.
+### Packet Analysis (extract.py)
+- `wireshark_get_packet_list(pcap_file, limit=20, offset=0, display_filter="", custom_columns="")`:
+    Get summary list of packets. Supports custom columns (e.g., "ip.src,http.host") to replace default view.
+- `wireshark_get_packet_details(pcap_file, frame_number, layers="")`:
+    Get full JSON details for a single packet. Supports layer filtering (e.g., "ip,tcp,http") to significantly reduce token usage.
+- `wireshark_get_packet_bytes(pcap_file, frame_number)`: 
+    **[New]** Get raw Hex/ASCII dump (Packet Bytes view).
+- `wireshark_get_packet_context(pcap_file, frame_number, count=5)`:
+    **[New]** View packets surrounding a specific frame (before and after) to understand context.
+- `wireshark_follow_stream(...)`: Reassemble and view complete stream content with pagination and search.
+- `wireshark_search_packets(pcap_file, match_pattern, search_type="string", limit=50, scope="bytes")`: 
+    **[Enhanced]** Find packets.
+    *   `scope="bytes"`: Search in raw payload (Hex/String).
+    *   `scope="details"`: Search in decoded text/fields (Regex supported).
+- `wireshark_read_packets(...)`: [DEPRECATED] Use `get_packet_details` instead.
 
-### Data Extraction
-- `wireshark_extract_fields(pcap_file, fields, ...)`: Extract specific fields as tabular data.
-- `wireshark_extract_http_requests(pcap_file)`: Convenience tool for HTTP method, URI, host.
-- `wireshark_extract_dns_queries(pcap_file)`: Convenience tool for DNS queries.
-- `wireshark_list_ips(pcap_file)`: List all unique IP addresses in capture.
+### Data Extraction (extract.py)
+- `wireshark_extract_fields(pcap_file, fields, display_filter="", limit=100, offset=0)`: Extract specific fields as tabular data.
+- `wireshark_extract_http_requests(pcap_file, limit=100)`: Convenience tool for HTTP method, URI, host.
+- `wireshark_extract_dns_queries(pcap_file, limit=100)`: Convenience tool for DNS queries.
+- `wireshark_list_ips(pcap_file, type="both")`: List all unique IP addresses (src, dst, or both).
+- `wireshark_export_objects(pcap_file, protocol, dest_dir)`: Extract embedded files (http, smb, etc.) from traffic.
+- `wireshark_verify_ssl_decryption(pcap_file, keylog_file)`: Verify TLS decryption using a keylog file.
 
-### Stats & Capture
-- `wireshark_stats_protocol_hierarchy(pcap_file)`: Protocol distribution.
-- `wireshark_stats_conversations(pcap_file, type)`: Traffic between endpoints.
-- `wireshark_filter_save(input_file, output_file, display_filter)`: Save a subset of packets to a new file.
+### Statistics (stats.py)
+- `wireshark_stats_protocol_hierarchy(pcap_file)`: Get Protocol Hierarchy Statistics (PHS).
+- `wireshark_stats_endpoints(pcap_file, type="ip")`: List all endpoints and their traffic stats.
+- `wireshark_stats_conversations(pcap_file, type="ip")`: Show communication pairs and their stats.
+- `wireshark_stats_io_graph(pcap_file, interval=1)`: Get traffic volume over time (I/O Graph).
+- `wireshark_stats_expert_info(pcap_file)`: Get Expert Information (anomalies, warnings).
+- `wireshark_stats_service_response_time(pcap_file, protocol="http")`: Service Response Time (SRT) statistics.
 
-### Security
-- `wireshark_check_threats(pcap_file)`: Check IPs against threat intelligence feeds.
-- `wireshark_extract_credentials(pcap_file)`: Scan for plaintext credentials.
+### File Operations (files.py & capture.py)
+- `wireshark_get_file_info(pcap_file)`: Get detailed metadata about a capture file (capinfos).
+- `wireshark_merge_pcaps(output_file, input_files)`: Merge multiple capture files into one.
+- `wireshark_list_interfaces()`: List available network interfaces for capture.
+- `wireshark_capture(interface, output_file, duration_seconds=10, packet_count=0, capture_filter="", ring_buffer="")`: Capture live network traffic.
+- `wireshark_filter_save(input_file, output_file, display_filter)`: Filter packets from a pcap and save to a new file.
+
+### Security (security.py)
+- `wireshark_check_threats(pcap_file)`: Check captured IPs against URLhaus threat intelligence.
+- `wireshark_extract_credentials(pcap_file)`: Scan for plaintext credentials (HTTP Auth, FTP, Telnet).
+
+### Decoding (decode.py)
+- `wireshark_decode_payload(data, encoding="auto")`: Decode common encodings (Base64, Hex, URL, Gzip, Deflate, Rot13, etc.) with smart auto-detection.
+
+### Visualization (visualize.py)
+- `wireshark_plot_traffic(pcap_file, interval=1)`: Generate ASCII bar chart of traffic volume over time.
+- `wireshark_plot_protocols(pcap_file)`: Generate ASCII tree view of protocol hierarchy.
 
 ## Development
 

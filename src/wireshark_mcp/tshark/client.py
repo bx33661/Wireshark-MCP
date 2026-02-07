@@ -108,6 +108,7 @@ class TSharkClient:
 
     # --- Statistics ---
 
+
     async def get_protocol_stats(self, pcap_file: str) -> str:
         """Protocol Hierarchy (-z io,phs)."""
         validation = self._validate_file(pcap_file)
@@ -115,6 +116,17 @@ class TSharkClient:
             return json.dumps(validation)
             
         return await self._run_command([self.tshark_path, "-r", pcap_file, "-q", "-z", "io,phs"])
+
+    async def get_protocol_stats_data(self, pcap_file: str) -> str:
+        """Protocol Hierarchy raw output for parsing."""
+        # Use same command, but we need the raw string to parse in the visualizer.
+        # The existing get_protocol_stats returns exactly what we need (the raw text output from tshark).
+        # We can reuse it, or if we want to parse it into JSON here, we could.
+        # For now, let's keep it simple: the visualizer will parse the text output of `tshark -z io,phs`.
+        # So we might not need a new method if the existing one returns the raw string.
+        # Let's check get_io_graph.
+        return await self.get_protocol_stats(pcap_file)
+
 
     async def get_endpoints(self, pcap_file: str, type: str = "ip") -> str:
         """Endpoints (-z endpoints,type)."""
@@ -140,6 +152,7 @@ class TSharkClient:
             
         return await self._run_command([self.tshark_path, "-r", pcap_file, "-q", "-z", f"conv,{type}"])
 
+
     async def get_io_graph(self, pcap_file: str, interval: int = 1) -> str:
         """I/O Graphs (-z io,stat,interval)."""
         validation = self._validate_file(pcap_file)
@@ -150,6 +163,11 @@ class TSharkClient:
             self.tshark_path, "-r", pcap_file, "-q", 
             "-z", f"io,stat,{interval}"
         ])
+
+    async def get_io_graph_data(self, pcap_file: str, interval: int = 1) -> str:
+        """Raw I/O Graph data for visualization."""
+        return await self.get_io_graph(pcap_file, interval)
+
 
     async def get_service_response_time(self, pcap_file: str, protocol: str = "http") -> str:
         """Service Response Time (-z proto,tree)."""
@@ -204,27 +222,31 @@ class TSharkClient:
         return result
 
     async def get_packet_list(self, pcap_file: str, limit: int = 20, offset: int = 0, 
-                            display_filter: str = "") -> str:
+                            display_filter: str = "", custom_columns: List[str] = None) -> str:
         """
         Get summary list of packets (like Wireshark's top pane).
-        Columns: No., Time, Source, Destination, Protocol, Length, Info
+        If custom_columns provided, uses those instead of default [No, Time, Src, Dst, Proto, Len, Info].
         """
         validation = self._validate_file(pcap_file)
         if not validation["success"]:
             return json.dumps(validation)
         
-        if not validation["success"]:
-            return json.dumps(validation)
-        
-        fields = [
-            "frame.number",
-            "_ws.col.Time",
-            "_ws.col.Source",
-            "_ws.col.Destination",
-            "_ws.col.Protocol",
-            "_ws.col.Length",
-            "_ws.col.Info"
-        ]
+        if custom_columns:
+             fields = custom_columns
+             # Always ensure frame.number is there if we want to reference it? 
+             # Actually, the user might just want specific fields.
+             # But for context/linking, frame.number is good. 
+             # However, let's respect the user's list.
+        else:
+            fields = [
+                "frame.number",
+                "_ws.col.Time",
+                "_ws.col.Source",
+                "_ws.col.Destination",
+                "_ws.col.Protocol",
+                "_ws.col.Length",
+                "_ws.col.Info"
+            ]
         
         cmd = [self.tshark_path, "-r", pcap_file, "-T", "fields"]
         for f in fields:
@@ -237,9 +259,10 @@ class TSharkClient:
         
         return await self._run_command(cmd, limit_lines=limit, offset_lines=offset)
 
-    async def get_packet_details(self, pcap_file: str, frame_number: int) -> str:
+    async def get_packet_details(self, pcap_file: str, frame_number: int, included_layers: List[str] = None) -> str:
         """
         Get full JSON details for a single packet.
+        Optionally filter to specific layers using included_layers (TShark -j).
         """
         validation = self._validate_file(pcap_file)
         if not validation["success"]:
@@ -251,8 +274,29 @@ class TSharkClient:
             "-T", "json"
         ]
         
+        if included_layers:
+            # -j "layer1 layer2"
+            filter_str = " ".join(included_layers)
+            cmd.extend(["-j", filter_str])
+        
         # In tshark read mode (-r), -c limits the *input* packets processed.
         # If the target frame is #100, "-c 1" stops at frame #1 and never finds #100.
+        
+        return await self._run_command(cmd)
+
+    async def get_packet_bytes(self, pcap_file: str, frame_number: int) -> str:
+        """
+        Get standard Hex/ASCII dump of a packet (Packet Bytes view).
+        """
+        validation = self._validate_file(pcap_file)
+        if not validation["success"]:
+            return json.dumps(validation)
+            
+        cmd = [
+            self.tshark_path, "-r", pcap_file, 
+            "-Y", f"frame.number == {frame_number}",
+            "-x"  # Hex/ASCII dump
+        ]
         
         return await self._run_command(cmd)
 
@@ -293,22 +337,55 @@ class TSharkClient:
         ]
         return await self._run_command(cmd)
 
-    async def search_packet_contents(self, pcap_file: str, match_pattern: str, 
-                                   search_type: str = "string", limit: int = 50) -> str:
-        """Search packets (-Y 'frame contains ...')."""
+    async def search_packet_contents(self, pcap_file: str, match_pattern: str, search_type: str = "string", 
+                                   limit: int = 50, scope: str = "bytes") -> str:
+        """
+        Search for packets.
+        scope="bytes" -> searches raw payload (frame contains)
+        scope="details" -> searches decoded text (frame matches)
+        """
         validation = self._validate_file(pcap_file)
         if not validation["success"]:
             return json.dumps(validation)
         
-        d_filter = ""
-        if search_type == "hex":
-            d_filter = f"frame contains {match_pattern}"
-        elif search_type == "regex":
-            d_filter = f"frame matches \"{match_pattern}\""
+        # Construct specific display filter for search
+        # TShark filter syntax:
+        # contains: searches raw bytes (can be string or hex)
+        # matches: searches text representation (regex)
+        
+        display_filter = ""
+        
+        if scope == "bytes":
+             # "frame contains" works for string or hex
+             if search_type == "hex":
+                 # 00:11:22
+                 display_filter = f'frame contains {match_pattern}'
+             else:
+                 # Standard string search in bytes
+                 # Escape quotes
+                 safe_pattern = match_pattern.replace('"', '\\"')
+                 display_filter = f'frame contains "{safe_pattern}"'
+                 
+        elif scope == "details":
+             # "frame matches" uses PCRE on the text layer
+             # We treat match_pattern as regex if search_type == "regex", else escape it
+             if search_type == "regex":
+                 display_filter = f'frame matches "{match_pattern}"'
+             else:
+                 import re
+                 safe_pattern = re.escape(match_pattern)
+                 display_filter = f'frame matches "{safe_pattern}"'
+        
+        elif scope == "filter":
+             # Raw Wireshark display filter (e.g. "http.response.code == 200")
+             display_filter = match_pattern
+                 
         else:
-            d_filter = f"frame contains \"{match_pattern}\""
-            
-        return await self._run_command([self.tshark_path, "-r", pcap_file, "-Y", d_filter], limit_lines=limit)
+             return json.dumps({"success": False, "error": f"Invalid scope: {scope}. Use 'bytes' or 'details'."})
+
+        
+        # We want to return the LIST of matching packets
+        return await self.get_packet_list(pcap_file, limit=limit, display_filter=display_filter)
 
     async def follow_stream(self, pcap_file: str, stream_index: int, 
                           protocol: str = "tcp", mode: str = "ascii",

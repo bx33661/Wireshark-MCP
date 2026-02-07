@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wireshark-mcp"
-version = "0.2.1"
+version = "0.4.0"
 description = "A production-grade Model Context Protocol (MCP) server for Wireshark"
 readme = "README.md"
 requires-python = ">=3.10"

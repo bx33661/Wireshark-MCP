@@ -5,7 +5,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
 
     @mcp.tool()
     async def wireshark_get_packet_list(pcap_file: str, limit: int = 20, offset: int = 0,
-                                      display_filter: str = "") -> str:
+                                      display_filter: str = "", custom_columns: str = "") -> str:
         """
         [Summary] Get a summary list of packets (like Wireshark's top pane).
         Use this first to scan traffic before drilling down.
@@ -15,31 +15,86 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
             limit: Rows to return (default: 20)
             offset: Skip first N rows
             display_filter: Wireshark display filter (e.g. "tcp.port == 80")
+            custom_columns: Comma-separated list of fields (e.g. "ip.src,http.host")
+                            If provided, replaces default columns.
             
         Returns:
             Tabular list with columns: No, Time, Source, Destination, Protocol, Length, Info
+            (Or your custom columns if specified)
             
         Example:
-            wireshark_get_packet_list("traffic.pcap", display_filter="http")
+            wireshark_get_packet_list("traffic.pcap", display_filter="http", custom_columns="ip.src,http.host,http.request.uri")
         """
-        return await client.get_packet_list(pcap_file, limit, offset, display_filter)
+        columns = [c.strip() for c in custom_columns.split(",")] if custom_columns else None
+        return await client.get_packet_list(pcap_file, limit, offset, display_filter, columns)
 
     @mcp.tool()
-    async def wireshark_get_packet_details(pcap_file: str, frame_number: int) -> str:
+    async def wireshark_get_packet_details(pcap_file: str, frame_number: int, layers: str = "") -> str:
         """
         [Detail] Get full details for a SINGLE packet (like Wireshark's bottom pane).
         
         Args:
             pcap_file: Path to capture file
             frame_number: The packet number (from wireshark_get_packet_list)
+            layers: Comma-separated list of layers/protocols to include (e.g. "ip,tcp,http").
+                    Reduces output size significantly.
             
         Returns:
             Complete JSON structure of the packet
             
         Example:
-            wireshark_get_packet_details("traffic.pcap", frame_number=42)
+            wireshark_get_packet_details("traffic.pcap", frame_number=42, layers="http")
         """
-        return await client.get_packet_details(pcap_file, frame_number)
+        layer_list = [l.strip() for l in layers.split(",")] if layers else None
+        return await client.get_packet_details(pcap_file, frame_number, layer_list)
+
+    @mcp.tool()
+    async def wireshark_get_packet_bytes(pcap_file: str, frame_number: int) -> str:
+        """
+        [Bytes] Get raw Hex/ASCII dump (like Wireshark's 'Packet Bytes' pane).
+        
+        Args:
+            pcap_file: Path to capture file
+            frame_number: The packet number
+            
+        Returns:
+            Standard Wireshark Hex/ASCII dump.
+            
+        Example:
+            wireshark_get_packet_bytes("traffic.pcap", 42)
+        """
+        return await client.get_packet_bytes(pcap_file, frame_number)
+
+    @mcp.tool()
+    async def wireshark_get_packet_context(pcap_file: str, frame_number: int, count: int = 5) -> str:
+        """
+        [Context] View packets surrounding a specific frame (before and after).
+        Useful for understanding what led to an error or what happened immediately after.
+        
+        Args:
+            pcap_file: Path to capture file
+            frame_number: The center packet number
+            count: Number of packets to show before and after (default: 5)
+            
+        Returns:
+            Tabular packet list centering on the target frame.
+        """
+        start = max(1, frame_number - count)
+        # We can't easily limit the *end* without knowing the total count, 
+        # but we can use 'limit' parameter.
+        # Total rows = count (before) + 1 (target) + count (after) = 2*count + 1
+        limit = count * 2 + 1
+        
+        # We use display filter to ensure we get the specific range
+        # Note: frame.number is 1-based
+        d_filter = f"frame.number >= {start}"
+        
+        # We need to fetch enough packets. 
+        # Since we filter by >= start, if we ask for limit=2*count+1, we get the range [start, start + limit - 1]
+        # which corresponds to [target-count, target+count].
+        # This assumes no display filter is applied in context, which is correct (context is absolute).
+        
+        return await client.get_packet_list(pcap_file, limit=limit, offset=0, display_filter=d_filter)
 
     @mcp.tool()
     async def wireshark_read_packets(pcap_file: str, limit: int = 100, offset: int = 0,
@@ -188,26 +243,32 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         return await client.export_objects(pcap_file, protocol, dest_dir)
 
     @mcp.tool()
-    async def wireshark_search_content(pcap_file: str, match_pattern: str, search_type: str = "string",
-                                     limit: int = 50) -> str:
+    async def wireshark_search_packets(pcap_file: str, match_pattern: str, search_type: str = "string",
+                                     limit: int = 50, scope: str = "bytes") -> str:
         """
         [Search] Find packets containing specific data.
         
         Args:
+            pcap_file: Path to capture file
             match_pattern: Pattern to search for
             search_type: Search method - 'string', 'hex', 'regex'
-            limit: Maximum matches to return
+            limit: Maximum matches to return (default: 50)
+            scope: Search scope - 'bytes' (default), 'details', or 'filter'
+                   - 'bytes': Searches raw packet payload (frame contains)
+                   - 'details': Searches decoded text layer (frame matches)
+                   - 'filter': Uses standard Wireshark display filter syntax (e.g. "http.response.code == 200")
             
         Returns:
-            Matching packets or JSON error
+            List of matching packets (summary view) or JSON error
             
         Errors:
             FileNotFound: pcap_file does not exist
             
         Example:
-            wireshark_search_content("traffic.pcap", "password", search_type="string")
+            wireshark_search_packets("traffic.pcap", "password", scope="bytes")
+            wireshark_search_packets("traffic.pcap", "http.response.code == 200", scope="filter")
         """
-        return await client.search_packet_contents(pcap_file, match_pattern, search_type, limit=limit)
+        return await client.search_packet_contents(pcap_file, match_pattern, search_type, limit=limit, scope=scope)
 
     @mcp.tool()
     async def wireshark_follow_stream(pcap_file: str, stream_index: int, 
