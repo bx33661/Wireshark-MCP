@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wireshark-mcp"
+version = "0.2.1"
+description = "A production-grade Model Context Protocol (MCP) server for Wireshark"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+]
+
+[project.scripts]
+wireshark-mcp = "wireshark_mcp.server:main"
+
+[tool.uv]
+dev-dependencies = []
