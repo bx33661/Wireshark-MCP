@@ -13,17 +13,16 @@ from .tools.capture import register_capture_tools
 from .tools.decode import register_decode_tools
 from .tools.extract import register_extract_tools
 from .tools.files import register_files_tools
-from .tools.protocol import register_protocol_tools
-from .tools.security import register_security_tools
+from .tools.agents import register_agent_tools
+from .tools.registry import ToolRegistry, register_open_file_tool
 from .tools.stats import register_stats_tools
-from .tools.threat import register_threat_tools
 from .tools.visualize import register_visualize_tools
 
 logger = logging.getLogger("wireshark_mcp")
 
 
 def _build_server() -> FastMCP:
-    """Build and configure the MCP server with all tools registered."""
+    """Build and configure the MCP server with progressive discovery."""
     # Read allowed directories from environment
     allowed_dirs_env = os.environ.get("WIRESHARK_MCP_ALLOWED_DIRS", "")
     allowed_dirs = [d.strip() for d in allowed_dirs_env.split(",") if d.strip()] or None
@@ -31,18 +30,24 @@ def _build_server() -> FastMCP:
     mcp = FastMCP("Wireshark MCP", dependencies=["tshark"])
     client = TSharkClient(allowed_dirs=allowed_dirs)
 
-    # Register all tool modules
+    # ── Core tools (always registered) ──────────────────────────────────
     register_capture_tools(mcp, client)
     register_stats_tools(mcp, client)
     register_extract_tools(mcp, client)
     register_files_tools(mcp, client)
-    register_security_tools(mcp, client)
     register_decode_tools(mcp)
     register_visualize_tools(mcp, client)
-    register_protocol_tools(mcp, client)
-    register_threat_tools(mcp, client)
+    register_agent_tools(mcp, client)
 
-    # Register Resources and Prompts
+    # ── Progressive Discovery ───────────────────────────────────────────
+    # Build the contextual tool catalog (not registered yet)
+    registry = ToolRegistry(mcp, client)
+    registry.build_catalog()
+
+    # Register the entry-point tool that activates contextual tools
+    register_open_file_tool(mcp, client, registry)
+
+    # ── Resources and Prompts ───────────────────────────────────────────
     register_resources(mcp)
     register_prompts(mcp)
 
@@ -97,3 +102,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

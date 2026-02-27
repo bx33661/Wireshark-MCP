@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-06-27
+
+### Added
+
+#### 🚀 Agentic Workflows — Server-side Orchestrated Analysis
+- `wireshark_security_audit`: One-call comprehensive security audit (8 analysis phases, risk scoring 0-100, structured report with findings and recommendations)
+- `wireshark_quick_analysis`: One-call traffic overview (file info, protocol distribution, top talkers, conversations, hostnames, anomaly summary)
+
+#### 🔍 Progressive Discovery — Dynamic Tool Registration
+- `wireshark_open_file`: New entry-point tool that analyzes pcap content and dynamically activates protocol-specific tools
+- `ToolRegistry` system: Server starts with ~17 core tools; protocol-specific tools activate on demand when matching protocols are detected
+- `PROTOCOL_TOOL_MAP`: Configurable mapping from protocols (HTTP, DNS, TLS, etc.) to relevant tool sets
+
+### Changed
+- Security tools (`wireshark_check_threats`, `wireshark_extract_credentials`) are now contextual — activated via `wireshark_open_file`
+- Protocol tools (`wireshark_extract_tls_handshakes`, `wireshark_analyze_tcp_health`, `wireshark_detect_arp_spoofing`, `wireshark_extract_smtp_emails`, `wireshark_extract_dhcp_info`) are now contextual
+- Threat detection tools (`wireshark_detect_port_scan`, `wireshark_detect_dns_tunnel`, `wireshark_detect_dos_attack`, `wireshark_analyze_suspicious_traffic`) are now contextual
+- Extract tools (`wireshark_extract_http_requests`, `wireshark_extract_dns_queries`, `wireshark_export_objects`, `wireshark_verify_ssl_decryption`) are now contextual
+
 ## [0.4.0] - 2025-06-01
 
 ### Added
@@ -37,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Decoding: `wireshark_decode_payload` with auto-detection (Base64, Hex, URL, Gzip, Deflate, Rot13)
 - Visualization: ASCII traffic plot, ASCII protocol hierarchy tree
 
-[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.4.0...v0.6.0
 [0.4.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.2.1...v0.4.0
 [0.2.1]: https://github.com/bx33661/Wireshark-MCP/releases/tag/v0.2.1

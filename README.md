@@ -180,9 +180,10 @@ Paste this into your AI client after pointing it at a pcap file:
 ```
 Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 
-- Start with wireshark_get_packet_list to map the traffic.
-- Drill into interesting frames with wireshark_get_packet_details.
-- For TCP/HTTP sessions, use wireshark_follow_stream.
+- Start with wireshark_open_file to load the file and activate relevant tools.
+- Use wireshark_security_audit for a one-call security analysis.
+- Or use wireshark_quick_analysis for a fast traffic overview.
+- Drill into details with wireshark_follow_stream or wireshark_get_packet_details.
 - Never guess — always verify with tools.
 - Write findings to report.md.
 ```
@@ -190,6 +191,21 @@ Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 ---
 
 ## Tools
+
+<details>
+<summary><b>⚡ Agentic Workflows</b> — one-call comprehensive analysis (NEW in v0.6)</summary>
+
+<br>
+
+| Tool | Description |
+|---|---|
+| `wireshark_security_audit` | **One-call security audit**: 8-phase analysis (threat intel, credential scan, port scan, DNS tunnel, cleartext, anomalies) with risk scoring (0-100) and recommendations |
+| `wireshark_quick_analysis` | **One-call traffic overview**: file info, protocol distribution, top talkers, conversations, hostnames, anomaly summary, suggested next steps |
+| `wireshark_open_file` | **Smart file opener**: analyzes pcap content and dynamically activates protocol-specific tools (Progressive Discovery) |
+
+> 💡 These tools replace the need to manually chain 5-10 tool calls. Just call one and get a complete report.
+
+</details>
 
 <details>
 <summary><b>Packet Analysis</b> — inspect, navigate, and search packets</summary>
@@ -297,6 +313,8 @@ Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 | `wireshark_plot_protocols` | ASCII protocol tree — visual overview of what's in the capture |
 
 </details>
+
+> **Note**: Security, Protocol, and Threat tools are *contextual* — they activate automatically when you call `wireshark_open_file`. The Agentic tools (`security_audit`, `quick_analysis`) are always available.
 
 ---
 

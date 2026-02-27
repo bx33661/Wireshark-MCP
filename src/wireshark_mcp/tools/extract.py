@@ -1,8 +1,13 @@
+from typing import Any, List, Tuple
+
 from mcp.server.fastmcp import FastMCP
+
 from ..tshark.client import TSharkClient
 from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
 
+
 def register_extract_tools(mcp: FastMCP, client: TSharkClient):
+    """Register core extract tools (always available)."""
 
     @mcp.tool()
     async def wireshark_get_packet_list(pcap_file: str, limit: int = 20, offset: int = 0,
@@ -81,20 +86,8 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
             Tabular packet list centering on the target frame.
         """
         start = max(1, frame_number - count)
-        # We can't easily limit the *end* without knowing the total count, 
-        # but we can use 'limit' parameter.
-        # Total rows = count (before) + 1 (target) + count (after) = 2*count + 1
         limit = count * 2 + 1
-        
-        # We use display filter to ensure we get the specific range
-        # Note: frame.number is 1-based
         d_filter = f"frame.number >= {start}"
-        
-        # We need to fetch enough packets. 
-        # Since we filter by >= start, if we ask for limit=2*count+1, we get the range [start, start + limit - 1]
-        # which corresponds to [target-count, target+count].
-        # This assumes no display filter is applied in context, which is correct (context is absolute).
-        
         return normalize_tool_result(await client.get_packet_list(pcap_file, limit=limit, offset=0, display_filter=d_filter))
 
     @mcp.tool()
@@ -150,44 +143,6 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         return normalize_tool_result(await client.extract_fields(pcap_file, field_list, display_filter, limit=limit, offset=offset))
 
     @mcp.tool()
-    async def wireshark_extract_http_requests(pcap_file: str, limit: int = 100) -> str:
-        """
-        [Convenience] Extract HTTP request details (method, URI, host).
-        Pre-configured field extraction for HTTP analysis.
-        
-        Returns:
-            Tabular text with HTTP request data or JSON error
-            
-        Example:
-            wireshark_extract_http_requests("web_traffic.pcap", limit=50)
-        """
-        return normalize_tool_result(await client.extract_fields(
-            pcap_file,
-            ["http.request.method", "http.request.uri", "http.host", "http.user_agent"],
-            display_filter="http.request",
-            limit=limit
-        ))
-
-    @mcp.tool()
-    async def wireshark_extract_dns_queries(pcap_file: str, limit: int = 100) -> str:
-        """
-        [Convenience] Extract DNS query details (name, type).
-        Pre-configured for DNS analysis.
-        
-        Returns:
-            Tabular text with DNS queries or JSON error
-            
-        Example:
-            wireshark_extract_dns_queries("dns_traffic.pcap")
-        """
-        return normalize_tool_result(await client.extract_fields(
-            pcap_file,
-            ["dns.qry.name", "dns.qry.type", "dns.flags.response"],
-            display_filter="dns",
-            limit=limit
-        ))
-
-    @mcp.tool()
     async def wireshark_list_ips(pcap_file: str, type: str = "both") -> str:
         """
         [Convenience] List all unique IP addresses in capture.
@@ -229,27 +184,6 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
                     unique_ips.add(ip)
         
         return success_response('\n'.join(sorted(unique_ips)))
-
-    @mcp.tool()
-    async def wireshark_export_objects(pcap_file: str, protocol: str, dest_dir: str) -> str:
-        """
-        [Export] Extract embedded files from traffic.
-        
-        Args:
-            protocol: Protocol type - 'http', 'smb', 'tftp', 'imf', 'dicom'
-            dest_dir: Destination directory for extracted files
-            
-        Returns:
-            Success message or JSON error
-            
-        Errors:
-            FileNotFound: pcap_file does not exist
-            InvalidParameter: Invalid protocol
-            
-        Example:
-            wireshark_export_objects("traffic.pcap", "http", "/tmp/exported")
-        """
-        return normalize_tool_result(await client.export_objects(pcap_file, protocol, dest_dir))
 
     @mcp.tool()
     async def wireshark_search_packets(pcap_file: str, match_pattern: str, search_type: str = "string",
@@ -320,21 +254,84 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
             )
         )
 
-    @mcp.tool()
-    async def wireshark_verify_ssl_decryption(pcap_file: str, keylog_file: str) -> str:
-        """
-        [SSL] Verify TLS decryption with keylog file.
-        
+
+def make_contextual_extract_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
+    """Create contextual extract tools (registered on demand by the registry)."""
+
+    async def wireshark_extract_http_requests(pcap_file: str, limit: int = 100) -> str:
+        """[HTTP] Extract HTTP request details (method, URI, host). Pre-configured for HTTP analysis.
+
         Args:
+            pcap_file: Path to capture file
+            limit: Maximum requests to return (default: 100)
+
+        Returns:
+            Tabular text with HTTP request data or JSON error
+
+        Example:
+            wireshark_extract_http_requests("web_traffic.pcap", limit=50)
+        """
+        return normalize_tool_result(await client.extract_fields(
+            pcap_file,
+            ["http.request.method", "http.request.uri", "http.host", "http.user_agent"],
+            display_filter="http.request",
+            limit=limit
+        ))
+
+    async def wireshark_extract_dns_queries(pcap_file: str, limit: int = 100) -> str:
+        """[DNS] Extract DNS query details (name, type). Pre-configured for DNS analysis.
+
+        Args:
+            pcap_file: Path to capture file
+            limit: Maximum queries to return (default: 100)
+
+        Returns:
+            Tabular text with DNS queries or JSON error
+
+        Example:
+            wireshark_extract_dns_queries("dns_traffic.pcap")
+        """
+        return normalize_tool_result(await client.extract_fields(
+            pcap_file,
+            ["dns.qry.name", "dns.qry.type", "dns.flags.response"],
+            display_filter="dns",
+            limit=limit
+        ))
+
+    async def wireshark_export_objects(pcap_file: str, protocol: str, dest_dir: str) -> str:
+        """[Export] Extract embedded files from traffic (HTTP, SMB, TFTP, etc.).
+
+        Args:
+            pcap_file: Path to capture file
+            protocol: Protocol type - 'http', 'smb', 'tftp', 'imf', 'dicom'
+            dest_dir: Destination directory for extracted files
+
+        Returns:
+            Success message or JSON error
+
+        Example:
+            wireshark_export_objects("traffic.pcap", "http", "/tmp/exported")
+        """
+        return normalize_tool_result(await client.export_objects(pcap_file, protocol, dest_dir))
+
+    async def wireshark_verify_ssl_decryption(pcap_file: str, keylog_file: str) -> str:
+        """[TLS] Verify TLS decryption with keylog file.
+
+        Args:
+            pcap_file: Path to capture file
             keylog_file: Path to SSL/TLS keylog file (SSLKEYLOGFILE format)
-            
+
         Returns:
             Expert info with decryption status or JSON error
-            
-        Errors:
-            FileNotFound: pcap_file or keylog_file does not exist
-            
+
         Example:
             wireshark_verify_ssl_decryption("https.pcap", "ssl_keylog.txt")
         """
         return normalize_tool_result(await client.decrypt_ssl(pcap_file, keylog_file))
+
+    return [
+        ("wireshark_extract_http_requests", wireshark_extract_http_requests),
+        ("wireshark_extract_dns_queries", wireshark_extract_dns_queries),
+        ("wireshark_export_objects", wireshark_export_objects),
+        ("wireshark_verify_ssl_decryption", wireshark_verify_ssl_decryption),
+    ]

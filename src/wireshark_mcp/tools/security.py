@@ -1,9 +1,11 @@
+"""Security analysis tools for Wireshark MCP."""
+
 import asyncio
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from mcp.server.fastmcp import FastMCP
 
@@ -55,20 +57,23 @@ async def _get_threat_data() -> str:
 
 
 def register_security_tools(mcp: FastMCP, client: TSharkClient) -> None:
+    """Register core security tools (always available)."""
+    # No core security tools — all are contextual.
+    # This function is kept for backward compatibility but does nothing.
+    pass
 
-    @mcp.tool()
+
+def make_contextual_security_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
+    """Create contextual security tools (registered on demand by the registry)."""
+
     async def wireshark_check_threats(pcap_file: str) -> str:
-        """
-        [Security] Check captured IPs against URLhaus threat intelligence.
-        Downloads and caches threat feed from abuse.ch (cached for 24h).
+        """[Security] Check captured IPs against URLhaus threat intelligence (cached 24h).
+
+        Args:
+            pcap_file: Path to capture file
 
         Returns:
             Threat analysis summary or JSON error
-
-        Errors:
-            FileNotFound: pcap_file does not exist
-            DependencyError: Failed to extract IPs
-            NetworkError: Failed to download threat feed
 
         Example:
             wireshark_check_threats("suspicious.pcap")
@@ -122,18 +127,14 @@ def register_security_tools(mcp: FastMCP, client: TSharkClient) -> None:
                 details=str(e),
             )
 
-    @mcp.tool()
     async def wireshark_extract_credentials(pcap_file: str) -> str:
-        """
-        [Security] Scan for plaintext credentials in traffic.
-        Detects: HTTP Basic Auth, FTP passwords, Telnet login attempts.
+        """[Security] Scan for plaintext credentials (HTTP Basic Auth, FTP passwords, Telnet).
+
+        Args:
+            pcap_file: Path to capture file
 
         Returns:
             Credential findings summary or JSON error
-
-        Errors:
-            FileNotFound: pcap_file does not exist
-            DependencyError: Field extraction failed
 
         Example:
             wireshark_extract_credentials("insecure.pcap")
@@ -168,3 +169,8 @@ def register_security_tools(mcp: FastMCP, client: TSharkClient) -> None:
             return success_response("No obvious plaintext credentials found.")
 
         return success_response("\n\n---\n".join(findings))
+
+    return [
+        ("wireshark_check_threats", wireshark_check_threats),
+        ("wireshark_extract_credentials", wireshark_extract_credentials),
+    ]

@@ -180,9 +180,10 @@ args = ["tool", "run", "wireshark-mcp"]
 ```
 使用 Wireshark MCP 工具分析 <path/to/file.pcap>。
 
-- 先用 wireshark_get_packet_list 获取流量概览
-- 对感兴趣的帧使用 wireshark_get_packet_details 查看详情
-- 对于 TCP/HTTP 会话，使用 wireshark_follow_stream 查看完整对话
+- 先用 wireshark_open_file 加载文件并激活相关工具
+- 使用 wireshark_security_audit 一键安全审计
+- 或用 wireshark_quick_analysis 快速了解流量概况
+- 需要细节时使用 wireshark_follow_stream 或 wireshark_get_packet_details
 - 不要猜测 — 始终用工具验证
 - 将分析结果写入 report.md
 ```
@@ -190,6 +191,21 @@ args = ["tool", "run", "wireshark-mcp"]
 ---
 
 ## 工具集
+
+<details>
+<summary><b>⚡ Agentic Workflows</b> — 一键综合分析（v0.6 新增）</summary>
+
+<br>
+
+| 工具 | 描述 |
+|---|---|
+| `wireshark_security_audit` | **一键安全审计**：8 阶段分析（威胁情报、凭证扫描、端口扫描、DNS 隧道、明文协议、异常检测），输出风险评分（0-100）和修复建议 |
+| `wireshark_quick_analysis` | **一键流量概览**：文件信息、协议分布、Top Talkers、会话统计、域名/主机名、异常摘要、下一步建议 |
+| `wireshark_open_file` | **智能打开文件**：分析 pcap 内容并自动激活协议相关工具（Progressive Discovery）|
+
+> 💡 这些工具替代了手动串联 5-10 次 tool call。只需一次调用即可获得完整报告。
+
+</details>
 
 <details>
 <summary><b>数据包分析</b> — 检查、浏览、搜索数据包</summary>
@@ -297,6 +313,8 @@ args = ["tool", "run", "wireshark-mcp"]
 | `wireshark_plot_protocols` | ASCII 协议分层树 — 直观查看抓包中的协议分布 |
 
 </details>
+
+> **注意**：安全分析、协议分析、威胁检测工具为*上下文工具* — 调用 `wireshark_open_file` 后自动激活。Agentic 工具（`security_audit`、`quick_analysis`）始终可用。
 
 ---
 

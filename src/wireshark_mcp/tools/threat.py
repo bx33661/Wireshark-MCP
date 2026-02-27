@@ -1,7 +1,7 @@
 """Advanced threat detection and security analysis tools for Wireshark MCP."""
 
 import logging
-from typing import List
+from typing import Any, List, Tuple
 
 from mcp.server.fastmcp import FastMCP
 
@@ -12,13 +12,17 @@ logger = logging.getLogger("wireshark_mcp")
 
 
 def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
-    """Register advanced threat detection tools."""
+    """Register core threat detection tools (always available)."""
+    # No core threat tools — all are contextual.
+    # This function is kept for backward compatibility but does nothing.
+    pass
 
-    @mcp.tool()
+
+def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
+    """Create contextual threat tools (registered on demand by the registry)."""
+
     async def wireshark_detect_port_scan(pcap_file: str, threshold: int = 15) -> str:
-        """
-        [Security] Detect port scanning activity.
-        Identifies hosts that connect to many different destination ports (SYN scan, connect scan).
+        """[Security] Detect port scanning (SYN, FIN, NULL, Xmas scans).
 
         Args:
             pcap_file: Path to capture file
@@ -50,7 +54,7 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
         src_to_targets: dict[str, set[str]] = {}
 
         lines = data.strip().splitlines()
-        for line in lines[1:]:  # skip header
+        for line in lines[1:]:
             parts = line.split("\t")
             if len(parts) >= 3:
                 src = parts[0].strip().strip('"')
@@ -82,12 +86,10 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                 results.append("")
         else:
             results.append(f"🟢 No port scanning detected (threshold: {threshold} unique ports)")
-            # Show summary of SYN activity anyway
             results.append(f"\nSYN packets analyzed: {len(lines) - 1}")
             results.append(f"Unique source IPs: {len(src_to_ports)}")
 
         # Check for specific scan types
-        # SYN-FIN scan (invalid flag combination)
         synfin_result = await client.get_packet_list(
             pcap_file, limit=10,
             display_filter="tcp.flags.syn == 1 and tcp.flags.fin == 1",
@@ -100,7 +102,6 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                 if len(synfin_lines) > 1:
                     results.append(f"\n🔴 SYN-FIN packets detected ({len(synfin_lines) - 1}) — possible Xmas/stealth scan!")
 
-        # NULL scan (no flags)
         null_result = await client.get_packet_list(
             pcap_file, limit=10,
             display_filter="tcp.flags == 0",
@@ -115,11 +116,8 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
         return success_response("\n".join(results))
 
-    @mcp.tool()
     async def wireshark_detect_dns_tunnel(pcap_file: str) -> str:
-        """
-        [Security] Detect potential DNS tunneling.
-        Checks for: unusually long DNS queries, high query volume, TXT record abuse, entropy analysis.
+        """[Security] Detect DNS tunneling (long queries, TXT abuse, subdomain entropy).
 
         Args:
             pcap_file: Path to capture file
@@ -130,7 +128,6 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
         Example:
             wireshark_detect_dns_tunnel("exfiltration.pcap")
         """
-        # Extract DNS query names and types
         dns_result = await client.extract_fields(
             pcap_file,
             ["ip.src", "dns.qry.name", "dns.qry.type", "dns.resp.len"],
@@ -145,11 +142,10 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
         if not isinstance(data, str) or len(data.strip()) < 20:
             return success_response("No DNS traffic found in this capture.")
 
-        # Analyze DNS patterns
         long_queries: List[str] = []
         txt_queries: List[str] = []
         query_by_src: dict[str, int] = {}
-        unique_subdomains: dict[str, set[str]] = {}  # base domain → subdomains
+        unique_subdomains: dict[str, set[str]] = {}
         total_queries = 0
 
         lines = data.strip().splitlines()
@@ -166,15 +162,12 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                 total_queries += 1
                 query_by_src[src] = query_by_src.get(src, 0) + 1
 
-                # Check query length (DNS tunnel queries are typically very long)
                 if len(qname) > 50:
                     long_queries.append(qname)
 
-                # Check for TXT queries (common tunnel mechanism)
                 if qtype in ("16", "TXT"):
                     txt_queries.append(qname)
 
-                # Track subdomains per base domain
                 parts_domain = qname.split(".")
                 if len(parts_domain) >= 3:
                     base = ".".join(parts_domain[-2:])
@@ -187,7 +180,6 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
         indicators = 0
 
-        # Indicator 1: Long query names
         if long_queries:
             indicators += 1
             results.append(f"\n🔴 Long DNS queries detected: {len(long_queries)}")
@@ -196,14 +188,12 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
             if len(long_queries) > 5:
                 results.append(f"  ... and {len(long_queries) - 5} more")
 
-        # Indicator 2: Excessive TXT record queries
         if len(txt_queries) > 10:
             indicators += 1
             results.append(f"\n🟠 High TXT record query count: {len(txt_queries)}")
             unique_txt = set(txt_queries)
             results.append(f"  Unique TXT domains: {len(unique_txt)}")
 
-        # Indicator 3: Domain with many unique subdomains
         suspicious_domains = {
             domain: subs
             for domain, subs in unique_subdomains.items()
@@ -215,14 +205,12 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
             for domain, subs in sorted(suspicious_domains.items(), key=lambda x: len(x[1]), reverse=True)[:5]:
                 results.append(f"  {domain}: {len(subs)} unique subdomains")
 
-        # Indicator 4: Single host making excessive DNS queries
         heavy_queriers = {src: cnt for src, cnt in query_by_src.items() if cnt > 100}
         if heavy_queriers:
             results.append(f"\n🟡 High-volume DNS clients:")
             for src, cnt in sorted(heavy_queriers.items(), key=lambda x: x[1], reverse=True)[:5]:
                 results.append(f"  {src}: {cnt} queries")
 
-        # Summary
         if indicators >= 2:
             results.insert(1, "⚠️  HIGH probability of DNS tunneling!\n")
         elif indicators == 1:
@@ -232,11 +220,8 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
         return success_response("\n".join(results))
 
-    @mcp.tool()
     async def wireshark_detect_dos_attack(pcap_file: str) -> str:
-        """
-        [Security] Detect potential DoS/DDoS attack patterns.
-        Checks for: SYN floods, ICMP floods, UDP floods, amplification attacks, traffic spikes.
+        """[Security] Detect DoS/DDoS patterns (SYN flood, ICMP/UDP flood, DNS amplification).
 
         Args:
             pcap_file: Path to capture file
@@ -251,7 +236,7 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
         results.append("=== DoS/DDoS Detection ===\n")
         indicators = 0
 
-        # Check 1: SYN Flood — high ratio of SYN to SYN-ACK
+        # Check 1: SYN Flood
         syn_count = 0
         synack_count = 0
 
@@ -300,7 +285,7 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                 else:
                     results.append(f"🟢 ICMP count normal: {icmp_count}")
 
-        # Check 3: UDP Flood (high volume of small UDP)
+        # Check 3: UDP Flood
         udp_result = await client.extract_fields(
             pcap_file,
             ["ip.dst", "udp.dstport", "frame.len"],
@@ -315,7 +300,6 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                 udp_count = max(0, len(udp_lines) - 1)
 
                 if udp_count > 1000:
-                    # Check if many go to the same destination
                     dst_counts: dict[str, int] = {}
                     for line in udp_lines[1:]:
                         parts = line.split("\t")
@@ -332,7 +316,7 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                 else:
                     results.append(f"🟢 UDP count normal: {udp_count}")
 
-        # Check 4: DNS Amplification (large DNS responses)
+        # Check 4: DNS Amplification
         dns_result = await client.get_packet_list(
             pcap_file, limit=1000,
             display_filter="dns.flags.response == 1 and udp.length > 512",
@@ -348,7 +332,6 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                 else:
                     results.append(f"🟢 Large DNS responses: {large_dns}")
 
-        # Summary
         results.append("\n--- Summary ---")
         if indicators >= 2:
             results.append("⚠️  HIGH probability of DoS/DDoS attack!")
@@ -359,11 +342,8 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
         return success_response("\n".join(results))
 
-    @mcp.tool()
     async def wireshark_analyze_suspicious_traffic(pcap_file: str) -> str:
-        """
-        [Security] Comprehensive suspicious traffic analysis.
-        Runs multiple anomaly checks: unusual ports, cleartext protocols, beaconing, data volume anomalies.
+        """[Security] Comprehensive anomaly analysis (cleartext, unusual ports, data volumes).
 
         Args:
             pcap_file: Path to capture file
@@ -378,7 +358,7 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
         results.append("=== Comprehensive Suspicious Traffic Analysis ===\n")
         findings: List[str] = []
 
-        # Check 1: Cleartext protocols (security risk)
+        # Check 1: Cleartext protocols
         cleartext_checks = [
             ("FTP", "ftp"),
             ("Telnet", "telnet"),
@@ -402,7 +382,7 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                     else:
                         results.append(f"  🟢 {name}: not found")
 
-        # Check 2: Unusual destination ports (potential C2 or backdoor)
+        # Check 2: Unusual destination ports
         results.append("\n--- Unusual Port Usage ---")
         unusual_ports_filter = (
             "tcp.dstport > 1024 and tcp.dstport != 3306 and tcp.dstport != 3389 "
@@ -426,7 +406,6 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                         port = parts[2].strip().strip('"')
                         port_freq[port] = port_freq.get(port, 0) + 1
 
-                # Show top high-port connections
                 top_ports = sorted(port_freq.items(), key=lambda x: x[1], reverse=True)[:10]
                 if top_ports:
                     results.append("  Top high ports (>1024):")
@@ -441,12 +420,11 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
             conv_data = conv_wrapped.get("data", "")
             if isinstance(conv_data, str) and len(conv_data.strip()) > 20:
                 results.append("  See conversation stats below:")
-                # Take first 10 lines of conversation data
                 conv_lines = conv_data.strip().splitlines()[:15]
                 for line in conv_lines:
                     results.append(f"  {line}")
 
-        # Check 4: Potential beaconing (regular interval connections)
+        # Check 4: Protocol anomalies
         results.append("\n--- Protocol Anomalies ---")
         expert_result = await client.get_expert_info(pcap_file)
         expert_wrapped = parse_tool_result(expert_result)
@@ -461,7 +439,6 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
                     findings.append("Reassembly errors found")
                     results.append("  🟠 Reassembly errors detected")
 
-        # Summary
         results.append(f"\n=== Summary: {len(findings)} finding(s) ===")
         if findings:
             for i, finding in enumerate(findings, 1):
@@ -470,3 +447,10 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
             results.append("  No critical anomalies detected.")
 
         return success_response("\n".join(results))
+
+    return [
+        ("wireshark_detect_port_scan", wireshark_detect_port_scan),
+        ("wireshark_detect_dns_tunnel", wireshark_detect_dns_tunnel),
+        ("wireshark_detect_dos_attack", wireshark_detect_dos_attack),
+        ("wireshark_analyze_suspicious_traffic", wireshark_analyze_suspicious_traffic),
+    ]
