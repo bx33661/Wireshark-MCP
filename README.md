@@ -76,7 +76,13 @@ pip install git+https://github.com/bx33661/Wireshark-MCP.git
 
 ## Configuration
 
-Add to your MCP client config (e.g. `claude_desktop_config.json`):
+<details>
+<summary><b>Claude Desktop</b></summary>
+
+Edit `claude_desktop_config.json`:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -89,7 +95,81 @@ Add to your MCP client config (e.g. `claude_desktop_config.json`):
 }
 ```
 
-> You can also run directly with `python -m wireshark_mcp`.
+</details>
+
+<details>
+<summary><b>Claude Code (CLI)</b></summary>
+
+```bash
+claude mcp add wireshark -- uv tool run wireshark-mcp
+```
+
+Or edit `~/.claude/claude_desktop_config.json` with the same JSON format above.
+
+</details>
+
+<details>
+<summary><b>Cursor</b></summary>
+
+Go to **Settings → Features → MCP Servers → Add new MCP server**:
+
+- **Name**: `wireshark`
+- **Type**: `command`
+- **Command**: `uv tool run wireshark-mcp`
+
+Or edit `.cursor/mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "wireshark": {
+      "command": "uv",
+      "args": ["tool", "run", "wireshark-mcp"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>OpenAI Codex CLI</b></summary>
+
+```bash
+codex mcp add wireshark -- uv tool run wireshark-mcp
+```
+
+Or edit `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.wireshark]
+command = "uv"
+args = ["tool", "run", "wireshark-mcp"]
+```
+
+</details>
+
+<details>
+<summary><b>Trae AI IDE</b></summary>
+
+Go to **Settings → MCP → Add MCP Server → Manual**, then paste:
+
+```json
+{
+  "mcpServers": {
+    "wireshark": {
+      "command": "uv",
+      "args": ["tool", "run", "wireshark-mcp"]
+    }
+  }
+}
+```
+
+Or edit `.trae/mcp.json` in your project root.
+
+</details>
+
+> **Docker / SSE mode**: `docker compose up -d` then point your client to `http://localhost:8080/sse`
 
 ---
 
