@@ -1,127 +1,224 @@
-# Wireshark MCP
+<div align="center">
 
-Simple [MCP Server](https://modelcontextprotocol.io/introduction) to allow vibe packet analysis in Wireshark.
+<br>
 
-[English](README.md) | [中文](README_zh.md)
+<img src="Logo.png" width="120" alt="Wireshark MCP">
+
+<h1>Wireshark MCP</h1>
+
+<p><strong>Give your AI assistant a packet analyzer.</strong><br>
+Drop a <code>.pcap</code> file, ask questions in plain English — get answers backed by real <code>tshark</code> data.</p>
+
+<p>
+  <a href="https://github.com/bx33661/Wireshark-MCP/actions/workflows/ci.yml">
+    <img src="https://github.com/bx33661/Wireshark-MCP/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://pypi.org/project/wireshark-mcp/">
+    <img src="https://img.shields.io/pypi/v/wireshark-mcp?label=PyPI&color=0066cc" alt="PyPI">
+  </a>
+  <a href="https://pypi.org/project/wireshark-mcp/">
+    <img src="https://img.shields.io/pypi/pyversions/wireshark-mcp?label=Python" alt="Python">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License">
+  </a>
+</p>
+
+<p>
+  <a href="README.md">English</a> ·
+  <a href="README_zh.md">中文</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+<br>
+
+</div>
+
+---
+
+## What is this?
+
+Wireshark MCP is an [MCP Server](https://modelcontextprotocol.io/introduction) that wraps `tshark` into structured tools, letting AI assistants like Claude or Cursor perform deep packet analysis without you touching the command line.
+
+```
+You:    "Find all DNS queries going to suspicious domains in this capture."
+Claude: [calls wireshark_extract_dns_queries → wireshark_check_threats]
+        "Found 3 queries to domains flagged by URLhaus: ..."
+```
+
+---
 
 ## Prerequisites
 
-- [Python](https://www.python.org/downloads/) (**3.10 or higher**)
-- [Wireshark](https://www.wireshark.org/) (ensure `tshark` is in your PATH)
-- Supported MCP Client (pick one you like)
-  - [Claude Code](https://www.anthropic.com/code)
-  - [Claude](https://claude.ai/download)
-  - [Cursor](https://cursor.com)
-  - [VS Code](https://code.visualstudio.com/) with generic MCP client extension
-  - [Other MCP Clients](https://modelcontextprotocol.io/clients#example-clients)
+- **Python 3.10+**
+- **Wireshark** installed with `tshark` available in your PATH
+- Any [MCP-compatible client](https://modelcontextprotocol.io/clients): Claude Desktop, Claude Code, Cursor, VS Code, etc.
+
+---
 
 ## Installation
-
-Install the latest version of the Wireshark MCP package:
 
 ```sh
 pip install wireshark-mcp
 ```
 
-Or install directly from source:
+<details>
+<summary>Install from source</summary>
 
 ```sh
 pip install git+https://github.com/bx33661/Wireshark-MCP.git
 ```
 
+</details>
+
+---
+
 ## Configuration
 
-Add the server to your MCP client configuration (e.g., `claude_desktop_config.json`):
+Add to your MCP client config (e.g. `claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
     "wireshark": {
       "command": "uv",
-      "args": [
-        "tool",
-        "run",
-        "wireshark-mcp"
-      ]
+      "args": ["tool", "run", "wireshark-mcp"]
     }
   }
 }
 ```
 
-_Note_: You can also run it directly with `python -m wireshark_mcp` if installed in your environment.
+> You can also run directly with `python -m wireshark_mcp`.
 
-## Prompt Engineering
+---
 
-LLMs are good at general analysis but can struggle with the specifics of packet dissection. Below is a minimal example prompt strategy:
+## Quick Start
 
-```md
-Your task is to analyze a pcap file using Wireshark MCP tools.
-- Start by getting a packet list summary to understand the traffic flow (`wireshark_get_packet_list`).
-- If you see interesting packets, get full details for that specific frame (`wireshark_get_packet_details`).
-- For TCP/HTTP flows, use `wireshark_follow_stream` to see the full conversation.
-- Use `wireshark_extract_http_requests` or `wireshark_extract_dns_queries` for quick high-level overviews.
-- NEVER try to guess packet contents; always verify with the tools.
-- Create a report.md with your findings.
+Paste this into your AI client after pointing it at a pcap file:
+
+```
+Analyze <path/to/file.pcap> using the Wireshark MCP tools.
+
+- Start with wireshark_get_packet_list to map the traffic.
+- Drill into interesting frames with wireshark_get_packet_details.
+- For TCP/HTTP sessions, use wireshark_follow_stream.
+- Never guess — always verify with tools.
+- Write findings to report.md.
 ```
 
-## Available Tools
+---
 
-### Packet Analysis (extract.py)
-- `wireshark_get_packet_list(pcap_file, limit=20, offset=0, display_filter="", custom_columns="")`:
-    Get summary list of packets. Supports custom columns (e.g., "ip.src,http.host") to replace default view.
-- `wireshark_get_packet_details(pcap_file, frame_number, layers="")`:
-    Get full JSON details for a single packet. Supports layer filtering (e.g., "ip,tcp,http") to significantly reduce token usage.
-- `wireshark_get_packet_bytes(pcap_file, frame_number)`: 
-    **[New]** Get raw Hex/ASCII dump (Packet Bytes view).
-- `wireshark_get_packet_context(pcap_file, frame_number, count=5)`:
-    **[New]** View packets surrounding a specific frame (before and after) to understand context.
-- `wireshark_follow_stream(...)`: Reassemble and view complete stream content with pagination and search.
-- `wireshark_search_packets(pcap_file, match_pattern, search_type="string", limit=50, scope="bytes")`: 
-    **[Enhanced]** Find packets.
-    *   `scope="bytes"`: Search in raw payload (Hex/String).
-    *   `scope="details"`: Search in decoded text/fields (Regex supported).
-- `wireshark_read_packets(...)`: [DEPRECATED] Use `get_packet_details` instead.
+## Tools
 
-### Data Extraction (extract.py)
-- `wireshark_extract_fields(pcap_file, fields, display_filter="", limit=100, offset=0)`: Extract specific fields as tabular data.
-- `wireshark_extract_http_requests(pcap_file, limit=100)`: Convenience tool for HTTP method, URI, host.
-- `wireshark_extract_dns_queries(pcap_file, limit=100)`: Convenience tool for DNS queries.
-- `wireshark_list_ips(pcap_file, type="both")`: List all unique IP addresses (src, dst, or both).
-- `wireshark_export_objects(pcap_file, protocol, dest_dir)`: Extract embedded files (http, smb, etc.) from traffic.
-- `wireshark_verify_ssl_decryption(pcap_file, keylog_file)`: Verify TLS decryption using a keylog file.
+<details>
+<summary><b>Packet Analysis</b> — inspect, navigate, and search packets</summary>
 
-### Statistics (stats.py)
-- `wireshark_stats_protocol_hierarchy(pcap_file)`: Get Protocol Hierarchy Statistics (PHS).
-- `wireshark_stats_endpoints(pcap_file, type="ip")`: List all endpoints and their traffic stats.
-- `wireshark_stats_conversations(pcap_file, type="ip")`: Show communication pairs and their stats.
-- `wireshark_stats_io_graph(pcap_file, interval=1)`: Get traffic volume over time (I/O Graph).
-- `wireshark_stats_expert_info(pcap_file)`: Get Expert Information (anomalies, warnings).
-- `wireshark_stats_service_response_time(pcap_file, protocol="http")`: Service Response Time (SRT) statistics.
+<br>
 
-### File Operations (files.py & capture.py)
-- `wireshark_get_file_info(pcap_file)`: Get detailed metadata about a capture file (capinfos).
-- `wireshark_merge_pcaps(output_file, input_files)`: Merge multiple capture files into one.
-- `wireshark_list_interfaces()`: List available network interfaces for capture.
-- `wireshark_capture(interface, output_file, duration_seconds=10, packet_count=0, capture_filter="", ring_buffer="")`: Capture live network traffic.
-- `wireshark_filter_save(input_file, output_file, display_filter)`: Filter packets from a pcap and save to a new file.
+| Tool | Description |
+|---|---|
+| `wireshark_get_packet_list` | Paginated packet list with display filter and custom column support |
+| `wireshark_get_packet_details` | Full JSON dissection of a single frame, with optional layer filtering to cut token usage |
+| `wireshark_get_packet_bytes` | Raw Hex + ASCII dump (Wireshark's "Packet Bytes" pane) |
+| `wireshark_get_packet_context` | View N packets before and after a frame for contextual debugging |
+| `wireshark_follow_stream` | Reassemble a full TCP / UDP / HTTP stream with pagination and search |
+| `wireshark_search_packets` | Pattern search across raw bytes or decoded fields (Regex supported) |
 
-### Security (security.py)
-- `wireshark_check_threats(pcap_file)`: Check captured IPs against URLhaus threat intelligence.
-- `wireshark_extract_credentials(pcap_file)`: Scan for plaintext credentials (HTTP Auth, FTP, Telnet).
+</details>
 
-### Decoding (decode.py)
-- `wireshark_decode_payload(data, encoding="auto")`: Decode common encodings (Base64, Hex, URL, Gzip, Deflate, Rot13, etc.) with smart auto-detection.
+<details>
+<summary><b>Data Extraction</b> — pull structured data from captures</summary>
 
-### Visualization (visualize.py)
-- `wireshark_plot_traffic(pcap_file, interval=1)`: Generate ASCII bar chart of traffic volume over time.
-- `wireshark_plot_protocols(pcap_file)`: Generate ASCII tree view of protocol hierarchy.
+<br>
+
+| Tool | Description |
+|---|---|
+| `wireshark_extract_fields` | Extract any tshark fields as a table |
+| `wireshark_extract_http_requests` | HTTP method, URI, and host for every request |
+| `wireshark_extract_dns_queries` | All DNS queries in the capture |
+| `wireshark_list_ips` | All unique source, destination, or both IP addresses |
+| `wireshark_export_objects` | Extract embedded files (HTTP, SMB, TFTP, etc.) |
+| `wireshark_verify_ssl_decryption` | Confirm TLS decryption using a keylog file |
+
+</details>
+
+<details>
+<summary><b>Statistics</b> — traffic patterns and anomaly detection</summary>
+
+<br>
+
+| Tool | Description |
+|---|---|
+| `wireshark_stats_protocol_hierarchy` | Protocol Hierarchy Statistics — see what protocols dominate |
+| `wireshark_stats_endpoints` | All endpoints sorted by traffic volume |
+| `wireshark_stats_conversations` | Communication pairs with byte/packet counts |
+| `wireshark_stats_io_graph` | Traffic volume over time (spot DDoS, scans, bursts) |
+| `wireshark_stats_expert_info` | Wireshark's expert analysis: errors, warnings, notes |
+| `wireshark_stats_service_response_time` | SRT stats for HTTP, DNS, and other protocols |
+
+</details>
+
+<details>
+<summary><b>File Operations & Live Capture</b></summary>
+
+<br>
+
+| Tool | Description |
+|---|---|
+| `wireshark_get_file_info` | File metadata via `capinfos` (duration, packet count, link type) |
+| `wireshark_merge_pcaps` | Merge multiple captures into one file |
+| `wireshark_filter_save` | Apply a display filter and save matching packets to a new file |
+| `wireshark_list_interfaces` | List available network interfaces |
+| `wireshark_capture` | Start a live capture (duration, packet count, BPF filter, ring buffer) |
+
+</details>
+
+<details>
+<summary><b>Security Analysis</b></summary>
+
+<br>
+
+| Tool | Description |
+|---|---|
+| `wireshark_check_threats` | Cross-reference captured IPs against [URLhaus](https://urlhaus.abuse.ch/) threat intelligence |
+| `wireshark_extract_credentials` | Detect plaintext credentials in HTTP Basic Auth, FTP, and Telnet |
+
+</details>
+
+<details>
+<summary><b>Decoding & Visualization</b></summary>
+
+<br>
+
+| Tool | Description |
+|---|---|
+| `wireshark_decode_payload` | Auto-detect and decode Base64, Hex, URL encoding, Gzip, Deflate, Rot13, and more |
+| `wireshark_plot_traffic` | ASCII bar chart of traffic over time — spot DDoS or scan patterns instantly |
+| `wireshark_plot_protocols` | ASCII protocol tree — visual overview of what's in the capture |
+
+</details>
+
+---
 
 ## Development
 
-To test the MCP server itself:
+**Test with the MCP Inspector** (opens a local web UI to call tools interactively):
 
 ```sh
 npx -y @modelcontextprotocol/inspector uv run wireshark-mcp
 ```
 
-This will open a web interface where you can interact with the tools directly.
+**Run the test suite:**
+
+```sh
+pytest tests/
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup guide.
+
+---
+
+<div align="center">
+<sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/bx33661/Wireshark-MCP/issues">Report a Bug</a></sub>
+</div>
