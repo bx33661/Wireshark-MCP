@@ -1,20 +1,19 @@
-import unittest
-import sys
-import os
+"""Tests for visualization tools (pure parsing functions)."""
 
-# Add src to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+import pytest
 
 from wireshark_mcp.tools.visualize import (
-    _parse_io_graph, 
-    _render_ascii_bar_chart, 
+    _parse_io_graph,
     _parse_protocol_hierarchy,
-    _render_ascii_tree
+    _render_ascii_bar_chart,
+    _render_ascii_tree,
 )
 
-class TestVisualize(unittest.TestCase):
-    
-    def test_parse_io_graph(self):
+
+class TestParseIOGraph:
+    """Tests for I/O graph output parsing."""
+
+    def test_parses_standard_output(self) -> None:
         output = """
 ===================================================================
 IO Statistics
@@ -27,24 +26,42 @@ Time            |Frames|  Bytes  |
 ===================================================================
         """
         data = _parse_io_graph(output)
-        self.assertEqual(len(data), 2)
-        self.assertEqual(data[0], (0.0, 154))
-        self.assertEqual(data[1], (1.0, 20))
+        assert len(data) == 2
+        assert data[0] == (0.0, 154)
+        assert data[1] == (1.0, 20)
 
-    def test_render_ascii_bar_chart(self):
+    def test_empty_output(self) -> None:
+        data = _parse_io_graph("")
+        assert data == []
+
+
+class TestRenderAsciiBarChart:
+    """Tests for ASCII bar chart rendering."""
+
+    def test_basic_chart(self) -> None:
         data = [(0.0, 100), (1.0, 50), (2.0, 0)]
         chart = _render_ascii_bar_chart(data, height=5)
-        self.assertIn("Max: 100", chart)
-        # Should contain full block for 100
-        self.assertIn("█", chart)
-        # Should contain baseline
-        self.assertIn("_", chart)
+        assert "Max: 100" in chart
+        assert "█" in chart
+        assert "_" in chart
 
-    def test_parse_protocol_hierarchy(self):
+    def test_no_data(self) -> None:
+        result = _render_ascii_bar_chart([])
+        assert "No traffic data" in result
+
+    def test_all_zero(self) -> None:
+        result = _render_ascii_bar_chart([(0.0, 0), (1.0, 0)])
+        assert "No packets" in result
+
+
+class TestParseProtocolHierarchy:
+    """Tests for protocol hierarchy parsing."""
+
+    def test_nested_protocols(self) -> None:
         output = """
 ===================================================================
 Protocol Hierarchy Statistics
-Filter: 
+Filter:
 protocol        frames:bytes
 eth             100:1000
   ip            100:1000
@@ -53,25 +70,33 @@ eth             100:1000
 ===================================================================
         """
         root = _parse_protocol_hierarchy(output)
-        self.assertEqual(root["children"][0]["name"], "eth")
+        assert root["children"][0]["name"] == "eth"
         eth = root["children"][0]
-        self.assertEqual(len(eth["children"]), 1)
         ip = eth["children"][0]
-        self.assertEqual(ip["name"], "ip")
-        self.assertEqual(len(ip["children"]), 2) # tcp, udp
+        assert ip["name"] == "ip"
+        assert len(ip["children"]) == 2
 
-    def test_render_ascii_tree(self):
+    def test_empty_output(self) -> None:
+        root = _parse_protocol_hierarchy("")
+        assert root["children"] == []
+
+
+class TestRenderAsciiTree:
+    """Tests for ASCII tree rendering."""
+
+    def test_basic_tree(self) -> None:
         root = {
-            "name": "root", "frames": 100, "children": [
-                {"name": "eth", "frames": 100, "children": [
-                    {"name": "ip", "frames": 50, "children": []}
-                ]}
-            ]
+            "name": "root", "frames": 100, "bytes": 0, "children": [
+                {"name": "eth", "frames": 100, "bytes": 0, "children": [
+                    {"name": "ip", "frames": 50, "bytes": 0, "children": []},
+                ]},
+            ],
         }
         lines = _render_ascii_tree(root, total_frames=100)
-        self.assertTrue(any("eth (100.0%)" in line for line in lines))
-        # Check hierarchy connector
-        self.assertTrue(any("└── " in line for line in lines))
+        assert any("eth (100.0%)" in line for line in lines)
+        assert any("└── " in line for line in lines)
 
-if __name__ == '__main__':
-    unittest.main()
+    def test_empty_tree(self) -> None:
+        root = {"name": "root", "frames": 0, "bytes": 0, "children": []}
+        lines = _render_ascii_tree(root, total_frames=0)
+        assert lines == []

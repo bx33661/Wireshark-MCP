@@ -7,8 +7,8 @@ import urllib.parse
 import html
 import quopri
 import codecs
-import json
 import string
+from .envelope import error_response, success_response
 
 def _calculate_score(data: bytes) -> float:
     """Calculate a 'readability' score for bytes (0.0 to 1.0)."""
@@ -107,7 +107,7 @@ def register_decode_tools(mcp: FastMCP):
             # 1. Try single-step decodes
             for enc in encodings:
                 success, res_bytes, _ = _try_decode(data, enc)
-                if success:
+                if success and res_bytes is not None:
                     try:
                         text = res_bytes.decode('utf-8')
                         score = _calculate_score(res_bytes)
@@ -135,7 +135,7 @@ def register_decode_tools(mcp: FastMCP):
             
             # 2. Try Chained (e.g., Base64 -> Gzip)
             success, b64_bytes, _ = _try_decode(data, "base64")
-            if success:
+            if success and b64_bytes is not None:
                 try:
                     gzip_bytes = gzip.decompress(b64_bytes)
                     results.append({
@@ -159,17 +159,14 @@ def register_decode_tools(mcp: FastMCP):
             # Sort by score desc
             results.sort(key=lambda x: x["score"], reverse=True)
             
-            return json.dumps({
-                "success": True, 
-                "candidates": results[:5] # Return top 5
-            }, indent=2)
+            return success_response({"candidates": results[:5]})
 
         else:
             success, res_bytes, err = _try_decode(data, encoding)
-            if not success:
-               return json.dumps({"success": False, "error": err})
+            if not success or res_bytes is None:
+                return error_response(err or "Failed to decode payload")
             
             try:
-                return res_bytes.decode('utf-8')
+                return success_response(res_bytes.decode('utf-8'))
             except UnicodeDecodeError:
-                return f"[Binary Data] Hex: {binascii.hexlify(res_bytes).decode('ascii')}"
+                return success_response(f"[Binary Data] Hex: {binascii.hexlify(res_bytes).decode('ascii')}")

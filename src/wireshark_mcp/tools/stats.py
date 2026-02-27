@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 from ..tshark.client import TSharkClient
+from .envelope import normalize_tool_result
 
 def register_stats_tools(mcp: FastMCP, client: TSharkClient):
 
@@ -18,7 +19,7 @@ def register_stats_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_stats_protocol_hierarchy("traffic.pcap")
         """
-        return await client.get_protocol_stats(pcap_file)
+        return normalize_tool_result(await client.get_protocol_stats(pcap_file))
 
     @mcp.tool()
     async def wireshark_stats_endpoints(pcap_file: str, type: str = "ip") -> str:
@@ -38,7 +39,7 @@ def register_stats_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_stats_endpoints("traffic.pcap", type="tcp")
         """
-        return await client.get_endpoints(pcap_file, type)
+        return normalize_tool_result(await client.get_endpoints(pcap_file, type))
 
     @mcp.tool()
     async def wireshark_stats_conversations(pcap_file: str, type: str = "ip") -> str:
@@ -58,7 +59,7 @@ def register_stats_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_stats_conversations("traffic.pcap", type="tcp")
         """
-        return await client.get_conversations(pcap_file, type)
+        return normalize_tool_result(await client.get_conversations(pcap_file, type))
 
     @mcp.tool()
     async def wireshark_stats_io_graph(pcap_file: str, interval: int = 1) -> str:
@@ -77,7 +78,7 @@ def register_stats_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_stats_io_graph("traffic.pcap", interval=5)
         """
-        return await client.get_io_graph(pcap_file, interval)
+        return normalize_tool_result(await client.get_io_graph(pcap_file, interval))
 
     @mcp.tool()
     async def wireshark_stats_expert_info(pcap_file: str) -> str:
@@ -94,7 +95,7 @@ def register_stats_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_stats_expert_info("traffic.pcap")
         """
-        return await client.get_expert_info(pcap_file)
+        return normalize_tool_result(await client.get_expert_info(pcap_file))
 
     @mcp.tool()
     async def wireshark_stats_service_response_time(pcap_file: str, protocol: str = "http") -> str:
@@ -113,4 +114,4 @@ def register_stats_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_stats_service_response_time("web.pcap", protocol="http")
         """
-        return await client.get_service_response_time(pcap_file, protocol)
+        return normalize_tool_result(await client.get_service_response_time(pcap_file, protocol))

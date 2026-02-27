@@ -4,16 +4,90 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wireshark-mcp"
-version = "0.4.0"
+version = "0.5.0"
 description = "A production-grade Model Context Protocol (MCP) server for Wireshark"
 readme = "README.md"
+keywords = ["mcp", "wireshark", "tshark", "packet-analysis", "network", "pcap", "model-context-protocol", "llm", "security"]
+license = "MIT"
 requires-python = ">=3.10"
+authors = [
+    { name = "bx33661" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
 dependencies = [
     "mcp>=1.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "ruff>=0.9",
+    "mypy>=1.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/bx33661/Wireshark-MCP"
+Repository = "https://github.com/bx33661/Wireshark-MCP"
+Issues = "https://github.com/bx33661/Wireshark-MCP/issues"
+Changelog = "https://github.com/bx33661/Wireshark-MCP/blob/main/CHANGELOG.md"
+
 [project.scripts]
 wireshark-mcp = "wireshark_mcp.server:main"
 
-[tool.uv]
-dev-dependencies = []
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "SIM",   # flake8-simplify
+    "TCH",   # flake8-type-checking
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["wireshark_mcp"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "ruff>=0.9",
+    "mypy>=1.10",
+]

@@ -1,0 +1,11 @@
+services:
+  wireshark-mcp:
+    build: .
+    container_name: wireshark-mcp
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./pcaps:/data:ro
+    environment:
+      - WIRESHARK_MCP_ALLOWED_DIRS=/data
+    restart: unless-stopped

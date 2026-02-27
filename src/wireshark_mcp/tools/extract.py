@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 from ..tshark.client import TSharkClient
+from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
 
 def register_extract_tools(mcp: FastMCP, client: TSharkClient):
 
@@ -26,7 +27,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
             wireshark_get_packet_list("traffic.pcap", display_filter="http", custom_columns="ip.src,http.host,http.request.uri")
         """
         columns = [c.strip() for c in custom_columns.split(",")] if custom_columns else None
-        return await client.get_packet_list(pcap_file, limit, offset, display_filter, columns)
+        return normalize_tool_result(await client.get_packet_list(pcap_file, limit, offset, display_filter, columns))
 
     @mcp.tool()
     async def wireshark_get_packet_details(pcap_file: str, frame_number: int, layers: str = "") -> str:
@@ -46,7 +47,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
             wireshark_get_packet_details("traffic.pcap", frame_number=42, layers="http")
         """
         layer_list = [l.strip() for l in layers.split(",")] if layers else None
-        return await client.get_packet_details(pcap_file, frame_number, layer_list)
+        return normalize_tool_result(await client.get_packet_details(pcap_file, frame_number, layer_list))
 
     @mcp.tool()
     async def wireshark_get_packet_bytes(pcap_file: str, frame_number: int) -> str:
@@ -63,7 +64,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_get_packet_bytes("traffic.pcap", 42)
         """
-        return await client.get_packet_bytes(pcap_file, frame_number)
+        return normalize_tool_result(await client.get_packet_bytes(pcap_file, frame_number))
 
     @mcp.tool()
     async def wireshark_get_packet_context(pcap_file: str, frame_number: int, count: int = 5) -> str:
@@ -94,7 +95,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         # which corresponds to [target-count, target+count].
         # This assumes no display filter is applied in context, which is correct (context is absolute).
         
-        return await client.get_packet_list(pcap_file, limit=limit, offset=0, display_filter=d_filter)
+        return normalize_tool_result(await client.get_packet_list(pcap_file, limit=limit, offset=0, display_filter=d_filter))
 
     @mcp.tool()
     async def wireshark_read_packets(pcap_file: str, limit: int = 100, offset: int = 0,
@@ -121,7 +122,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_read_packets("traffic.pcap", limit=10, display_filter="http")
         """
-        return await client.read_packets_json(pcap_file, limit, display_filter, offset)
+        return normalize_tool_result(await client.read_packets_json(pcap_file, limit, display_filter, offset))
 
     @mcp.tool()
     async def wireshark_extract_fields(pcap_file: str, fields: str, display_filter: str = "",
@@ -146,7 +147,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
             wireshark_extract_fields("file.pcap", "ip.src,ip.dst,tcp.port", display_filter="tcp")
         """
         field_list = [f.strip() for f in fields.split(",")]
-        return await client.extract_fields(pcap_file, field_list, display_filter, limit=limit, offset=offset)
+        return normalize_tool_result(await client.extract_fields(pcap_file, field_list, display_filter, limit=limit, offset=offset))
 
     @mcp.tool()
     async def wireshark_extract_http_requests(pcap_file: str, limit: int = 100) -> str:
@@ -160,12 +161,12 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_extract_http_requests("web_traffic.pcap", limit=50)
         """
-        return await client.extract_fields(
+        return normalize_tool_result(await client.extract_fields(
             pcap_file,
             ["http.request.method", "http.request.uri", "http.host", "http.user_agent"],
             display_filter="http.request",
             limit=limit
-        )
+        ))
 
     @mcp.tool()
     async def wireshark_extract_dns_queries(pcap_file: str, limit: int = 100) -> str:
@@ -179,12 +180,12 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_extract_dns_queries("dns_traffic.pcap")
         """
-        return await client.extract_fields(
+        return normalize_tool_result(await client.extract_fields(
             pcap_file,
             ["dns.qry.name", "dns.qry.type", "dns.flags.response"],
             display_filter="dns",
             limit=limit
-        )
+        ))
 
     @mcp.tool()
     async def wireshark_list_ips(pcap_file: str, type: str = "both") -> str:
@@ -207,19 +208,27 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
             fields.append("ip.dst")
         
         result = await client.extract_fields(pcap_file, fields, limit=10000)
+        wrapped = parse_tool_result(result)
         
-        # Extract unique IPs
-        if result.startswith('{"success"'):
-            return result  # Return error as-is
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data")
+        if not isinstance(data, str):
+            return error_response(
+                "Unexpected data format from IP extraction",
+                error_type="DependencyError",
+                details={"expected": "string", "received": data.__class__.__name__},
+            )
         
         unique_ips = set()
-        for line in result.splitlines()[1:]:  # Skip header
+        for line in data.splitlines()[1:]:  # Skip header
             for ip in line.split('\t'):
                 ip = ip.strip().strip('"')
                 if ip and ip != '':
                     unique_ips.add(ip)
         
-        return '\n'.join(sorted(unique_ips))
+        return success_response('\n'.join(sorted(unique_ips)))
 
     @mcp.tool()
     async def wireshark_export_objects(pcap_file: str, protocol: str, dest_dir: str) -> str:
@@ -240,7 +249,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_export_objects("traffic.pcap", "http", "/tmp/exported")
         """
-        return await client.export_objects(pcap_file, protocol, dest_dir)
+        return normalize_tool_result(await client.export_objects(pcap_file, protocol, dest_dir))
 
     @mcp.tool()
     async def wireshark_search_packets(pcap_file: str, match_pattern: str, search_type: str = "string",
@@ -268,7 +277,9 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
             wireshark_search_packets("traffic.pcap", "password", scope="bytes")
             wireshark_search_packets("traffic.pcap", "http.response.code == 200", scope="filter")
         """
-        return await client.search_packet_contents(pcap_file, match_pattern, search_type, limit=limit, scope=scope)
+        return normalize_tool_result(
+            await client.search_packet_contents(pcap_file, match_pattern, search_type, limit=limit, scope=scope)
+        )
 
     @mcp.tool()
     async def wireshark_follow_stream(pcap_file: str, stream_index: int, 
@@ -297,9 +308,17 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_follow_stream("traffic.pcap", stream_index=0, search_content="password")
         """
-        return await client.follow_stream(pcap_file, stream_index, protocol, output_mode,
-                                        limit_lines=limit_lines, offset_lines=offset_lines,
-                                        search_content=search_content)
+        return normalize_tool_result(
+            await client.follow_stream(
+                pcap_file,
+                stream_index,
+                protocol,
+                output_mode,
+                limit_lines=limit_lines,
+                offset_lines=offset_lines,
+                search_content=search_content,
+            )
+        )
 
     @mcp.tool()
     async def wireshark_verify_ssl_decryption(pcap_file: str, keylog_file: str) -> str:
@@ -318,4 +337,4 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_verify_ssl_decryption("https.pcap", "ssl_keylog.txt")
         """
-        return await client.decrypt_ssl(pcap_file, keylog_file)
+        return normalize_tool_result(await client.decrypt_ssl(pcap_file, keylog_file))

@@ -8,3 +8,17 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Type checking
+.mypy_cache/
+
+# Test / coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Runtime caches
+urlhaus_cache.txt
+
+# Spec (internal)
+spec/

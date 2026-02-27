@@ -3,6 +3,7 @@ from ..tshark.client import TSharkClient
 import re
 import math
 from typing import List, Tuple, Dict, Any
+from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
 
 def _parse_io_graph(output: str) -> List[Tuple[float, int]]:
     """
@@ -164,12 +165,20 @@ def register_visualize_tools(mcp: FastMCP, client: TSharkClient):
         Returns:
             String containing the ASCII chart
         """
-        raw_output = await client.get_io_graph_data(pcap_file, interval)
-        if raw_output.strip().startswith("{") and "error" in raw_output:
-             return raw_output 
+        raw_output_result = parse_tool_result(await client.get_io_graph_data(pcap_file, interval))
+        if not raw_output_result["success"]:
+            return normalize_tool_result(raw_output_result)
+
+        raw_output = raw_output_result.get("data")
+        if not isinstance(raw_output, str):
+            return error_response(
+                "Unexpected data format from I/O graph tool",
+                error_type="DependencyError",
+                details={"expected": "string", "received": raw_output.__class__.__name__},
+            )
              
         data = _parse_io_graph(raw_output)
-        return _render_ascii_bar_chart(data)
+        return success_response(_render_ascii_bar_chart(data))
 
     @mcp.tool()
     async def wireshark_plot_protocols(pcap_file: str) -> str:
@@ -183,9 +192,17 @@ def register_visualize_tools(mcp: FastMCP, client: TSharkClient):
         Returns:
             String containing the ASCII tree
         """
-        raw_output = await client.get_protocol_stats_data(pcap_file)
-        if raw_output.strip().startswith("{") and "error" in raw_output:
-             return raw_output
+        raw_output_result = parse_tool_result(await client.get_protocol_stats_data(pcap_file))
+        if not raw_output_result["success"]:
+            return normalize_tool_result(raw_output_result)
+
+        raw_output = raw_output_result.get("data")
+        if not isinstance(raw_output, str):
+            return error_response(
+                "Unexpected data format from protocol hierarchy tool",
+                error_type="DependencyError",
+                details={"expected": "string", "received": raw_output.__class__.__name__},
+            )
              
         root = _parse_protocol_hierarchy(raw_output)
         
@@ -198,7 +215,7 @@ def register_visualize_tools(mcp: FastMCP, client: TSharkClient):
         tree_lines = _render_ascii_tree(root, total_frames)
         
         if not tree_lines:
-            return "No protocol hierarchy data found."
+            return success_response("No protocol hierarchy data found.")
             
         header = "[Protocol Hierarchy Statistics]\n"
-        return header + "\n".join(tree_lines)
+        return success_response(header + "\n".join(tree_lines))

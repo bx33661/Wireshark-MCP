@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 from ..tshark.client import TSharkClient
+from .envelope import normalize_tool_result
 
 def register_files_tools(mcp: FastMCP, client: TSharkClient):
     
@@ -19,7 +20,7 @@ def register_files_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_get_file_info("traffic.pcap")
         """
-        return await client.get_file_info(pcap_file)
+        return normalize_tool_result(await client.get_file_info(pcap_file))
 
     @mcp.tool()
     async def wireshark_merge_pcaps(output_file: str, input_files: str) -> str:
@@ -41,4 +42,4 @@ def register_files_tools(mcp: FastMCP, client: TSharkClient):
             wireshark_merge_pcaps("merged.pcap", "file1.pcap,file2.pcap,file3.pcap")
         """
         files = [f.strip() for f in input_files.split(",")]
-        return await client.merge_pcap_files(output_file, files)
+        return normalize_tool_result(await client.merge_pcap_files(output_file, files))

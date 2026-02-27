@@ -183,6 +183,25 @@ Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 |---|---|
 | `wireshark_check_threats` | Cross-reference captured IPs against [URLhaus](https://urlhaus.abuse.ch/) threat intelligence |
 | `wireshark_extract_credentials` | Detect plaintext credentials in HTTP Basic Auth, FTP, and Telnet |
+| `wireshark_detect_port_scan` | Detect SYN, FIN, NULL, and Xmas port scans with configurable threshold |
+| `wireshark_detect_dns_tunnel` | Detect DNS tunneling (long queries, TXT abuse, subdomain entropy) |
+| `wireshark_detect_dos_attack` | Detect DoS/DDoS patterns (SYN flood, ICMP/UDP flood, DNS amplification) |
+| `wireshark_analyze_suspicious_traffic` | Comprehensive anomaly analysis: cleartext protocols, unusual ports, expert warnings |
+
+</details>
+
+<details>
+<summary><b>Protocol Deep Dive</b> — TLS, TCP, ARP, SMTP, DHCP analysis</summary>
+
+<br>
+
+| Tool | Description |
+|---|---|
+| `wireshark_extract_tls_handshakes` | TLS version, cipher suite, SNI, and certificate info from Client/Server Hello |
+| `wireshark_analyze_tcp_health` | TCP retransmissions, duplicate ACKs, zero window, resets, out-of-order analysis |
+| `wireshark_detect_arp_spoofing` | ARP spoofing detection: IP-MAC conflicts, gratuitous ARP floods |
+| `wireshark_extract_smtp_emails` | SMTP email metadata: sender, recipient, mail server info |
+| `wireshark_extract_dhcp_info` | DHCP lease information: assigned IPs, hostnames, DNS servers |
 
 </details>
 
@@ -201,7 +220,33 @@ Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 
 ---
 
+## MCP Resources
+
+| Resource URI | Description |
+|---|---|
+| `wireshark://reference/display-filters` | Complete display filter syntax cheatsheet with common examples |
+| `wireshark://reference/protocol-fields` | Protocol field name reference for filters and extraction |
+| `wireshark://guide/usage` | Recommended analysis workflows and tips |
+
+## MCP Prompts
+
+| Prompt | Description |
+|---|---|
+| `security_audit` | Full security audit workflow: threat intel, credential scan, attack detection |
+| `performance_analysis` | Network performance analysis: TCP health, response times, bottlenecks |
+| `ctf_solve` | CTF challenge solver: flag search, stream analysis, steganography checks |
+| `incident_response` | IR workflow: triage, IOC extraction, attack timeline, containment |
+| `traffic_overview` | Quick traffic summary with protocol breakdown and visualization |
+
+---
+
 ## Development
+
+**Install dev dependencies:**
+
+```sh
+pip install -e ".[dev]"
+```
 
 **Test with the MCP Inspector** (opens a local web UI to call tools interactively):
 
@@ -212,7 +257,28 @@ npx -y @modelcontextprotocol/inspector uv run wireshark-mcp
 **Run the test suite:**
 
 ```sh
-pytest tests/
+pytest tests/ -v
+```
+
+**Lint & type check:**
+
+```sh
+ruff check src/ tests/
+mypy src/wireshark_mcp/
+```
+
+**Docker:**
+
+```sh
+docker compose up -d
+# Pcap files go in ./pcaps/ (mounted as /data)
+```
+
+**CLI options:**
+
+```sh
+wireshark-mcp --version
+wireshark-mcp --transport sse --port 8080 --log-level INFO
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup guide.

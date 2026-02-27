@@ -1,0 +1,47 @@
+name: Feature Request
+description: Suggest a new tool or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for a new tool or improvement? We'd love to hear it!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What problem does this feature solve? What use case does it address?
+      placeholder: I'm trying to do X, but currently there's no way to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature or tool you'd like to see added.
+      placeholder: |
+        A new tool `wireshark_xxx` that accepts...
+        It should return...
+    validations:
+      required: true
+
+  - type: textarea
+    id: tshark_command
+    attributes:
+      label: Relevant TShark Command (if known)
+      description: If you know the underlying `tshark` command that would implement this, paste it here.
+      placeholder: tshark -r file.pcap -T fields -e ...
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative approaches or workarounds you've tried?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, examples, or references.

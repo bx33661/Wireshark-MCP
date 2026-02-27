@@ -1,10 +1,19 @@
 # Wireshark MCP
 
+<div align="center">
+<img src="Logo.png" width="200" alt="Wireshark MCP">
+</div>
+
 一个简单的 [MCP 服务器](https://modelcontextprotocol.io/introduction)，让您可以在 Wireshark 中进行智能数据包分析。
+
+[![CI](https://github.com/bx33661/Wireshark-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/bx33661/Wireshark-MCP/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/wireshark-mcp)](https://pypi.org/project/wireshark-mcp/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/wireshark-mcp)](https://pypi.org/project/wireshark-mcp/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [English](README.md) | [中文](README_zh.md)
 
-## 先决条件
+---
 
 - [Python](https://www.python.org/downloads/) (**3.10 或更高版本**)
 - [Wireshark](https://www.wireshark.org/) (确保 `tshark` 已添加到您的 PATH 环境变量中)

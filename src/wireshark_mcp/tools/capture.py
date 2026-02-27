@@ -1,6 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from ..tshark.client import TSharkClient
 import os
+from .envelope import normalize_tool_result, parse_tool_result, success_response
 
 def register_capture_tools(mcp: FastMCP, client: TSharkClient):
     
@@ -15,7 +16,7 @@ def register_capture_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_list_interfaces()
         """
-        return await client.list_interfaces()
+        return normalize_tool_result(await client.list_interfaces())
 
     @mcp.tool()
     async def wireshark_capture(interface: str, output_file: str, 
@@ -43,11 +44,15 @@ def register_capture_tools(mcp: FastMCP, client: TSharkClient):
         """
         res = await client.capture_packets(interface, output_file, duration_seconds, 
                                          packet_count, capture_filter, ring_buffer=ring_buffer)
+
+        wrapped = parse_tool_result(res)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
         
         if os.path.exists(output_file):
-            return f"Capture saved to {output_file}\n{res}"
+            return success_response(f"Capture saved to {output_file}\n{wrapped['data']}")
         
-        return f"Capture completed but file not found:\n{res}"
+        return success_response(f"Capture completed but file not found:\n{wrapped['data']}")
 
     @mcp.tool()
     async def wireshark_filter_save(input_file: str, output_file: str, display_filter: str) -> str:
@@ -69,4 +74,4 @@ def register_capture_tools(mcp: FastMCP, client: TSharkClient):
         Example:
             wireshark_filter_save("big.pcap", "http_only.pcap", "http")
         """
-        return await client.filter_and_save(input_file, output_file, display_filter)
+        return normalize_tool_result(await client.filter_and_save(input_file, output_file, display_filter))

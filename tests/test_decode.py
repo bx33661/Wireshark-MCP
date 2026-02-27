@@ -1,54 +1,74 @@
-import unittest
-import gzip
+"""Tests for decode tools (pure functions, no tshark dependency)."""
+
 import base64
-import sys
-import os
+import gzip
 
-# Add src to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+import pytest
 
-from wireshark_mcp.tools.decode import _try_decode, _calculate_score
+from wireshark_mcp.tools.decode import _calculate_score, _try_decode
 
-class TestDecode(unittest.TestCase):
-    def test_base64(self):
+
+class TestTryDecode:
+    """Tests for individual encoding decoders."""
+
+    def test_base64(self) -> None:
         success, res, err = _try_decode("SGVsbG8gV29ybGQ=", "base64")
-        self.assertTrue(success)
-        self.assertEqual(res, b"Hello World")
+        assert success
+        assert res == b"Hello World"
 
-    def test_hex(self):
+    def test_base64_missing_padding(self) -> None:
+        success, res, err = _try_decode("SGVsbG8", "base64")
+        assert success
+        assert res == b"Hello"
+
+    def test_hex(self) -> None:
         success, res, err = _try_decode("48656c6c6f", "hex")
-        self.assertTrue(success)
-        self.assertEqual(res, b"Hello")
+        assert success
+        assert res == b"Hello"
 
-    def test_url(self):
+    def test_hex_with_separators(self) -> None:
+        success, res, err = _try_decode("48:65:6c:6c:6f", "hex")
+        assert success
+        assert res == b"Hello"
+
+    def test_url(self) -> None:
         success, res, err = _try_decode("Hello%20World", "url")
-        self.assertTrue(success)
-        self.assertEqual(res, b"Hello World")
+        assert success
+        assert res == b"Hello World"
 
-    def test_rot13(self):
+    def test_rot13(self) -> None:
         success, res, err = _try_decode("Uryyb", "rot13")
-        self.assertTrue(success)
-        self.assertEqual(res, b"Hello")
+        assert success
+        assert res == b"Hello"
 
-    def test_html(self):
+    def test_html(self) -> None:
         success, res, err = _try_decode("&lt;div&gt;", "html")
-        self.assertTrue(success)
-        self.assertEqual(res, b"<div>")
+        assert success
+        assert res == b"<div>"
 
-    def test_gzip(self):
-        # Gzip encoding of "Hello World"
+    def test_gzip(self) -> None:
         data = b"Hello World"
         compressed = gzip.compress(data)
-        # _try_decode expects string input (latin-1 decoded bytes)
-        input_str = compressed.decode('latin-1')
-        
+        input_str = compressed.decode("latin-1")
+
         success, res, err = _try_decode(input_str, "gzip")
-        self.assertTrue(success)
-        self.assertEqual(res, data)
+        assert success
+        assert res == data
 
-    def test_score(self):
-        self.assertGreater(_calculate_score(b"Hello World"), 0.9)
-        self.assertLess(_calculate_score(b"\x00\x01\x02"), 0.1)
+    def test_unknown_encoding(self) -> None:
+        success, res, err = _try_decode("test", "nonexistent")
+        assert not success
+        assert err == "Unknown encoding"
 
-if __name__ == '__main__':
-    unittest.main()
+
+class TestCalculateScore:
+    """Tests for readability scoring."""
+
+    def test_printable_text_scores_high(self) -> None:
+        assert _calculate_score(b"Hello World") > 0.9
+
+    def test_binary_scores_low(self) -> None:
+        assert _calculate_score(b"\x00\x01\x02") < 0.1
+
+    def test_empty_scores_zero(self) -> None:
+        assert _calculate_score(b"") == 0.0
