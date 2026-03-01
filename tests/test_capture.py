@@ -1,9 +1,6 @@
 """Tests for capture tools."""
 
-import json
-
 import pytest
-
 from conftest import MockTSharkClient
 
 

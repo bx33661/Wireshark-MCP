@@ -3,10 +3,10 @@
 import json
 
 import pytest
-
 from conftest import MockTSharkClient
-from wireshark_mcp.tools.agents import _count_lines, _extract_data, _run_security_audit, _run_quick_analysis
-from wireshark_mcp.tools.envelope import success_response, normalize_tool_result
+
+from wireshark_mcp.tools.agents import _count_lines, _extract_data, _run_quick_analysis, _run_security_audit
+from wireshark_mcp.tools.envelope import success_response
 
 
 class TestHelpers:

@@ -1,7 +1,6 @@
 """Tests for TSharkClient core functionality."""
 
 import json
-from pathlib import Path
 
 import pytest
 

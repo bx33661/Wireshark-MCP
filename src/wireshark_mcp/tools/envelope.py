@@ -1,13 +1,13 @@
 import json
-from typing import Any, Dict
+from typing import Any
 
 
-def _error_object(error: Any) -> Dict[str, Any]:
+def _error_object(error: Any) -> dict[str, Any]:
     if isinstance(error, dict):
         error_type = error.get("type")
         message = error.get("message")
         details = error.get("details")
-        normalized: Dict[str, Any] = {
+        normalized: dict[str, Any] = {
             "type": error_type if isinstance(error_type, str) and error_type else "ToolError",
             "message": message if isinstance(message, str) and message else "Tool failed",
         }
@@ -29,7 +29,7 @@ def success_response(data: Any) -> str:
 
 
 def error_response(message: str, error_type: str = "ToolError", details: Any = None) -> str:
-    error: Dict[str, Any] = {
+    error: dict[str, Any] = {
         "type": error_type,
         "message": message,
     }
@@ -38,7 +38,7 @@ def error_response(message: str, error_type: str = "ToolError", details: Any = N
     return json.dumps({"success": False, "error": error})
 
 
-def _normalize_dict_payload(payload: Dict[str, Any]) -> str:
+def _normalize_dict_payload(payload: dict[str, Any]) -> str:
     if "success" in payload and isinstance(payload["success"], bool):
         if payload["success"]:
             if "data" in payload:
@@ -75,5 +75,5 @@ def normalize_tool_result(result: Any) -> str:
     return success_response(result)
 
 
-def parse_tool_result(result: Any) -> Dict[str, Any]:
+def parse_tool_result(result: Any) -> dict[str, Any]:
     return json.loads(normalize_tool_result(result))

@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 from wireshark_mcp.tools.envelope import (
     error_response,
     normalize_tool_result,

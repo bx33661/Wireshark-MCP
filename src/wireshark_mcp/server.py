@@ -8,15 +8,15 @@ from mcp.server.fastmcp import FastMCP
 from .__init__ import __version__
 from .prompts import register_prompts
 from .resources import register_resources
-from .tshark.client import TSharkClient
+from .tools.agents import register_agent_tools
 from .tools.capture import register_capture_tools
 from .tools.decode import register_decode_tools
 from .tools.extract import register_extract_tools
 from .tools.files import register_files_tools
-from .tools.agents import register_agent_tools
 from .tools.registry import ToolRegistry, register_open_file_tool
 from .tools.stats import register_stats_tools
 from .tools.visualize import register_visualize_tools
+from .tshark.client import TSharkClient
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -56,13 +56,36 @@ def _build_server() -> FastMCP:
 
 def main() -> None:
     """Entry point for the application script."""
+    from .installer import run_install
+
     parser = argparse.ArgumentParser(
         prog="wireshark-mcp",
         description="Wireshark MCP Server — AI-powered packet analysis",
     )
     parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}",
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
+
+    # ── Install / Uninstall ─────────────────────────────────────────────
+    parser.add_argument(
+        "--install",
+        action="store_true",
+        help="Install wireshark-mcp into all detected MCP clients and exit",
+    )
+    parser.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="Uninstall wireshark-mcp from all detected MCP clients and exit",
+    )
+    parser.add_argument(
+        "--config",
+        action="store_true",
+        help="Print MCP config JSON for manual client setup and exit",
+    )
+
+    # ── Server options ──────────────────────────────────────────────────
     parser.add_argument(
         "--transport",
         choices=["stdio", "sse"],
@@ -84,6 +107,15 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # Handle install / uninstall / config — exit without starting server
+    if args.install or args.uninstall or args.config:
+        run_install(
+            install=args.install,
+            uninstall=args.uninstall,
+            config=args.config,
+        )
+        return
+
     # Configure logging
     logging.basicConfig(
         level=getattr(logging, args.log_level),
@@ -102,4 +134,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -1,29 +1,33 @@
-from mcp.server.fastmcp import FastMCP
 import base64
 import binascii
+import codecs
 import gzip
-import zlib
-import urllib.parse
 import html
 import quopri
-import codecs
 import string
+import urllib.parse
+import zlib
+
+from mcp.server.fastmcp import FastMCP
+
 from .envelope import error_response, success_response
+
 
 def _calculate_score(data: bytes) -> float:
     """Calculate a 'readability' score for bytes (0.0 to 1.0)."""
     if not data:
         return 0.0
     try:
-        text = data.decode('utf-8')
+        text = data.decode("utf-8")
         printable = set(string.printable)
         count = sum(1 for c in text if c in printable)
         return count / len(text)
     except UnicodeDecodeError:
         # If not utf-8, check if it's mostly ASCII printable bytes
-        printable_bytes = set(string.printable.encode('ascii'))
+        printable_bytes = set(string.printable.encode("ascii"))
         count = sum(1 for b in data if b in printable_bytes)
-        return (count / len(data)) * 0.5 # Penalty for non-utf8
+        return (count / len(data)) * 0.5  # Penalty for non-utf8
+
 
 def _try_decode(data: str, encoding: str):
     """Try to decode data with specific encoding, returning (success, result_bytes, error)."""
@@ -32,54 +36,57 @@ def _try_decode(data: str, encoding: str):
             # Handle standard and url-safe base64, and padding
             missing_padding = len(data) % 4
             if missing_padding:
-                data += '=' * (4 - missing_padding)
+                data += "=" * (4 - missing_padding)
             return True, base64.b64decode(data, validate=True), None
-            
+
         elif encoding == "hex":
             # Remove spaces/colons/0x
             clean_data = data.replace(" ", "").replace(":", "").replace("0x", "")
             return True, binascii.unhexlify(clean_data), None
-            
+
         elif encoding == "url":
             return True, urllib.parse.unquote_to_bytes(data), None
-            
+
         elif encoding == "rot13":
-            return True, codecs.decode(data, 'rot_13').encode('utf-8'), None
-            
+            return True, codecs.decode(data, "rot_13").encode("utf-8"), None
+
         elif encoding == "gzip":
             # Latin-1 allows 1:1 mapping of bytes to chars
-            b = data.encode('latin-1') 
+            b = data.encode("latin-1")
             return True, gzip.decompress(b), None
 
         elif encoding == "deflate":
-            b = data.encode('latin-1')
+            b = data.encode("latin-1")
             # -15 for raw deflate (no header), standard zlib has header
-            try: 
+            try:
                 return True, zlib.decompress(b), None
-            except:
+            except Exception:
                 return True, zlib.decompress(b, -15), None
 
         elif encoding == "quopri":
-            return True, quopri.decodestring(data.encode('utf-8')), None
-            
+            return True, quopri.decodestring(data.encode("utf-8")), None
+
         elif encoding == "html":
-            return True, html.unescape(data).encode('utf-8'), None
-            
+            return True, html.unescape(data).encode("utf-8"), None
+
         elif encoding == "unicode":
             # "Hello\u0020World" -> bytes
-            return True, data.encode('utf-8').decode('unicode_escape').encode('utf-8'), None
-        
+            return True, data.encode("utf-8").decode("unicode_escape").encode("utf-8"), None
+
         elif encoding == "ascii85":
             # Adobe Ascii85 usually delimited by <~ ~>
             d = data.strip()
-            if d.startswith("<~"): d = d[2:]
-            if d.endswith("~>"): d = d[:-2]
+            if d.startswith("<~"):
+                d = d[2:]
+            if d.endswith("~>"):
+                d = d[:-2]
             return True, base64.a85decode(d), None
 
     except Exception as e:
         return False, None, str(e)
-    
+
     return False, None, "Unknown encoding"
+
 
 def register_decode_tools(mcp: FastMCP):
 
@@ -87,86 +94,96 @@ def register_decode_tools(mcp: FastMCP):
     def wireshark_decode_payload(data: str, encoding: str = "auto") -> str:
         """
         [Utils] Decode common encodings (Base64, Hex, URL, Gzip, etc.).
-        
+
         Args:
             data: The string to decode.
             encoding: Target encoding. Supported:
-                'base64', 'hex', 'url', 'rot13', 'gzip', 'deflate', 
+                'base64', 'hex', 'url', 'rot13', 'gzip', 'deflate',
                 'html', 'unicode', 'quopri', 'ascii85'.
                 Use 'auto' to try all and sort by readability.
-                
+
         Returns:
             Decoded string (or JSON in 'auto' mode).
         """
         encodings = ["base64", "hex", "url", "rot13", "html", "unicode", "quopri", "ascii85"]
         # Exclude gzip/deflate from simple auto list, handled in chaining
-        
+
         if encoding == "auto":
             results = []
-            
+
             # 1. Try single-step decodes
             for enc in encodings:
                 success, res_bytes, _ = _try_decode(data, enc)
                 if success and res_bytes is not None:
                     try:
-                        text = res_bytes.decode('utf-8')
+                        text = res_bytes.decode("utf-8")
                         score = _calculate_score(res_bytes)
                         # Filter out trivial results
                         if text == data and enc in ["url", "html", "unicode", "rot13"]:
-                             continue
-                        if enc == "hex" and score < 0.1: 
-                             continue
-                             
-                        results.append({
-                            "encoding": enc,
-                            "result": text[:200] + "..." if len(text) > 200 else text,
-                            "score": round(score, 2),
-                            "is_text": True
-                        })
-                    except:
+                            continue
+                        if enc == "hex" and score < 0.1:
+                            continue
+
+                        results.append(
+                            {
+                                "encoding": enc,
+                                "result": text[:200] + "..." if len(text) > 200 else text,
+                                "score": round(score, 2),
+                                "is_text": True,
+                            }
+                        )
+                    except Exception:
                         # Binary result
-                        results.append({
-                            "encoding": enc,
-                            "result": "<binary_data>",
-                            "hex_preview": binascii.hexlify(res_bytes[:20]).decode('ascii'),
-                            "score": 0.0,
-                            "is_text": False
-                        })
-            
+                        results.append(
+                            {
+                                "encoding": enc,
+                                "result": "<binary_data>",
+                                "hex_preview": binascii.hexlify(res_bytes[:20]).decode("ascii"),
+                                "score": 0.0,
+                                "is_text": False,
+                            }
+                        )
+
             # 2. Try Chained (e.g., Base64 -> Gzip)
             success, b64_bytes, _ = _try_decode(data, "base64")
             if success and b64_bytes is not None:
                 try:
                     gzip_bytes = gzip.decompress(b64_bytes)
-                    results.append({
-                        "encoding": "base64+gzip",
-                        "result": gzip_bytes.decode('utf-8', errors='replace')[:200],
-                        "score": _calculate_score(gzip_bytes),
-                        "is_text": True
-                    })
-                except: pass
-                
+                    results.append(
+                        {
+                            "encoding": "base64+gzip",
+                            "result": gzip_bytes.decode("utf-8", errors="replace")[:200],
+                            "score": _calculate_score(gzip_bytes),
+                            "is_text": True,
+                        }
+                    )
+                except Exception:
+                    pass
+
                 try:
                     zlib_bytes = zlib.decompress(b64_bytes)
-                    results.append({
-                        "encoding": "base64+zlib",
-                        "result": zlib_bytes.decode('utf-8', errors='replace')[:200],
-                        "score": _calculate_score(zlib_bytes),
-                        "is_text": True
-                    })
-                except: pass
+                    results.append(
+                        {
+                            "encoding": "base64+zlib",
+                            "result": zlib_bytes.decode("utf-8", errors="replace")[:200],
+                            "score": _calculate_score(zlib_bytes),
+                            "is_text": True,
+                        }
+                    )
+                except Exception:
+                    pass
 
             # Sort by score desc
             results.sort(key=lambda x: x["score"], reverse=True)
-            
+
             return success_response({"candidates": results[:5]})
 
         else:
             success, res_bytes, err = _try_decode(data, encoding)
             if not success or res_bytes is None:
                 return error_response(err or "Failed to decode payload")
-            
+
             try:
-                return success_response(res_bytes.decode('utf-8'))
+                return success_response(res_bytes.decode("utf-8"))
             except UnicodeDecodeError:
                 return success_response(f"[Binary Data] Hex: {binascii.hexlify(res_bytes).decode('ascii')}")

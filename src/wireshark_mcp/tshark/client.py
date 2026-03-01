@@ -1,11 +1,12 @@
-import subprocess
+import asyncio
+import contextlib
 import json
+import logging
 import os
 import shutil
-import asyncio
-import logging
-from typing import List, Dict, Any, Optional
+import subprocess
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -24,23 +25,23 @@ class TSharkClient:
     def __init__(
         self,
         tshark_path: str = "tshark",
-        allowed_dirs: Optional[List[str]] = None,
+        allowed_dirs: list[str] | None = None,
     ) -> None:
         self.tshark_path = shutil.which(tshark_path) or tshark_path
         self.capinfos_path = shutil.which("capinfos")
         self.mergecap_path = shutil.which("mergecap")
         self.editcap_path = shutil.which("editcap")
-        self._version: Optional[str] = None
+        self._version: str | None = None
 
         # Path sandbox: if set, only files within these directories are accessible
-        self._allowed_dirs: Optional[List[Path]] = None
+        self._allowed_dirs: list[Path] | None = None
         if allowed_dirs:
             self._allowed_dirs = [Path(d).resolve() for d in allowed_dirs]
             logger.info("Path sandbox enabled: %s", self._allowed_dirs)
 
     # --- Validation Methods ---
 
-    def _validate_file(self, filepath: str) -> Dict[str, Any]:
+    def _validate_file(self, filepath: str) -> dict[str, Any]:
         """Validate file exists, is readable, and within allowed directories."""
         if not filepath:
             return {"success": False, "error": {"type": "InvalidParameter", "message": "File path cannot be empty"}}
@@ -48,23 +49,25 @@ class TSharkClient:
         path = Path(filepath).resolve()
 
         # Sandbox check
-        if self._allowed_dirs:
-            if not any(self._is_path_within(path, allowed) for allowed in self._allowed_dirs):
-                logger.warning("Path sandbox violation: %s", filepath)
-                return {
-                    "success": False,
-                    "error": {
-                        "type": "PermissionDenied",
-                        "message": f"Access denied: path is outside allowed directories",
-                        "details": f"Allowed directories: {[str(d) for d in self._allowed_dirs]}",
-                    },
-                }
+        if self._allowed_dirs and not any(self._is_path_within(path, allowed) for allowed in self._allowed_dirs):
+            logger.warning("Path sandbox violation: %s", filepath)
+            return {
+                "success": False,
+                "error": {
+                    "type": "PermissionDenied",
+                    "message": "Access denied: path is outside allowed directories",
+                    "details": f"Allowed directories: {[str(d) for d in self._allowed_dirs]}",
+                },
+            }
 
         if not path.exists():
             return {"success": False, "error": {"type": "FileNotFound", "message": f"File not found: {filepath}"}}
 
         if not path.is_file():
-            return {"success": False, "error": {"type": "InvalidParameter", "message": f"Path is not a file: {filepath}"}}
+            return {
+                "success": False,
+                "error": {"type": "InvalidParameter", "message": f"Path is not a file: {filepath}"},
+            }
 
         return {"success": True}
 
@@ -77,7 +80,7 @@ class TSharkClient:
         except ValueError:
             return False
 
-    def _validate_protocol(self, protocol: str, valid_set: set) -> Dict[str, Any]:
+    def _validate_protocol(self, protocol: str, valid_set: set) -> dict[str, Any]:
         """Validate protocol against whitelist."""
         if protocol.lower() not in valid_set:
             return {
@@ -90,38 +93,39 @@ class TSharkClient:
             }
         return {"success": True}
 
-    def _validate_output_path(self, filepath: str) -> Dict[str, Any]:
+    def _validate_output_path(self, filepath: str) -> dict[str, Any]:
         """Validate output file path is within allowed directories."""
         if not filepath:
             return {"success": False, "error": {"type": "InvalidParameter", "message": "Output path cannot be empty"}}
 
         path = Path(filepath).resolve()
 
-        if self._allowed_dirs:
-            if not any(self._is_path_within(path, allowed) for allowed in self._allowed_dirs):
-                logger.warning("Output path sandbox violation: %s", filepath)
-                return {
-                    "success": False,
-                    "error": {
-                        "type": "PermissionDenied",
-                        "message": "Access denied: output path is outside allowed directories",
-                    },
-                }
+        if self._allowed_dirs and not any(self._is_path_within(path, allowed) for allowed in self._allowed_dirs):
+            logger.warning("Output path sandbox violation: %s", filepath)
+            return {
+                "success": False,
+                "error": {
+                    "type": "PermissionDenied",
+                    "message": "Access denied: output path is outside allowed directories",
+                },
+            }
 
         return {"success": True}
 
     # --- Core Methods ---
 
-    async def check_capabilities(self) -> Dict[str, Any]:
+    async def check_capabilities(self) -> dict[str, Any]:
         """Check availability and version of all Wireshark suite tools."""
 
-        async def get_version(tool_path: Optional[str]) -> Dict[str, Any]:
+        async def get_version(tool_path: str | None) -> dict[str, Any]:
             if not tool_path:
                 return {"available": False}
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    tool_path, "-v",
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    tool_path,
+                    "-v",
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
                 stdout, _ = await proc.communicate()
                 version_line = stdout.decode("utf-8").split("\n")[0]
@@ -220,10 +224,16 @@ class TSharkClient:
         if not validation["success"]:
             return json.dumps(validation)
 
-        return await self._run_command([
-            self.tshark_path, "-r", pcap_file, "-q",
-            "-z", f"io,stat,{interval}",
-        ])
+        return await self._run_command(
+            [
+                self.tshark_path,
+                "-r",
+                pcap_file,
+                "-q",
+                "-z",
+                f"io,stat,{interval}",
+            ]
+        )
 
     async def get_io_graph_data(self, pcap_file: str, interval: int = 1) -> str:
         """Raw I/O Graph data for visualization."""
@@ -235,10 +245,16 @@ class TSharkClient:
         if not validation["success"]:
             return json.dumps(validation)
 
-        return await self._run_command([
-            self.tshark_path, "-r", pcap_file, "-q",
-            "-z", f"{protocol},tree",
-        ])
+        return await self._run_command(
+            [
+                self.tshark_path,
+                "-r",
+                pcap_file,
+                "-q",
+                "-z",
+                f"{protocol},tree",
+            ]
+        )
 
     async def get_expert_info(self, pcap_file: str) -> str:
         """Expert Information (-z expert)."""
@@ -292,7 +308,7 @@ class TSharkClient:
         limit: int = 20,
         offset: int = 0,
         display_filter: str = "",
-        custom_columns: Optional[List[str]] = None,
+        custom_columns: list[str] | None = None,
     ) -> str:
         """
         Get summary list of packets (like Wireshark's top pane).
@@ -330,7 +346,7 @@ class TSharkClient:
         self,
         pcap_file: str,
         frame_number: int,
-        included_layers: Optional[List[str]] = None,
+        included_layers: list[str] | None = None,
     ) -> str:
         """
         Get full JSON details for a single packet.
@@ -341,9 +357,13 @@ class TSharkClient:
             return json.dumps(validation)
 
         cmd = [
-            self.tshark_path, "-r", pcap_file,
-            "-Y", f"frame.number == {frame_number}",
-            "-T", "json",
+            self.tshark_path,
+            "-r",
+            pcap_file,
+            "-Y",
+            f"frame.number == {frame_number}",
+            "-T",
+            "json",
         ]
 
         if included_layers:
@@ -359,8 +379,11 @@ class TSharkClient:
             return json.dumps(validation)
 
         cmd = [
-            self.tshark_path, "-r", pcap_file,
-            "-Y", f"frame.number == {frame_number}",
+            self.tshark_path,
+            "-r",
+            pcap_file,
+            "-Y",
+            f"frame.number == {frame_number}",
             "-x",
         ]
 
@@ -371,7 +394,7 @@ class TSharkClient:
     async def extract_fields(
         self,
         pcap_file: str,
-        fields: List[str],
+        fields: list[str],
         display_filter: str = "",
         separator: str = "\t",
         limit: int = 100,
@@ -408,8 +431,11 @@ class TSharkClient:
 
         os.makedirs(dest_dir, exist_ok=True)
         cmd = [
-            self.tshark_path, "-r", pcap_file,
-            "--export-objects", f"{protocol},{dest_dir}",
+            self.tshark_path,
+            "-r",
+            pcap_file,
+            "--export-objects",
+            f"{protocol},{dest_dir}",
         ]
         return await self._run_command(cmd)
 
@@ -444,6 +470,7 @@ class TSharkClient:
                 display_filter = f'frame matches "{match_pattern}"'
             else:
                 import re
+
                 safe_pattern = re.escape(match_pattern)
                 display_filter = f'frame matches "{safe_pattern}"'
 
@@ -477,10 +504,18 @@ class TSharkClient:
         if not proto_validation["success"]:
             return json.dumps(proto_validation)
 
-        output = await self._run_command([
-            self.tshark_path, "-r", pcap_file, "-q",
-            "-z", f"follow,{protocol},{mode},{stream_index}",
-        ], limit_lines=0, offset_lines=0)
+        output = await self._run_command(
+            [
+                self.tshark_path,
+                "-r",
+                pcap_file,
+                "-q",
+                "-z",
+                f"follow,{protocol},{mode},{stream_index}",
+            ],
+            limit_lines=0,
+            offset_lines=0,
+        )
 
         lines = output.splitlines()
 
@@ -518,9 +553,14 @@ class TSharkClient:
             return json.dumps(keylog_validation)
 
         cmd = [
-            self.tshark_path, "-r", pcap_file,
-            "-o", f"tls.keylog_file:{keylog_file}",
-            "-q", "-z", "expert",
+            self.tshark_path,
+            "-r",
+            pcap_file,
+            "-o",
+            f"tls.keylog_file:{keylog_file}",
+            "-q",
+            "-z",
+            "expert",
         ]
         return await self._run_command(cmd)
 
@@ -533,20 +573,24 @@ class TSharkClient:
             return json.dumps(validation)
 
         if not self.capinfos_path:
-            return json.dumps({
-                "success": False,
-                "error": {"type": "ToolNotFound", "message": "capinfos tool not found"},
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {"type": "ToolNotFound", "message": "capinfos tool not found"},
+                }
+            )
 
         return await self._run_command([self.capinfos_path, pcap_file])
 
-    async def merge_pcap_files(self, output_file: str, input_files: List[str]) -> str:
+    async def merge_pcap_files(self, output_file: str, input_files: list[str]) -> str:
         """Mergecap: Merge multiple pcaps."""
         if not self.mergecap_path:
-            return json.dumps({
-                "success": False,
-                "error": {"type": "ToolNotFound", "message": "mergecap tool not found"},
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {"type": "ToolNotFound", "message": "mergecap tool not found"},
+                }
+            )
 
         for f in input_files:
             validation = self._validate_file(f)
@@ -584,7 +628,7 @@ class TSharkClient:
 
     async def _run_command(
         self,
-        cmd: List[str],
+        cmd: list[str],
         limit_lines: int = 0,
         offset_lines: int = 0,
         timeout: int = 30,
@@ -594,14 +638,16 @@ class TSharkClient:
         binary = Path(cmd[0]).name if cmd else ""
         if binary not in self._ALLOWED_BINARIES:
             logger.error("Blocked execution of disallowed binary: %s", binary)
-            return json.dumps({
-                "success": False,
-                "error": {
-                    "type": "SecurityError",
-                    "message": f"Execution of '{binary}' is not allowed",
-                    "details": f"Allowed binaries: {', '.join(sorted(self._ALLOWED_BINARIES))}",
-                },
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {
+                        "type": "SecurityError",
+                        "message": f"Execution of '{binary}' is not allowed",
+                        "details": f"Allowed binaries: {', '.join(sorted(self._ALLOWED_BINARIES))}",
+                    },
+                }
+            )
 
         logger.debug("Executing: %s", " ".join(cmd))
         try:
@@ -615,33 +661,35 @@ class TSharkClient:
             try:
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             except asyncio.TimeoutError:
-                try:
+                with contextlib.suppress(ProcessLookupError):
                     proc.kill()
-                except ProcessLookupError:
-                    pass
                 logger.warning("Command timed out after %ds: %s", timeout, " ".join(cmd))
-                return json.dumps({
-                    "success": False,
-                    "error": {
-                        "type": "TimeoutError",
-                        "message": f"Command timed out after {timeout} seconds",
-                        "details": f"Command: {' '.join(cmd)}",
-                    },
-                })
+                return json.dumps(
+                    {
+                        "success": False,
+                        "error": {
+                            "type": "TimeoutError",
+                            "message": f"Command timed out after {timeout} seconds",
+                            "details": f"Command: {' '.join(cmd)}",
+                        },
+                    }
+                )
 
             output = stdout.decode("utf-8", errors="replace")
             error = stderr.decode("utf-8", errors="replace")
 
             if proc.returncode != 0:
                 logger.warning("Command failed (exit %d): %s", proc.returncode, " ".join(cmd))
-                return json.dumps({
-                    "success": False,
-                    "error": {
-                        "type": "ExecutionError",
-                        "message": f"Command failed with exit code {proc.returncode}",
-                        "details": error or output,
-                    },
-                })
+                return json.dumps(
+                    {
+                        "success": False,
+                        "error": {
+                            "type": "ExecutionError",
+                            "message": f"Command failed with exit code {proc.returncode}",
+                            "details": error or output,
+                        },
+                    }
+                )
 
             lines = output.splitlines()
             total_lines = len(lines)
@@ -666,11 +714,13 @@ class TSharkClient:
 
         except Exception as e:
             logger.exception("Command execution failed: %s", " ".join(cmd))
-            return json.dumps({
-                "success": False,
-                "error": {
-                    "type": "ExecutionError",
-                    "message": "Command execution failed",
-                    "details": str(e),
-                },
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {
+                        "type": "ExecutionError",
+                        "message": "Command execution failed",
+                        "details": str(e),
+                    },
+                }
+            )

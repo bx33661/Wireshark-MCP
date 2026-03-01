@@ -1,12 +1,12 @@
 """Advanced threat detection and security analysis tools for Wireshark MCP."""
 
 import logging
-from typing import Any, List, Tuple
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from ..tshark.client import TSharkClient
-from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
+from .envelope import normalize_tool_result, parse_tool_result, success_response
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -18,7 +18,7 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
     pass
 
 
-def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
+def make_contextual_threat_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     """Create contextual threat tools (registered on demand by the registry)."""
 
     async def wireshark_detect_port_scan(pcap_file: str, threshold: int = 15) -> str:
@@ -64,14 +64,10 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
                     src_to_ports.setdefault(src, set()).add(port)
                     src_to_targets.setdefault(src, set()).add(dst)
 
-        results: List[str] = []
+        results: list[str] = []
         results.append("=== Port Scan Detection ===\n")
 
-        scanners = {
-            src: ports
-            for src, ports in src_to_ports.items()
-            if len(ports) >= threshold
-        }
+        scanners = {src: ports for src, ports in src_to_ports.items() if len(ports) >= threshold}
 
         if scanners:
             results.append(f"🔴 {len(scanners)} potential scanner(s) detected!\n")
@@ -91,26 +87,30 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
 
         # Check for specific scan types
         synfin_result = await client.get_packet_list(
-            pcap_file, limit=10,
+            pcap_file,
+            limit=10,
             display_filter="tcp.flags.syn == 1 and tcp.flags.fin == 1",
         )
         synfin_wrapped = parse_tool_result(synfin_result)
         if synfin_wrapped["success"]:
             synfin_data = synfin_wrapped.get("data", "")
             if isinstance(synfin_data, str):
-                synfin_lines = [l for l in synfin_data.strip().splitlines() if l.strip()]
+                synfin_lines = [line for line in synfin_data.strip().splitlines() if line.strip()]
                 if len(synfin_lines) > 1:
-                    results.append(f"\n🔴 SYN-FIN packets detected ({len(synfin_lines) - 1}) — possible Xmas/stealth scan!")
+                    results.append(
+                        f"\n🔴 SYN-FIN packets detected ({len(synfin_lines) - 1}) — possible Xmas/stealth scan!"
+                    )
 
         null_result = await client.get_packet_list(
-            pcap_file, limit=10,
+            pcap_file,
+            limit=10,
             display_filter="tcp.flags == 0",
         )
         null_wrapped = parse_tool_result(null_result)
         if null_wrapped["success"]:
             null_data = null_wrapped.get("data", "")
             if isinstance(null_data, str):
-                null_lines = [l for l in null_data.strip().splitlines() if l.strip()]
+                null_lines = [line for line in null_data.strip().splitlines() if line.strip()]
                 if len(null_lines) > 1:
                     results.append(f"\n🟠 TCP NULL packets detected ({len(null_lines) - 1}) — possible NULL scan!")
 
@@ -142,8 +142,8 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
         if not isinstance(data, str) or len(data.strip()) < 20:
             return success_response("No DNS traffic found in this capture.")
 
-        long_queries: List[str] = []
-        txt_queries: List[str] = []
+        long_queries: list[str] = []
+        txt_queries: list[str] = []
         query_by_src: dict[str, int] = {}
         unique_subdomains: dict[str, set[str]] = {}
         total_queries = 0
@@ -174,7 +174,7 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
                     subdomain = ".".join(parts_domain[:-2])
                     unique_subdomains.setdefault(base, set()).add(subdomain)
 
-        results: List[str] = []
+        results: list[str] = []
         results.append("=== DNS Tunnel Detection ===\n")
         results.append(f"Total DNS queries analyzed: {total_queries}")
 
@@ -194,20 +194,16 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
             unique_txt = set(txt_queries)
             results.append(f"  Unique TXT domains: {len(unique_txt)}")
 
-        suspicious_domains = {
-            domain: subs
-            for domain, subs in unique_subdomains.items()
-            if len(subs) > 20
-        }
+        suspicious_domains = {domain: subs for domain, subs in unique_subdomains.items() if len(subs) > 20}
         if suspicious_domains:
             indicators += 1
-            results.append(f"\n🔴 Domains with excessive subdomains (data encoding indicator):")
+            results.append("\n🔴 Domains with excessive subdomains (data encoding indicator):")
             for domain, subs in sorted(suspicious_domains.items(), key=lambda x: len(x[1]), reverse=True)[:5]:
                 results.append(f"  {domain}: {len(subs)} unique subdomains")
 
         heavy_queriers = {src: cnt for src, cnt in query_by_src.items() if cnt > 100}
         if heavy_queriers:
-            results.append(f"\n🟡 High-volume DNS clients:")
+            results.append("\n🟡 High-volume DNS clients:")
             for src, cnt in sorted(heavy_queriers.items(), key=lambda x: x[1], reverse=True)[:5]:
                 results.append(f"  {src}: {cnt} queries")
 
@@ -232,7 +228,7 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
         Example:
             wireshark_detect_dos_attack("ddos.pcap")
         """
-        results: List[str] = []
+        results: list[str] = []
         results.append("=== DoS/DDoS Detection ===\n")
         indicators = 0
 
@@ -241,7 +237,8 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
         synack_count = 0
 
         syn_result = await client.get_packet_list(
-            pcap_file, limit=10000,
+            pcap_file,
+            limit=10000,
             display_filter="tcp.flags.syn == 1 and tcp.flags.ack == 0",
         )
         syn_wrapped = parse_tool_result(syn_result)
@@ -251,7 +248,8 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
                 syn_count = max(0, len(syn_data.strip().splitlines()) - 1)
 
         synack_result = await client.get_packet_list(
-            pcap_file, limit=10000,
+            pcap_file,
+            limit=10000,
             display_filter="tcp.flags.syn == 1 and tcp.flags.ack == 1",
         )
         synack_wrapped = parse_tool_result(synack_result)
@@ -264,7 +262,9 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
             ratio = syn_count / max(synack_count, 1)
             if ratio > 3:
                 indicators += 1
-                results.append(f"🔴 SYN Flood indicator: {syn_count} SYNs vs {synack_count} SYN-ACKs (ratio: {ratio:.1f})")
+                results.append(
+                    f"🔴 SYN Flood indicator: {syn_count} SYNs vs {synack_count} SYN-ACKs (ratio: {ratio:.1f})"
+                )
             else:
                 results.append(f"🟢 SYN/SYN-ACK ratio normal: {syn_count}/{synack_count}")
         else:
@@ -272,7 +272,9 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
 
         # Check 2: ICMP Flood
         icmp_result = await client.get_packet_list(
-            pcap_file, limit=10000, display_filter="icmp",
+            pcap_file,
+            limit=10000,
+            display_filter="icmp",
         )
         icmp_wrapped = parse_tool_result(icmp_result)
         if icmp_wrapped["success"]:
@@ -318,7 +320,8 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
 
         # Check 4: DNS Amplification
         dns_result = await client.get_packet_list(
-            pcap_file, limit=1000,
+            pcap_file,
+            limit=1000,
             display_filter="dns.flags.response == 1 and udp.length > 512",
         )
         dns_wrapped = parse_tool_result(dns_result)
@@ -354,9 +357,9 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
         Example:
             wireshark_analyze_suspicious_traffic("network.pcap")
         """
-        results: List[str] = []
+        results: list[str] = []
         results.append("=== Comprehensive Suspicious Traffic Analysis ===\n")
-        findings: List[str] = []
+        findings: list[str] = []
 
         # Check 1: Cleartext protocols
         cleartext_checks = [
@@ -375,7 +378,7 @@ def make_contextual_threat_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
             if check_wrapped["success"]:
                 check_data = check_wrapped.get("data", "")
                 if isinstance(check_data, str):
-                    check_lines = [l for l in check_data.strip().splitlines() if l.strip()]
+                    check_lines = [line for line in check_data.strip().splitlines() if line.strip()]
                     if len(check_lines) > 1:
                         findings.append(f"Cleartext {name} traffic detected")
                         results.append(f"  🟠 {name}: DETECTED")

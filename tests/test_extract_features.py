@@ -1,7 +1,6 @@
 """Tests for extract tools and TSharkClient packet reading methods."""
 
 import pytest
-
 from conftest import MockTSharkClient
 
 
@@ -70,14 +69,10 @@ class TestSearchPacketContents:
 
     @pytest.mark.asyncio
     async def test_regex_search_details_scope(self, mock_client: MockTSharkClient) -> None:
-        res = await mock_client.search_packet_contents(
-            "test.pcap", "pass.*word", search_type="regex", scope="details"
-        )
+        res = await mock_client.search_packet_contents("test.pcap", "pass.*word", search_type="regex", scope="details")
         assert 'frame matches "pass.*word"' in res
 
     @pytest.mark.asyncio
     async def test_filter_scope(self, mock_client: MockTSharkClient) -> None:
-        res = await mock_client.search_packet_contents(
-            "test.pcap", "http.response.code == 200", scope="filter"
-        )
+        res = await mock_client.search_packet_contents("test.pcap", "http.response.code == 200", scope="filter")
         assert "http.response.code == 200" in res

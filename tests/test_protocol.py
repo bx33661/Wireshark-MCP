@@ -1,7 +1,6 @@
 """Tests for deep protocol analysis tools."""
 
 import pytest
-
 from conftest import MockTSharkClient
 
 
@@ -12,8 +11,14 @@ class TestExtractTlsHandshakes:
     async def test_client_hello_query(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.extract_fields(
             "test.pcap",
-            ["ip.src", "ip.dst", "tcp.dstport", "tls.handshake.version",
-             "tls.handshake.ciphersuite", "tls.handshake.extensions.server_name"],
+            [
+                "ip.src",
+                "ip.dst",
+                "tcp.dstport",
+                "tls.handshake.version",
+                "tls.handshake.ciphersuite",
+                "tls.handshake.extensions.server_name",
+            ],
             display_filter="tls.handshake.type == 1",
             limit=50,
         )
@@ -33,9 +38,7 @@ class TestAnalyzeTcpHealth:
 
     @pytest.mark.asyncio
     async def test_reset_query(self, mock_client: MockTSharkClient) -> None:
-        result = await mock_client.get_packet_list(
-            "test.pcap", limit=10000, display_filter="tcp.flags.reset == 1"
-        )
+        result = await mock_client.get_packet_list("test.pcap", limit=10000, display_filter="tcp.flags.reset == 1")
         assert "tcp.flags.reset == 1" in result
 
 
@@ -75,9 +78,16 @@ class TestExtractDhcpInfo:
     async def test_dhcp_extraction(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.extract_fields(
             "test.pcap",
-            ["bootp.type", "bootp.hw.mac_addr", "bootp.ip.your", "bootp.ip.server",
-             "bootp.option.hostname", "bootp.option.dhcp", "bootp.option.requested_ip_address",
-             "bootp.option.domain_name_server"],
+            [
+                "bootp.type",
+                "bootp.hw.mac_addr",
+                "bootp.ip.your",
+                "bootp.ip.server",
+                "bootp.option.hostname",
+                "bootp.option.dhcp",
+                "bootp.option.requested_ip_address",
+                "bootp.option.domain_name_server",
+            ],
             display_filter="bootp",
             limit=200,
         )

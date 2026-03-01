@@ -1,7 +1,6 @@
 """Tests for file operation tools."""
 
 import pytest
-
 from conftest import MockTSharkClient
 
 

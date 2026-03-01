@@ -4,27 +4,26 @@ These "super tools" chain multiple TSharkClient operations internally,
 returning comprehensive structured reports from a single tool call.
 """
 
-import asyncio
 import logging
-from typing import Dict, List, Optional, Set
 
 from mcp.server.fastmcp import FastMCP
 
 from ..tshark.client import TSharkClient
-from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
+from .envelope import normalize_tool_result, parse_tool_result, success_response
 
 logger = logging.getLogger("wireshark_mcp")
 
 
 # ── Shared helpers ───────────────────────────────────────────────────────────
 
+
 def _count_lines(data: str) -> int:
     """Count non-empty data lines (excluding header)."""
-    lines = [l for l in data.strip().splitlines() if l.strip()]
+    lines = [line for line in data.strip().splitlines() if line.strip()]
     return max(0, len(lines) - 1)
 
 
-def _extract_data(result: str) -> Optional[str]:
+def _extract_data(result: str) -> str | None:
     """Parse a tool result and return the data string if successful, else None."""
     wrapped = parse_tool_result(normalize_tool_result(result))
     if wrapped["success"]:
@@ -45,11 +44,12 @@ async def _safe_run(coro, default=None):
 
 # ── Security Audit ───────────────────────────────────────────────────────────
 
+
 async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
     """Execute comprehensive security audit pipeline."""
 
-    report: List[str] = []
-    findings: List[str] = []
+    report: list[str] = []
+    findings: list[str] = []
     risk_score = 0  # 0-100, higher = worse
 
     report.append("╔══════════════════════════════════════════════════════╗")
@@ -73,9 +73,10 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
     report.append("└───────────────────────────────────────────────────────\n")
 
     # Detect protocols present
-    detected_protocols: Set[str] = set()
+    detected_protocols: set[str] = set()
     if phs_data:
         import re
+
         for line in phs_data.splitlines():
             match = re.match(r"^\s*(\w[\w.-]*)\s+frames:", line)
             if match:
@@ -92,10 +93,8 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
     report.append("┌─── 3. Threat Intelligence ────────────────────────────")
 
     # Extract unique IPs
-    unique_ips: Set[str] = set()
-    ips_raw = await _safe_run(
-        client.extract_fields(pcap_file, ["ip.src", "ip.dst"], limit=10000), ""
-    )
+    unique_ips: set[str] = set()
+    ips_raw = await _safe_run(client.extract_fields(pcap_file, ["ip.src", "ip.dst"], limit=10000), "")
     ips_data = _extract_data(ips_raw) if ips_raw else None
     if ips_data:
         for line in ips_data.splitlines()[1:]:
@@ -107,9 +106,10 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
     report.append(f"│  Unique IPs found: {len(unique_ips)}")
 
     # Check against URLhaus
-    malicious_ips: List[str] = []
+    malicious_ips: list[str] = []
     try:
         from .security import _get_threat_data
+
         threat_feed = await _get_threat_data()
         malicious_ips = [ip for ip in unique_ips if ip in threat_feed]
 
@@ -167,15 +167,17 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
 
     syn_raw = await _safe_run(
         client.extract_fields(
-            pcap_file, ["ip.src", "tcp.dstport"],
+            pcap_file,
+            ["ip.src", "tcp.dstport"],
             display_filter="tcp.flags.syn == 1 and tcp.flags.ack == 0",
-            limit=10000
-        ), ""
+            limit=10000,
+        ),
+        "",
     )
     syn_data = _extract_data(syn_raw) if syn_raw else None
 
     if syn_data:
-        src_to_ports: Dict[str, Set[str]] = {}
+        src_to_ports: dict[str, set[str]] = {}
         for line in syn_data.splitlines()[1:]:
             parts = line.split("\t")
             if len(parts) >= 2:
@@ -202,17 +204,14 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
 
     if "dns" in detected_protocols:
         dns_raw = await _safe_run(
-            client.extract_fields(
-                pcap_file, ["dns.qry.name", "dns.qry.type"],
-                display_filter="dns", limit=5000
-            ), ""
+            client.extract_fields(pcap_file, ["dns.qry.name", "dns.qry.type"], display_filter="dns", limit=5000), ""
         )
         dns_data = _extract_data(dns_raw) if dns_raw else None
 
         if dns_data:
             long_queries = 0
             txt_queries = 0
-            subdomains_per_base: Dict[str, Set[str]] = {}
+            subdomains_per_base: dict[str, set[str]] = {}
             total_dns = 0
 
             for line in dns_data.splitlines()[1:]:
@@ -277,9 +276,7 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
     cleartext_found = []
     for name, dfilter in cleartext_checks:
         if dfilter in detected_protocols or dfilter == "http":
-            check_raw = await _safe_run(
-                client.get_packet_list(pcap_file, limit=1, display_filter=dfilter), ""
-            )
+            check_raw = await _safe_run(client.get_packet_list(pcap_file, limit=1, display_filter=dfilter), "")
             check_data = _extract_data(check_raw) if check_raw else None
             if check_data and _count_lines(check_data) > 0:
                 cleartext_found.append(name)
@@ -353,10 +350,11 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
 
 # ── Quick Analysis ───────────────────────────────────────────────────────────
 
+
 async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
     """Execute quick traffic analysis pipeline."""
 
-    report: List[str] = []
+    report: list[str] = []
 
     report.append("╔══════════════════════════════════════════════════════╗")
     report.append("║           QUICK ANALYSIS REPORT                     ║")
@@ -414,12 +412,10 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
     report.append("┌─── 5. Key Hostnames ──────────────────────────────────")
 
     # HTTP hosts
-    http_hosts_raw = await _safe_run(
-        client.extract_fields(pcap_file, ["http.host"], "http.request", limit=500), ""
-    )
+    http_hosts_raw = await _safe_run(client.extract_fields(pcap_file, ["http.host"], "http.request", limit=500), "")
     http_hosts_data = _extract_data(http_hosts_raw) if http_hosts_raw else None
 
-    http_hosts: Dict[str, int] = {}
+    http_hosts: dict[str, int] = {}
     if http_hosts_data:
         for line in http_hosts_data.splitlines()[1:]:
             host = line.strip().strip('"')
@@ -437,7 +433,7 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
     )
     dns_data = _extract_data(dns_raw) if dns_raw else None
 
-    dns_domains: Dict[str, int] = {}
+    dns_domains: dict[str, int] = {}
     if dns_data:
         for line in dns_data.splitlines()[1:]:
             domain = line.strip().strip('"')
@@ -493,6 +489,7 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
 
 
 # ── Registration ─────────────────────────────────────────────────────────────
+
 
 def register_agent_tools(mcp: FastMCP, client: TSharkClient) -> None:
     """Register agentic workflow super tools."""

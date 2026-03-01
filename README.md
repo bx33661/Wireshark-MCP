@@ -63,18 +63,82 @@ Claude: [calls wireshark_extract_dns_queries → wireshark_check_threats]
 pip install wireshark-mcp
 ```
 
+Then auto-configure **all** your MCP clients in one command:
+
+```sh
+wireshark-mcp --install
+```
+
+That's it — restart your AI client and you're ready to go. 🎉
+
+> **What does `--install` do?** It scans your system for known MCP client config files (Claude, Cursor, VS Code, etc.) and injects the `wireshark-mcp` server entry. Existing settings are preserved. See [Supported Clients](#supported-clients) for the full list.
+
 <details>
 <summary>Install from source</summary>
 
 ```sh
 pip install git+https://github.com/bx33661/Wireshark-MCP.git
+wireshark-mcp --install
+```
+
+</details>
+
+<details>
+<summary>Uninstall from all clients</summary>
+
+```sh
+wireshark-mcp --uninstall
 ```
 
 </details>
 
 ---
 
+## Supported Clients
+
+`wireshark-mcp --install` auto-configures the following clients (macOS & Linux):
+
+| Client | Config File |
+|--------|------------|
+| **Claude Desktop** | `claude_desktop_config.json` |
+| **Claude Code** | `~/.claude.json` |
+| **Cursor** | `~/.cursor/mcp.json` |
+| **VS Code** | `settings.json` (via `mcp.servers`) |
+| **VS Code Insiders** | `settings.json` (via `mcp.servers`) |
+| **Windsurf** | `mcp_config.json` |
+| **Cline** | `cline_mcp_settings.json` |
+| **Roo Code** | `mcp_settings.json` |
+| **Kilo Code** | `mcp_settings.json` |
+| **Antigravity IDE** | `mcp_config.json` |
+| **Zed** | `settings.json` (via `mcp.servers`) |
+| **LM Studio** | `mcp.json` |
+| **Warp** | `mcp_config.json` |
+| **Trae** | `mcp_config.json` |
+| **Gemini CLI** | `settings.json` |
+| **Copilot CLI** | `mcp-config.json` |
+| **Amazon Q** | `mcp_config.json` |
+| **Codex** | `config.toml` |
+
+For unsupported clients, run `wireshark-mcp --config` to get the JSON snippet and paste it manually.
+
+---
+
 ## Configuration
+
+### Recommended: Auto-Configuration (one command)
+
+```sh
+pip install wireshark-mcp
+wireshark-mcp --install
+```
+
+This detects all installed MCP clients and writes the config automatically. Existing settings are preserved.
+
+> ⚠️ **Restart your MCP client** after running `--install` for changes to take effect.
+
+### Manual Configuration
+
+If you prefer to configure manually, or your client is not in the [supported list](#supported-clients):
 
 <details>
 <summary><b>Claude Desktop</b></summary>
@@ -87,9 +151,9 @@ Edit `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "wireshark": {
-      "command": "uv",
-      "args": ["tool", "run", "wireshark-mcp"]
+    "wireshark-mcp": {
+      "command": "wireshark-mcp",
+      "args": []
     }
   }
 }
@@ -101,10 +165,10 @@ Edit `claude_desktop_config.json`:
 <summary><b>Claude Code (CLI)</b></summary>
 
 ```bash
-claude mcp add wireshark -- uv tool run wireshark-mcp
+claude mcp add wireshark-mcp -- wireshark-mcp
 ```
 
-Or edit `~/.claude/claude_desktop_config.json` with the same JSON format above.
+Or edit `~/.claude.json` with the same JSON format above.
 
 </details>
 
@@ -113,18 +177,38 @@ Or edit `~/.claude/claude_desktop_config.json` with the same JSON format above.
 
 Go to **Settings → Features → MCP Servers → Add new MCP server**:
 
-- **Name**: `wireshark`
+- **Name**: `wireshark-mcp`
 - **Type**: `command`
-- **Command**: `uv tool run wireshark-mcp`
+- **Command**: `wireshark-mcp`
 
-Or edit `.cursor/mcp.json` in your project root:
+Or edit `~/.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "wireshark": {
-      "command": "uv",
-      "args": ["tool", "run", "wireshark-mcp"]
+    "wireshark-mcp": {
+      "command": "wireshark-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>VS Code / VS Code Insiders</b></summary>
+
+Add to your `settings.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "wireshark-mcp": {
+        "command": "wireshark-mcp",
+        "args": []
+      }
     }
   }
 }
@@ -136,36 +220,42 @@ Or edit `.cursor/mcp.json` in your project root:
 <summary><b>OpenAI Codex CLI</b></summary>
 
 ```bash
-codex mcp add wireshark -- uv tool run wireshark-mcp
+codex mcp add wireshark-mcp -- wireshark-mcp
 ```
 
 Or edit `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.wireshark]
-command = "uv"
-args = ["tool", "run", "wireshark-mcp"]
+[mcp_servers.wireshark-mcp]
+command = "wireshark-mcp"
+args = []
 ```
 
 </details>
 
 <details>
-<summary><b>Trae AI IDE</b></summary>
+<summary><b>Other clients</b></summary>
 
-Go to **Settings → MCP → Add MCP Server → Manual**, then paste:
+Run the following to get the JSON config snippet:
+
+```sh
+wireshark-mcp --config
+```
+
+Output:
 
 ```json
 {
   "mcpServers": {
-    "wireshark": {
-      "command": "uv",
-      "args": ["tool", "run", "wireshark-mcp"]
+    "wireshark-mcp": {
+      "command": "wireshark-mcp",
+      "args": []
     }
   }
 }
 ```
 
-Or edit `.trae/mcp.json` in your project root.
+Paste this into your client's MCP config file.
 
 </details>
 
@@ -189,6 +279,69 @@ Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 ```
 
 ---
+
+## Prompt Engineering
+
+LLMs perform best with specific, structured prompts. Below are refined prompts for common scenarios:
+
+<details>
+<summary><b>Security Audit</b></summary>
+
+```
+Your task is to perform a comprehensive security audit on <file.pcap>.
+
+1. Start with wireshark_open_file to activate all relevant tools
+2. Run wireshark_security_audit for automated 8-phase analysis
+3. For any findings, drill deeper:
+   - Use wireshark_follow_stream to inspect suspicious sessions
+   - Use wireshark_extract_credentials to check for cleartext passwords
+   - Use wireshark_check_threats to validate IOCs against threat intel
+4. NEVER guess display filter syntax — use the wireshark://reference/display-filters resource
+5. NEVER fabricate packet data — always verify with tools
+6. Write a structured report to report.md with risk scores (0-100)
+```
+
+</details>
+
+<details>
+<summary><b>CTF Challenge</b></summary>
+
+```
+Your task is to solve a CTF network challenge using <file.pcap>.
+
+1. Start with wireshark_open_file then wireshark_quick_analysis for overview
+2. Look for flags using wireshark_search_packets with patterns like "flag{", "CTF{"
+3. Check every stream with wireshark_follow_stream — flags often hide in HTTP bodies or TCP data
+4. Use wireshark_decode_payload to decode Base64, hex, URL-encoded, or gzipped data
+5. Export embedded files with wireshark_export_objects (HTTP, SMB, TFTP)
+6. NEVER base64-decode or hex-decode yourself — always use wireshark_decode_payload
+7. Document all steps taken and flag found in report.md
+```
+
+</details>
+
+<details>
+<summary><b>Performance Troubleshooting</b></summary>
+
+```
+Your task is to diagnose network performance issues in <file.pcap>.
+
+1. Start with wireshark_open_file to activate protocol-specific tools
+2. Use wireshark_analyze_tcp_health to check retransmissions, zero windows, RSTs
+3. Use wireshark_stats_io_graph to find traffic spikes or drops
+4. Use wireshark_stats_service_response_time for HTTP/DNS latency
+5. Use wireshark_stats_expert_info for anomalies
+6. Identify top talkers with wireshark_stats_endpoints
+7. Write findings to report.md with specific timestamps and recommendations
+```
+
+</details>
+
+> **Tips for better results:**
+> - Always call `wireshark_open_file` first — it activates protocol-specific tools via Progressive Discovery
+> - Use the Agentic tools (`security_audit`, `quick_analysis`) for broad analysis, then drill down
+> - Never guess filter syntax — use the `wireshark://reference/display-filters` resource
+> - Never decode payloads manually — use `wireshark_decode_payload`
 
 ## Tools
 
@@ -335,6 +488,19 @@ Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 | `ctf_solve` | CTF challenge solver: flag search, stream analysis, steganography checks |
 | `incident_response` | IR workflow: triage, IOC extraction, attack timeline, containment |
 | `traffic_overview` | Quick traffic summary with protocol breakdown and visualization |
+## Why Wireshark MCP?
+
+There are other network analysis MCP servers out there, but Wireshark MCP was built with a few core goals:
+
+| Feature | Wireshark MCP | Others |
+|---------|:---:|:---:|
+| One-command install (`--install`) | ✅ | ❌ |
+| Agentic workflows (one-call security audit) | ✅ | ❌ |
+| Progressive Discovery (auto-activate tools) | ✅ | ❌ |
+| 40+ specialized analysis tools | ✅ | 5-10 |
+| Threat intelligence integration | ✅ | ❌ |
+| Smart Python env detection | ✅ | ❌ |
+| 18+ MCP client support | ✅ | Manual |
 
 ---
 
@@ -375,8 +541,11 @@ docker compose up -d
 **CLI options:**
 
 ```sh
-wireshark-mcp --version
-wireshark-mcp --transport sse --port 8080 --log-level INFO
+wireshark-mcp --install                # Auto-configure all detected MCP clients
+wireshark-mcp --uninstall              # Remove config from all clients
+wireshark-mcp --config                 # Print JSON config for manual setup
+wireshark-mcp --version                # Show version
+wireshark-mcp --transport sse --port 8080 --log-level INFO   # Start SSE server
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup guide.

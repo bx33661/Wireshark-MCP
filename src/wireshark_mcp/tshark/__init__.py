@@ -1,1 +1,1 @@
-from .client import TSharkClient
+from .client import TSharkClient as TSharkClient

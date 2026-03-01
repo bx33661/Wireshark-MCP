@@ -1,11 +1,8 @@
 """Tests for security tools."""
 
-import json
-from unittest.mock import AsyncMock, patch
-
 import pytest
 
-from wireshark_mcp.tools.security import _is_cache_valid, CACHE_DIR
+from wireshark_mcp.tools.security import _is_cache_valid
 
 
 class TestCacheManagement:

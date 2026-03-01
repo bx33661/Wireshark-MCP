@@ -1,7 +1,6 @@
 """Tests for stats tools."""
 
 import pytest
-
 from conftest import MockTSharkClient
 
 

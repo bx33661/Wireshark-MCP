@@ -1,12 +1,12 @@
 """Deep protocol analysis tools for Wireshark MCP."""
 
 import logging
-from typing import Any, List, Tuple
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from ..tshark.client import TSharkClient
-from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
+from .envelope import normalize_tool_result, parse_tool_result, success_response
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -18,7 +18,7 @@ def register_protocol_tools(mcp: FastMCP, client: TSharkClient) -> None:
     pass
 
 
-def make_contextual_protocol_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
+def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     """Create contextual protocol tools (registered on demand by the registry)."""
 
     async def wireshark_extract_tls_handshakes(pcap_file: str, limit: int = 50) -> str:
@@ -100,26 +100,22 @@ def make_contextual_protocol_tools(client: TSharkClient) -> List[Tuple[str, Any]
             ("Keep-Alive", "tcp.analysis.keep_alive"),
         ]
 
-        results: List[str] = []
+        results: list[str] = []
         results.append("=== TCP Health Analysis ===\n")
 
         # Get total TCP packet count
-        total_result = await client.extract_fields(
-            pcap_file, ["frame.number"], display_filter="tcp", limit=1
-        )
+        await client.extract_fields(pcap_file, ["frame.number"], display_filter="tcp", limit=1)
         total_list = await client.get_packet_list(pcap_file, limit=1, display_filter="tcp")
-        total_wrapped = parse_tool_result(total_list)
+        parse_tool_result(total_list)
 
         for name, display_filter in checks:
-            count_result = await client.get_packet_list(
-                pcap_file, limit=10000, display_filter=display_filter
-            )
+            count_result = await client.get_packet_list(pcap_file, limit=10000, display_filter=display_filter)
             count_wrapped = parse_tool_result(count_result)
 
             if count_wrapped["success"]:
                 data = count_wrapped.get("data", "")
                 if isinstance(data, str):
-                    lines = [l for l in data.strip().splitlines() if l.strip()]
+                    lines = [line for line in data.strip().splitlines() if line.strip()]
                     count = max(0, len(lines) - 1)
                 else:
                     count = 0
@@ -200,7 +196,7 @@ def make_contextual_protocol_tools(client: TSharkClient) -> List[Tuple[str, Any]
                 if src_ip == dst_ip:
                     gratuitous_count += 1
 
-        results: List[str] = []
+        results: list[str] = []
         results.append("=== ARP Spoofing Analysis ===\n")
         results.append(f"Total ARP packets: {len(lines) - 1}")
         results.append(f"ARP replies: {arp_reply_count}")

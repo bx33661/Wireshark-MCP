@@ -2,10 +2,9 @@
 
 import asyncio
 import logging
-import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -63,7 +62,7 @@ def register_security_tools(mcp: FastMCP, client: TSharkClient) -> None:
     pass
 
 
-def make_contextual_security_tools(client: TSharkClient) -> List[Tuple[str, Any]]:
+def make_contextual_security_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     """Create contextual security tools (registered on demand by the registry)."""
 
     async def wireshark_check_threats(pcap_file: str) -> str:
@@ -113,11 +112,13 @@ def make_contextual_security_tools(client: TSharkClient) -> List[Tuple[str, Any]
 
             matches = [ip for ip in unique_ips if ip in threat_data]
 
-            return success_response({
-                "ips_checked": len(unique_ips),
-                "threats_found": len(matches),
-                "malicious_ips": matches,
-            })
+            return success_response(
+                {
+                    "ips_checked": len(unique_ips),
+                    "threats_found": len(matches),
+                    "malicious_ips": matches,
+                }
+            )
 
         except Exception as e:
             logger.exception("Failed to fetch threat feed")
@@ -139,7 +140,7 @@ def make_contextual_security_tools(client: TSharkClient) -> List[Tuple[str, Any]
         Example:
             wireshark_extract_credentials("insecure.pcap")
         """
-        findings: List[str] = []
+        findings: list[str] = []
 
         http_auth = await client.extract_fields(pcap_file, ["http.authbasic"], "http.authbasic", limit=50)
         http_auth_wrapped = parse_tool_result(http_auth)

@@ -1,7 +1,5 @@
 """Tests for visualization tools (pure parsing functions)."""
 
-import pytest
-
 from wireshark_mcp.tools.visualize import (
     _parse_io_graph,
     _parse_protocol_hierarchy,
@@ -86,10 +84,18 @@ class TestRenderAsciiTree:
 
     def test_basic_tree(self) -> None:
         root = {
-            "name": "root", "frames": 100, "bytes": 0, "children": [
-                {"name": "eth", "frames": 100, "bytes": 0, "children": [
-                    {"name": "ip", "frames": 50, "bytes": 0, "children": []},
-                ]},
+            "name": "root",
+            "frames": 100,
+            "bytes": 0,
+            "children": [
+                {
+                    "name": "eth",
+                    "frames": 100,
+                    "bytes": 0,
+                    "children": [
+                        {"name": "ip", "frames": 50, "bytes": 0, "children": []},
+                    ],
+                },
             ],
         }
         lines = _render_ascii_tree(root, total_frames=100)

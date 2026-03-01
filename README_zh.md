@@ -63,18 +63,80 @@ Claude: [调用 wireshark_extract_dns_queries → wireshark_check_threats]
 pip install wireshark-mcp
 ```
 
+然后一键配置 **所有** MCP 客户端：
+
+```sh
+wireshark-mcp --install
+```
+
+搞定！重启你的 AI 客户端即可使用。 🎉
+
+> **`--install` 做了什么？** 它会扫描系统中所有已知的 MCP 客户端配置文件（Claude、Cursor、VS Code 等），自动注入 `wireshark-mcp` 服务器配置。已有配置不会被覆盖。完整列表见 [支持的客户端](#支持的客户端)。
+
 <details>
 <summary>从源码安装</summary>
 
 ```sh
 pip install git+https://github.com/bx33661/Wireshark-MCP.git
+wireshark-mcp --install
+```
+
+</details>
+
+<details>
+<summary>从所有客户端卸载</summary>
+
+```sh
+wireshark-mcp --uninstall
 ```
 
 </details>
 
 ---
 
+## 支持的客户端
+
+`wireshark-mcp --install` 自动配置以下客户端（macOS 和 Linux）：
+
+| 客户端 | 配置文件 |
+|--------|--------|
+| **Claude Desktop** | `claude_desktop_config.json` |
+| **Claude Code** | `~/.claude.json` |
+| **Cursor** | `~/.cursor/mcp.json` |
+| **VS Code** | `settings.json`（通过 `mcp.servers`）|
+| **VS Code Insiders** | `settings.json`（通过 `mcp.servers`）|
+| **Windsurf** | `mcp_config.json` |
+| **Cline** | `cline_mcp_settings.json` |
+| **Roo Code** | `mcp_settings.json` |
+| **Kilo Code** | `mcp_settings.json` |
+| **Antigravity IDE** | `mcp_config.json` |
+| **Zed** | `settings.json`（通过 `mcp.servers`）|
+| **LM Studio** | `mcp.json` |
+| **Warp** | `mcp_config.json` |
+| **Trae** | `mcp_config.json` |
+| **Gemini CLI** | `settings.json` |
+| **Copilot CLI** | `mcp-config.json` |
+| **Amazon Q** | `mcp_config.json` |
+| **Codex** | `config.toml` |
+
+不在列表中的客户端？运行 `wireshark-mcp --config` 获取 JSON 配置片段，手动粘贴即可。
+
+---
+
 ## 配置
+
+### 推荐：一键自动配置
+
+```sh
+pip install wireshark-mcp
+wireshark-mcp --install
+```
+
+自动检测已安装的 MCP 客户端并写入配置，不会覆盖已有设置。
+
+### 手动配置
+
+如果你需要手动配置，或客户端不在[支持列表](#支持的客户端)中：
 
 <details>
 <summary><b>Claude Desktop</b></summary>
@@ -87,9 +149,9 @@ pip install git+https://github.com/bx33661/Wireshark-MCP.git
 ```json
 {
   "mcpServers": {
-    "wireshark": {
-      "command": "uv",
-      "args": ["tool", "run", "wireshark-mcp"]
+    "wireshark-mcp": {
+      "command": "wireshark-mcp",
+      "args": []
     }
   }
 }
@@ -101,10 +163,10 @@ pip install git+https://github.com/bx33661/Wireshark-MCP.git
 <summary><b>Claude Code (CLI)</b></summary>
 
 ```bash
-claude mcp add wireshark -- uv tool run wireshark-mcp
+claude mcp add wireshark-mcp -- wireshark-mcp
 ```
 
-也可以编辑 `~/.claude/claude_desktop_config.json`，格式同上。
+也可以编辑 `~/.claude.json`，格式同上。
 
 </details>
 
@@ -113,18 +175,38 @@ claude mcp add wireshark -- uv tool run wireshark-mcp
 
 进入 **Settings → Features → MCP Servers → Add new MCP server**：
 
-- **Name**: `wireshark`
+- **Name**: `wireshark-mcp`
 - **Type**: `command`
-- **Command**: `uv tool run wireshark-mcp`
+- **Command**: `wireshark-mcp`
 
-或在项目根目录编辑 `.cursor/mcp.json`：
+或编辑 `~/.cursor/mcp.json`：
 
 ```json
 {
   "mcpServers": {
-    "wireshark": {
-      "command": "uv",
-      "args": ["tool", "run", "wireshark-mcp"]
+    "wireshark-mcp": {
+      "command": "wireshark-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>VS Code / VS Code Insiders</b></summary>
+
+在 `settings.json` 中添加：
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "wireshark-mcp": {
+        "command": "wireshark-mcp",
+        "args": []
+      }
     }
   }
 }
@@ -136,36 +218,42 @@ claude mcp add wireshark -- uv tool run wireshark-mcp
 <summary><b>OpenAI Codex CLI</b></summary>
 
 ```bash
-codex mcp add wireshark -- uv tool run wireshark-mcp
+codex mcp add wireshark-mcp -- wireshark-mcp
 ```
 
 或编辑 `~/.codex/config.toml`：
 
 ```toml
-[mcp_servers.wireshark]
-command = "uv"
-args = ["tool", "run", "wireshark-mcp"]
+[mcp_servers.wireshark-mcp]
+command = "wireshark-mcp"
+args = []
 ```
 
 </details>
 
 <details>
-<summary><b>Trae AI IDE</b></summary>
+<summary><b>其他客户端</b></summary>
 
-进入 **Settings → MCP → Add MCP Server → Manual**，粘贴：
+运行以下命令获取 JSON 配置片段：
+
+```sh
+wireshark-mcp --config
+```
+
+输出：
 
 ```json
 {
   "mcpServers": {
-    "wireshark": {
-      "command": "uv",
-      "args": ["tool", "run", "wireshark-mcp"]
+    "wireshark-mcp": {
+      "command": "wireshark-mcp",
+      "args": []
     }
   }
 }
 ```
 
-或在项目根目录编辑 `.trae/mcp.json`。
+将此片段粘贴到你的客户端 MCP 配置文件中。
 
 </details>
 
@@ -189,6 +277,69 @@ args = ["tool", "run", "wireshark-mcp"]
 ```
 
 ---
+
+## Prompt Engineering（提示词工程）
+
+LLM 在有结构化、具体的提示词时表现最好。以下是针对常见场景的推荐提示词：
+
+<details>
+<summary><b>安全审计</b></summary>
+
+```
+你的任务是对 <file.pcap> 进行全面安全审计。
+
+1. 先用 wireshark_open_file 激活所有相关工具
+2. 运行 wireshark_security_audit 执行自动化 8 阶段分析
+3. 对发现的问题深挖：
+   - 用 wireshark_follow_stream 检查可疑会话
+   - 用 wireshark_extract_credentials 检查明文密码
+   - 用 wireshark_check_threats 对照威胁情报验证 IOC
+4. 绝对不要猜测过滤器语法 — 使用 wireshark://reference/display-filters 资源
+5. 绝对不要编造数据包内容 — 始终用工具验证
+6. 将结构化报告写入 report.md，包含风险评分（0-100）
+```
+
+</details>
+
+<details>
+<summary><b>CTF 解题</b></summary>
+
+```
+你的任务是使用 <file.pcap> 解决 CTF 网络挑战。
+
+1. 先用 wireshark_open_file 再用 wireshark_quick_analysis 了解全貌
+2. 用 wireshark_search_packets 搜索 "flag{"、"CTF{" 等模式
+3. 逐个检查 wireshark_follow_stream — flag 经常藏在 HTTP body 或 TCP 数据中
+4. 用 wireshark_decode_payload 解码 Base64、Hex、URL 编码、Gzip 数据
+5. 用 wireshark_export_objects 导出嵌入文件（HTTP、SMB、TFTP）
+6. 绝对不要自己做 Base64/Hex 解码 — 始终使用 wireshark_decode_payload
+7. 记录所有步骤和找到的 flag 到 report.md
+```
+
+</details>
+
+<details>
+<summary><b>性能排查</b></summary>
+
+```
+你的任务是诊断 <file.pcap> 中的网络性能问题。
+
+1. 先用 wireshark_open_file 激活协议相关工具
+2. 用 wireshark_analyze_tcp_health 检查重传、零窗口、RST
+3. 用 wireshark_stats_io_graph 找到流量尖峰或骤降
+4. 用 wireshark_stats_service_response_time 检查 HTTP/DNS 延迟
+5. 用 wireshark_stats_expert_info 查看异常
+6. 用 wireshark_stats_endpoints 识别流量大户
+7. 将发现写入 report.md，附上具体时间戳和修复建议
+```
+
+</details>
+
+> **提升效果的技巧：**
+> - 始终先调用 `wireshark_open_file` — 它通过 Progressive Discovery 自动激活协议相关工具
+> - 使用 Agentic 工具（`security_audit`、`quick_analysis`）做宏观分析，再用其他工具深挖
+> - 不要猜测过滤器语法 — 使用 `wireshark://reference/display-filters` 资源
+> - 不要手动解码 — 使用 `wireshark_decode_payload`
 
 ## 工具集
 
@@ -336,6 +487,20 @@ args = ["tool", "run", "wireshark-mcp"]
 | `incident_response` | 应急响应流程：分诊、IOC 提取、攻击时间线、遏制 |
 | `traffic_overview` | 快速流量摘要，含协议分布和可视化 |
 
+## 为什么选择 Wireshark MCP？
+
+市面上有其他网络分析 MCP 服务器，但 Wireshark MCP 在以下方面具有优势：
+
+| 特性 | Wireshark MCP | 其他方案 |
+|------|:---:|:---:|
+| 一键安装（`--install`） | ✅ | ❌ |
+| Agentic Workflows（一键安全审计） | ✅ | ❌ |
+| Progressive Discovery（智能激活工具） | ✅ | ❌ |
+| 40+ 专业分析工具 | ✅ | 5-10 |
+| 威胁情报集成 | ✅ | ❌ |
+| Python 环境智能检测 | ✅ | ❌ |
+| 18+ MCP 客户端支持 | ✅ | 手动 |
+
 ---
 
 ## 开发
@@ -375,8 +540,11 @@ docker compose up -d
 **命令行选项：**
 
 ```sh
-wireshark-mcp --version
-wireshark-mcp --transport sse --port 8080 --log-level INFO
+wireshark-mcp --install                # 一键配置所有检测到的 MCP 客户端
+wireshark-mcp --uninstall              # 从所有客户端移除配置
+wireshark-mcp --config                 # 打印 JSON 配置供手动设置
+wireshark-mcp --version                # 显示版本
+wireshark-mcp --transport sse --port 8080 --log-level INFO   # 启动 SSE 服务器
 ```
 
 参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 获取完整的开发环境搭建指南。

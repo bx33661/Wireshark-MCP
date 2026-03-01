@@ -1,11 +1,9 @@
 """Shared fixtures for Wireshark MCP tests."""
 
-import asyncio
-import json
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
@@ -15,16 +13,16 @@ from wireshark_mcp.tshark.client import TSharkClient
 class MockTSharkClient(TSharkClient):
     """TSharkClient that returns predictable results without calling real tshark."""
 
-    def __init__(self, allowed_dirs: Optional[List[str]] = None) -> None:
+    def __init__(self, allowed_dirs: list[str] | None = None) -> None:
         self.tshark_path = "tshark"
         self.capinfos_path = "capinfos"
         self.mergecap_path = "mergecap"
         self.editcap_path = "editcap"
-        self._version: Optional[str] = None
+        self._version: str | None = None
         self._allowed_dirs = [Path(d).resolve() for d in allowed_dirs] if allowed_dirs else None
-        self._last_cmd: List[str] = []
+        self._last_cmd: list[str] = []
 
-    def _validate_file(self, filepath: str) -> Dict[str, Any]:
+    def _validate_file(self, filepath: str) -> dict[str, Any]:
         """Always succeed for mock, unless sandbox is enabled."""
         if self._allowed_dirs:
             return super()._validate_file(filepath)
@@ -32,7 +30,7 @@ class MockTSharkClient(TSharkClient):
 
     async def _run_command(
         self,
-        cmd: List[str],
+        cmd: list[str],
         limit_lines: int = 0,
         offset_lines: int = 0,
         timeout: int = 30,

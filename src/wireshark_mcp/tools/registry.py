@@ -7,7 +7,8 @@ Manages two categories of tools:
 
 import logging
 import re
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -18,13 +19,13 @@ logger = logging.getLogger("wireshark_mcp")
 
 # Type alias: a function that creates contextual tool functions
 # Returns list of (tool_name, tool_function) pairs
-ContextualToolFactory = Callable[[TSharkClient], List[Tuple[str, Any]]]
+ContextualToolFactory = Callable[[TSharkClient], list[tuple[str, Any]]]
 
 
 # ── Protocol → Tool mapping ─────────────────────────────────────────────────
 
 # Each entry: protocol_keyword → list of tool names that should be activated
-PROTOCOL_TOOL_MAP: Dict[str, List[str]] = {
+PROTOCOL_TOOL_MAP: dict[str, list[str]] = {
     # HTTP-related
     "http": [
         "wireshark_extract_http_requests",
@@ -88,9 +89,9 @@ class ToolRegistry:
         self._mcp = mcp
         self._client = client
         # All contextual tool functions, keyed by tool name
-        self._contextual_catalog: Dict[str, Any] = {}
+        self._contextual_catalog: dict[str, Any] = {}
         # Currently registered contextual tool names
-        self._active_contextual: Set[str] = set()
+        self._active_contextual: set[str] = set()
 
     def build_catalog(self) -> None:
         """Build the catalog of all available contextual tools.
@@ -127,7 +128,7 @@ class ToolRegistry:
                 logger.debug("Tool %s was not registered, skipping removal", name)
         self._active_contextual.clear()
 
-    def register_contextual_tools(self, detected_protocols: Set[str]) -> List[str]:
+    def register_contextual_tools(self, detected_protocols: set[str]) -> list[str]:
         """Register contextual tools based on detected protocols.
 
         Args:
@@ -140,14 +141,14 @@ class ToolRegistry:
         self.clear_contextual_tools()
 
         # Determine which tools to activate
-        tools_to_activate: Set[str] = set()
+        tools_to_activate: set[str] = set()
         for protocol in detected_protocols:
             protocol_lower = protocol.lower().strip()
             if protocol_lower in PROTOCOL_TOOL_MAP:
                 tools_to_activate.update(PROTOCOL_TOOL_MAP[protocol_lower])
 
         # Register the tools
-        newly_registered: List[str] = []
+        newly_registered: list[str] = []
         for tool_name in sorted(tools_to_activate):
             if tool_name in self._contextual_catalog:
                 fn = self._contextual_catalog[tool_name]
@@ -159,9 +160,7 @@ class ToolRegistry:
                 except Exception as e:
                     logger.warning("Failed to register tool %s: %s", tool_name, e)
             else:
-                logger.warning(
-                    "Tool %s is in PROTOCOL_TOOL_MAP but not in catalog", tool_name
-                )
+                logger.warning("Tool %s is in PROTOCOL_TOOL_MAP but not in catalog", tool_name)
 
         logger.info(
             "Registered %d contextual tools for protocols: %s",
@@ -171,7 +170,7 @@ class ToolRegistry:
         return newly_registered
 
     @property
-    def active_contextual_tools(self) -> Set[str]:
+    def active_contextual_tools(self) -> set[str]:
         """Return the set of currently registered contextual tool names."""
         return self._active_contextual.copy()
 
@@ -181,7 +180,7 @@ class ToolRegistry:
         return len(self._contextual_catalog)
 
 
-def parse_protocol_hierarchy(phs_output: str) -> Set[str]:
+def parse_protocol_hierarchy(phs_output: str) -> set[str]:
     """Parse tshark protocol hierarchy output to extract protocol names.
 
     Handles the typical tshark -z io,phs output format like:
@@ -194,7 +193,7 @@ def parse_protocol_hierarchy(phs_output: str) -> Set[str]:
               dns  frames:10 bytes:1000
         arp  frames:10 bytes:1345
     """
-    protocols: Set[str] = set()
+    protocols: set[str] = set()
     for line in phs_output.splitlines():
         # Match lines like "  tcp  frames:123 bytes:456" or "tcp  frames:123"
         match = re.match(r"^\s*(\w[\w.-]*)\s+frames:", line)
@@ -238,12 +237,10 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
         phs_raw = await client.get_protocol_stats(pcap_file)
         phs_result = parse_tool_result(normalize_tool_result(phs_raw))
 
-        detected_protocols: Set[str] = set()
-        phs_text = ""
+        detected_protocols: set[str] = set()
         if phs_result["success"]:
             phs_data = phs_result.get("data", "")
             if isinstance(phs_data, str):
-                phs_text = phs_data
                 detected_protocols = parse_protocol_hierarchy(phs_data)
 
         # Step 3: Register contextual tools based on detected protocols
@@ -253,7 +250,9 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
         output_parts = [
             "=== File Opened Successfully ===\n",
             "--- File Info ---",
-            file_info.get("data", "N/A") if isinstance(file_info.get("data"), str) else str(file_info.get("data", "N/A")),
+            file_info.get("data", "N/A")
+            if isinstance(file_info.get("data"), str)
+            else str(file_info.get("data", "N/A")),
         ]
 
         if detected_protocols:
@@ -262,24 +261,17 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
 
         if newly_registered:
             output_parts.append(f"\n--- Activated Tools ({len(newly_registered)}) ---")
-            output_parts.append(
-                "The following specialized tools are now available for this capture:"
-            )
+            output_parts.append("The following specialized tools are now available for this capture:")
             for tool_name in newly_registered:
                 fn = registry._contextual_catalog.get(tool_name)
                 doc = (fn.__doc__ or "").strip().split("\n")[0] if fn else ""
                 output_parts.append(f"  • {tool_name}: {doc}")
         else:
-            output_parts.append(
-                "\n--- No additional tools activated ---"
-            )
-            output_parts.append(
-                "No protocol-specific tools were needed for this capture."
-            )
+            output_parts.append("\n--- No additional tools activated ---")
+            output_parts.append("No protocol-specific tools were needed for this capture.")
 
         output_parts.append(
-            "\n💡 Tip: Use the core tools (wireshark_get_packet_list, wireshark_stats_*, etc.) "
-            "to begin your analysis."
+            "\n💡 Tip: Use the core tools (wireshark_get_packet_list, wireshark_stats_*, etc.) to begin your analysis."
         )
 
         return success_response("\n".join(output_parts))

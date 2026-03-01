@@ -1,8 +1,7 @@
 """Tests for the Progressive Discovery registry module."""
 
-import pytest
-
 from conftest import MockTSharkClient
+
 from wireshark_mcp.tools.registry import ToolRegistry, parse_protocol_hierarchy
 
 
@@ -46,6 +45,7 @@ class TestToolRegistryBuildCatalog:
 
     def test_builds_nonempty_catalog(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -53,6 +53,7 @@ class TestToolRegistryBuildCatalog:
 
     def test_catalog_contains_expected_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -83,6 +84,7 @@ class TestContextualRegistration:
 
     def test_registers_http_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -94,6 +96,7 @@ class TestContextualRegistration:
 
     def test_registers_dns_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -106,6 +109,7 @@ class TestContextualRegistration:
 
     def test_registers_tls_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -116,6 +120,7 @@ class TestContextualRegistration:
 
     def test_clear_removes_all_contextual(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -128,6 +133,7 @@ class TestContextualRegistration:
 
     def test_switching_protocols_replaces_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -143,6 +149,7 @@ class TestContextualRegistration:
 
     def test_ip_registers_security_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -155,6 +162,7 @@ class TestContextualRegistration:
 
     def test_multiple_protocols(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
@@ -168,6 +176,7 @@ class TestContextualRegistration:
 
     def test_unknown_protocol_registers_nothing(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
+
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()

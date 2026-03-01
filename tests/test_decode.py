@@ -1,9 +1,6 @@
 """Tests for decode tools (pure functions, no tshark dependency)."""
 
-import base64
 import gzip
-
-import pytest
 
 from wireshark_mcp.tools.decode import _calculate_score, _try_decode
 
