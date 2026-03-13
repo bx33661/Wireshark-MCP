@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 import os
 import sys
@@ -19,6 +20,19 @@ from .tools.visualize import register_visualize_tools
 from .tshark.client import TSharkClient
 
 logger = logging.getLogger("wireshark_mcp")
+
+
+def _configure_windows_event_loop() -> None:
+    """Keep the asyncio policy compatible with subprocess-heavy workloads."""
+    if sys.platform != "win32":
+        return
+
+    policy_cls = getattr(asyncio, "WindowsProactorEventLoopPolicy", None)
+    if policy_cls is None:
+        return
+
+    if not isinstance(asyncio.get_event_loop_policy(), policy_cls):
+        asyncio.set_event_loop_policy(policy_cls())
 
 
 def _build_server() -> FastMCP:
@@ -124,6 +138,7 @@ def main() -> None:
     )
 
     mcp = _build_server()
+    _configure_windows_event_loop()
 
     if args.transport == "sse":
         logger.info("Starting SSE transport on port %d", args.port)

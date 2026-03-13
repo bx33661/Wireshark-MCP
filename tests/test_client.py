@@ -105,3 +105,19 @@ class TestRunCommand:
         result = json.loads(result_str)
         assert not result["success"]
         assert result["error"]["type"] == "SecurityError"
+
+    @pytest.mark.asyncio
+    async def test_binary_whitelist_allows_windows_exe_names(self, real_client: TSharkClient) -> None:
+        result_str = await real_client._run_command(["C:\\Wireshark\\tshark.exe", "-v"])
+        result = json.loads(result_str)
+        assert not result["success"]
+        assert result["error"]["type"] != "SecurityError"
+
+    @pytest.mark.asyncio
+    async def test_binary_whitelist_allows_windows_exe_names_case_insensitive(
+        self, real_client: TSharkClient
+    ) -> None:
+        result_str = await real_client._run_command(["C:\\Wireshark\\tshark.EXE", "-v"])
+        result = json.loads(result_str)
+        assert not result["success"]
+        assert result["error"]["type"] != "SecurityError"
