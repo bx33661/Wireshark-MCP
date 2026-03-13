@@ -20,7 +20,16 @@ class TSharkClient:
     VALID_STREAM_PROTOCOLS = {"tcp", "udp", "tls", "http", "http2"}
 
     # Commands that are allowed to be executed
-    _ALLOWED_BINARIES = {"tshark", "capinfos", "mergecap", "editcap"}
+    _ALLOWED_BINARIES = {
+        "tshark",
+        "tshark.exe",
+        "capinfos",
+        "capinfos.exe",
+        "mergecap",
+        "mergecap.exe",
+        "editcap",
+        "editcap.exe",
+    }
 
     def __init__(
         self,
@@ -635,7 +644,7 @@ class TSharkClient:
     ) -> str:
         """Run command with error handling, validation, and timeout."""
         # Validate the binary being executed
-        binary = Path(cmd[0]).name if cmd else ""
+        binary = Path(cmd[0]).name.lower() if cmd else ""
         if binary not in self._ALLOWED_BINARIES:
             logger.error("Blocked execution of disallowed binary: %s", binary)
             return json.dumps(

@@ -9,7 +9,9 @@ from wireshark_mcp.installer import (
     _collect_python_env,
     _get_mcp_servers_dict,
     _get_python_executable,
+    _get_client_configs,
     _read_json_config,
+    _render_codex_toml_block,
     _write_json_config,
     generate_mcp_config,
     install_mcp_servers,
@@ -58,6 +60,15 @@ class TestGenerateMcpConfig:
         config = generate_mcp_config()
         # Should either be the script path or a python executable
         assert len(config["command"]) > 0
+
+    def test_windows_stdio_uses_unbuffered_python(self, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "win32")
+        monkeypatch.setattr("wireshark_mcp.installer._get_python_executable", lambda: r"C:\\Python\\python.exe")
+        config = generate_mcp_config()
+        assert config["command"] == r"C:\\Python\\python.exe"
+        assert config["args"] == ["-u", "-m", "wireshark_mcp.server"]
+        assert config["env"]["PYTHONUNBUFFERED"] == "1"
+        assert config["env"]["PYTHONIOENCODING"] == "utf-8"
 
 
 class TestReadWriteJsonConfig:
@@ -209,3 +220,50 @@ class TestInstallMcpServers:
         assert count == 0
         output = capsys.readouterr().out
         assert "not found" in output
+
+    def test_install_updates_codex_toml(self, tmp_path):
+        codex_dir = tmp_path / "codex"
+        codex_dir.mkdir()
+        config_path = codex_dir / "config.toml"
+        config_path.write_text('[mcp_servers.other]\ncommand = "other"\n', encoding="utf-8")
+
+        fake = {"Codex": (str(codex_dir), "config.toml")}
+        with patch("wireshark_mcp.installer._get_client_configs", return_value=fake):
+            count = install_mcp_servers(uninstall=False)
+
+        assert count == 1
+        content = config_path.read_text(encoding="utf-8")
+        assert "[mcp_servers.other]" in content
+        assert f"[mcp_servers.{SERVER_NAME}]" in content
+
+    def test_uninstall_removes_codex_toml_block(self, tmp_path):
+        codex_dir = tmp_path / "codex"
+        codex_dir.mkdir()
+        config_path = codex_dir / "config.toml"
+        config_path.write_text(_render_codex_toml_block() + "\n", encoding="utf-8")
+
+        fake = {"Codex": (str(codex_dir), "config.toml")}
+        with patch("wireshark_mcp.installer._get_client_configs", return_value=fake):
+            count = install_mcp_servers(uninstall=True)
+
+        assert count == 1
+        assert f"[mcp_servers.{SERVER_NAME}]" not in config_path.read_text(encoding="utf-8")
+
+
+class TestPlatformConfigs:
+    def test_windows_client_configs_include_supported_paths(self, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "win32")
+        monkeypatch.setenv("APPDATA", r"C:\\Users\\tester\\AppData\\Roaming")
+        monkeypatch.setattr("wireshark_mcp.installer.os.path.expanduser", lambda _: r"C:\\Users\\tester")
+
+        configs = _get_client_configs()
+
+        assert configs["Claude"] == (
+            r"C:\\Users\\tester\\AppData\\Roaming\\Claude",
+            "claude_desktop_config.json",
+        )
+        assert configs["Codex"] == (r"C:\\Users\\tester\\.codex", "config.toml")
+        assert configs["VS Code"] == (
+            r"C:\\Users\\tester\\AppData\\Roaming\\Code\\User",
+            "settings.json",
+        )
