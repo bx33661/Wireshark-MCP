@@ -73,6 +73,8 @@ class TestGenerateMcpConfig:
                 "WIRESHARK_MCP_CAPINFOS_PATH": None,
                 "WIRESHARK_MCP_MERGECAP_PATH": None,
                 "WIRESHARK_MCP_EDITCAP_PATH": None,
+                "WIRESHARK_MCP_DUMPCAP_PATH": "/Applications/Wireshark.app/Contents/MacOS/dumpcap",
+                "WIRESHARK_MCP_TEXT2PCAP_PATH": None,
             },
         )
         config = generate_mcp_config()
@@ -82,6 +84,7 @@ class TestGenerateMcpConfig:
         assert config["env"]["PYTHONIOENCODING"] == "utf-8"
         assert config["env"]["PATH"] == "/opt/homebrew/bin:/usr/bin"
         assert config["env"]["WIRESHARK_MCP_TSHARK_PATH"] == "/Applications/Wireshark.app/Contents/MacOS/tshark"
+        assert config["env"]["WIRESHARK_MCP_DUMPCAP_PATH"] == "/Applications/Wireshark.app/Contents/MacOS/dumpcap"
 
     def test_windows_stdio_uses_unbuffered_python(self, monkeypatch):
         monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "win32")

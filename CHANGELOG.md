@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added suite capability reporting via `wireshark_get_capabilities` and the `wireshark://capabilities` resource.
+- Added optional Wireshark suite tools for `editcap`-based trimming, splitting, time shifting, and deduplication, plus `text2pcap` import support.
+
+### Changed
+- Live capture now prefers `dumpcap` when available while keeping `tshark` as the only required Wireshark dependency.
+- Installer diagnostics now classify Wireshark tools as required, recommended, or optional.
+
 ## [0.6.4] - 2026-03-14
 
 ### Fixed

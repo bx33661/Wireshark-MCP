@@ -87,12 +87,15 @@ class TestCapabilities:
         assert result["success"]
         assert "tshark" in result["data"]
         assert "capinfos" in result["data"]
+        assert "_meta" in result["data"]
 
     def test_client_prefers_env_tool_paths(self, monkeypatch) -> None:
         monkeypatch.setenv("WIRESHARK_MCP_TSHARK_PATH", "/opt/wireshark/tshark")
         monkeypatch.setenv("WIRESHARK_MCP_CAPINFOS_PATH", "/opt/wireshark/capinfos")
         monkeypatch.setenv("WIRESHARK_MCP_MERGECAP_PATH", "/opt/wireshark/mergecap")
         monkeypatch.setenv("WIRESHARK_MCP_EDITCAP_PATH", "/opt/wireshark/editcap")
+        monkeypatch.setenv("WIRESHARK_MCP_DUMPCAP_PATH", "/opt/wireshark/dumpcap")
+        monkeypatch.setenv("WIRESHARK_MCP_TEXT2PCAP_PATH", "/opt/wireshark/text2pcap")
 
         client = TSharkClient()
 
@@ -100,6 +103,8 @@ class TestCapabilities:
         assert client.capinfos_path == "/opt/wireshark/capinfos"
         assert client.mergecap_path == "/opt/wireshark/mergecap"
         assert client.editcap_path == "/opt/wireshark/editcap"
+        assert client.dumpcap_path == "/opt/wireshark/dumpcap"
+        assert client.text2pcap_path == "/opt/wireshark/text2pcap"
 
 
 class TestRunCommand:
@@ -132,3 +137,20 @@ class TestRunCommand:
         result = json.loads(result_str)
         assert not result["success"]
         assert result["error"]["type"] != "SecurityError"
+
+
+class TestSuiteBehavior:
+    @pytest.mark.asyncio
+    async def test_capture_prefers_dumpcap_when_available(self, mock_client) -> None:
+        result = await mock_client.capture_packets("en0", "/tmp/out.pcapng", duration=10)
+        assert "dumpcap" in result
+        assert mock_client._last_cmd[0] == "dumpcap"
+
+    @pytest.mark.asyncio
+    async def test_capture_falls_back_to_tshark(self, mock_client) -> None:
+        mock_client.dumpcap_path = None
+        mock_client._tool_paths["dumpcap"] = None
+
+        result = await mock_client.capture_packets("en0", "/tmp/out.pcapng", duration=10)
+        assert "tshark" in result
+        assert mock_client._last_cmd[0] == "tshark"
