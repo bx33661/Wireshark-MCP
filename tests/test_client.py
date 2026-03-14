@@ -1,6 +1,7 @@
 """Tests for TSharkClient core functionality."""
 
 import json
+import shutil
 
 import pytest
 
@@ -106,6 +107,27 @@ class TestCapabilities:
         assert client.dumpcap_path == "/opt/wireshark/dumpcap"
         assert client.text2pcap_path == "/opt/wireshark/text2pcap"
 
+    def test_describe_capabilities_reports_capture_backend_fallback(self, mock_client) -> None:
+        capabilities = mock_client.describe_capabilities()
+        assert capabilities["_meta"]["capture_backend"] == "dumpcap"
+        assert capabilities["dumpcap"]["requirement"] == "optional"
+
+        mock_client.dumpcap_path = None
+        mock_client._tool_paths["dumpcap"] = None
+
+        fallback_capabilities = mock_client.describe_capabilities()
+        assert fallback_capabilities["_meta"]["capture_backend"] == "tshark"
+
+    @pytest.mark.asyncio
+    async def test_check_capabilities_detects_real_tshark_when_installed(self) -> None:
+        if shutil.which("tshark") is None:
+            pytest.skip("tshark not installed on this host")
+
+        result = await TSharkClient().check_capabilities()
+
+        assert result["success"]
+        assert result["data"]["tshark"]["available"] is True
+
 
 class TestRunCommand:
     """Tests for _run_command error handling."""
@@ -140,6 +162,21 @@ class TestRunCommand:
 
 
 class TestSuiteBehavior:
+    @pytest.mark.asyncio
+    async def test_list_interfaces_prefers_dumpcap_when_available(self, mock_client) -> None:
+        result = await mock_client.list_interfaces()
+        assert "dumpcap" in result
+        assert mock_client._last_cmd[0] == "dumpcap"
+
+    @pytest.mark.asyncio
+    async def test_list_interfaces_falls_back_to_tshark(self, mock_client) -> None:
+        mock_client.dumpcap_path = None
+        mock_client._tool_paths["dumpcap"] = None
+
+        result = await mock_client.list_interfaces()
+        assert "tshark" in result
+        assert mock_client._last_cmd[0] == "tshark"
+
     @pytest.mark.asyncio
     async def test_capture_prefers_dumpcap_when_available(self, mock_client) -> None:
         result = await mock_client.capture_packets("en0", "/tmp/out.pcapng", duration=10)
