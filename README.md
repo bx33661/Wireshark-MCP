@@ -294,6 +294,7 @@ Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 This repo also includes a Codex skill at `skills/wireshark-traffic-analysis/`.
 It is designed for disciplined packet analysis: start with capture-wide context, choose the right workflow, validate with packet evidence, and finish with actionable next steps.
 The latest revision is also grounded in official Wireshark documentation for protocol hierarchy, endpoints, conversations, expert info, display filters, and stream-follow behavior.
+For cross-app discovery, the same skill is mirrored into `.github/skills/` and `.claude/skills/`, with root instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), GitHub Copilot instructions, and a machine-readable catalog at `skills/manifest.json`.
 
 The skill supports these modes:
 

@@ -293,6 +293,7 @@ wireshark-mcp --config
 这个仓库现在也自带一个 Codex skill，位置在 `skills/wireshark-traffic-analysis/`。
 它不是简单的提示词集合，而是一套更稳的流量分析工作流：先建立全局画像，再选择分析模式，用数据包证据确认结论，最后给出可执行的下一步。
 这次也补进了基于 Wireshark 官方文档整理的关键规则，包括 Protocol Hierarchy、Endpoints、Conversations、Expert Info、Display Filters 和 Follow Stream 的使用边界。
+为了兼容更多应用，同一套 skill 也镜像到了 `.github/skills/` 和 `.claude/skills/`，并补了根级入口文件（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`）、GitHub Copilot 指令以及机器可读目录 `skills/manifest.json`。
 
 支持的模式：
 

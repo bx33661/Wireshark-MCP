@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "generated_by": "scripts/sync_skills.py",
+  "skills": [
+    {
+      "name": "wireshark-traffic-analysis",
+      "canonical_path": "skills/wireshark-traffic-analysis",
+      "project_locations": [
+        ".github/skills/wireshark-traffic-analysis",
+        ".claude/skills/wireshark-traffic-analysis"
+      ],
+      "root_instruction_files": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        "GEMINI.md"
+      ],
+      "copilot": {
+        "instructions_file": ".github/copilot-instructions.md",
+        "prompt_file": ".github/prompts/wireshark-traffic-analysis.prompt.md"
+      },
+      "packaged_path": "wireshark_mcp/skills/wireshark-traffic-analysis"
+    }
+  ]
+}
