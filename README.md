@@ -289,6 +289,29 @@ Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 
 ---
 
+## Bundled Codex Skill
+
+This repo also includes a Codex skill at `skills/wireshark-traffic-analysis/`.
+It is designed for disciplined packet analysis: start with capture-wide context, choose the right workflow, validate with packet evidence, and finish with actionable next steps.
+The latest revision is also grounded in official Wireshark documentation for protocol hierarchy, endpoints, conversations, expert info, display filters, and stream-follow behavior.
+
+The skill supports these modes:
+
+- `triage`
+- `security`
+- `incident-response`
+- `troubleshoot`
+- `ctf`
+
+Example invocation:
+
+```text
+Use $wireshark-traffic-analysis to investigate <file.pcap>.
+Start in triage mode, escalate if you find suspicious behavior, and produce a concise report with exact filters, streams, frames, confidence, and next steps.
+```
+
+---
+
 ## Prompt Engineering
 
 LLMs perform best with specific, structured prompts. Below are refined prompts for common scenarios:

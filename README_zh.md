@@ -288,6 +288,29 @@ wireshark-mcp --config
 
 ---
 
+## 内置 Codex Skill
+
+这个仓库现在也自带一个 Codex skill，位置在 `skills/wireshark-traffic-analysis/`。
+它不是简单的提示词集合，而是一套更稳的流量分析工作流：先建立全局画像，再选择分析模式，用数据包证据确认结论，最后给出可执行的下一步。
+这次也补进了基于 Wireshark 官方文档整理的关键规则，包括 Protocol Hierarchy、Endpoints、Conversations、Expert Info、Display Filters 和 Follow Stream 的使用边界。
+
+支持的模式：
+
+- `triage`
+- `security`
+- `incident-response`
+- `troubleshoot`
+- `ctf`
+
+示例调用：
+
+```text
+Use $wireshark-traffic-analysis to investigate <file.pcap>.
+Start in triage mode, escalate if you find suspicious behavior, and produce a concise report with exact filters, streams, frames, confidence, and next steps.
+```
+
+---
+
 ## Prompt Engineering（提示词工程）
 
 LLM 在有结构化、具体的提示词时表现最好。以下是针对常见场景的推荐提示词：

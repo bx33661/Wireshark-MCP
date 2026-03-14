@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-03-14
+
+### Added
+- Added a bundled Codex skill at `skills/wireshark-traffic-analysis/` for structured packet triage, security hunting, incident response, troubleshooting, and CTF workflows.
+- Added focused skill references for playbooks, evidence grading, reporting, and official Wireshark behavior notes.
+
+### Changed
+- Strengthened the bundled traffic-analysis skill with guidance grounded in official Wireshark documentation for protocol hierarchy, endpoints, conversations, expert info, display filters, and follow-stream behavior.
+- Wheel builds now include the repository `skills/` directory under the installed `wireshark_mcp` package, so the bundled skill ships with release artifacts instead of only the Git repository.
+
 ## [0.6.1] - 2026-03-14
 
 ### Fixed
@@ -69,7 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Decoding: `wireshark_decode_payload` with auto-detection (Base64, Hex, URL, Gzip, Deflate, Rot13)
 - Visualization: ASCII traffic plot, ASCII protocol hierarchy tree
 
-[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.4.0...v0.6.0
 [0.4.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.2.1...v0.4.0
