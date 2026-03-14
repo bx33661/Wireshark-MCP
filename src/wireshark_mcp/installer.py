@@ -15,13 +15,9 @@ import sys
 import tempfile
 from typing import Any, cast
 
+from .toolchain import WIRESHARK_TOOL_ENV_VARS, WIRESHARK_TOOL_ORDER, WIRESHARK_TOOL_REQUIREMENTS
+
 SERVER_NAME = "wireshark-mcp"
-WIRESHARK_TOOL_ENV_VARS = {
-    "tshark": "WIRESHARK_MCP_TSHARK_PATH",
-    "capinfos": "WIRESHARK_MCP_CAPINFOS_PATH",
-    "mergecap": "WIRESHARK_MCP_MERGECAP_PATH",
-    "editcap": "WIRESHARK_MCP_EDITCAP_PATH",
-}
 
 
 # ---------------------------------------------------------------------------
@@ -511,18 +507,26 @@ def print_install_doctor() -> None:
     print("Wireshark MCP doctor")
     print(f"  Python: {_get_python_executable()}")
     print()
-    print("Wireshark CLI tools:")
+    print("Wireshark suite tools:")
 
     detected_tools = _detect_wireshark_tool_paths()
-    for env_var, tool_path in detected_tools.items():
-        tool_name = env_var.removeprefix("WIRESHARK_MCP_").removesuffix("_PATH").lower()
-        status = tool_path or "missing"
-        print(f"  {tool_name}: {status}")
+    for requirement in ("required", "recommended", "optional"):
+        print(f"  {requirement}:")
+        for tool_name in WIRESHARK_TOOL_ORDER:
+            if WIRESHARK_TOOL_REQUIREMENTS[tool_name] != requirement:
+                continue
+            env_var = WIRESHARK_TOOL_ENV_VARS[tool_name]
+            status = detected_tools.get(env_var) or "missing"
+            print(f"    {tool_name}: {status}")
 
     if not detected_tools["WIRESHARK_MCP_TSHARK_PATH"]:
         print()
         print("Warning: tshark was not found.")
         print("  Install Wireshark CLI tools or set WIRESHARK_MCP_TSHARK_PATH before starting the MCP server.")
+    else:
+        print()
+        capture_backend = "dumpcap" if detected_tools.get("WIRESHARK_MCP_DUMPCAP_PATH") else "tshark"
+        print(f"Preferred capture backend: {capture_backend}")
 
     print()
     print("MCP client targets:")

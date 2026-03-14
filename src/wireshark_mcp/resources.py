@@ -1,8 +1,11 @@
 """MCP Resources for Wireshark MCP — expose reference data to LLMs."""
 
+import json
 import logging
 
 from mcp.server.fastmcp import FastMCP
+
+from .tshark.client import TSharkClient
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -189,7 +192,7 @@ WIRESHARK_MCP_GUIDE = """\
 """
 
 
-def register_resources(mcp: FastMCP) -> None:
+def register_resources(mcp: FastMCP, client: TSharkClient) -> None:
     """Register all MCP Resources."""
 
     @mcp.resource("wireshark://reference/display-filters")
@@ -206,3 +209,8 @@ def register_resources(mcp: FastMCP) -> None:
     def get_usage_guide() -> str:
         """Wireshark MCP usage guide with recommended analysis workflows."""
         return WIRESHARK_MCP_GUIDE
+
+    @mcp.resource("wireshark://capabilities")
+    def get_capabilities() -> str:
+        """Machine-readable capability summary for the current Wireshark toolchain."""
+        return json.dumps(client.describe_capabilities(), indent=2)

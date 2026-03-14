@@ -8,11 +8,19 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from ..toolchain import (
+    WIRESHARK_CAPTURE_BACKEND_ORDER,
+    WIRESHARK_TOOL_ENV_VARS,
+    WIRESHARK_TOOL_ORDER,
+    WIRESHARK_TOOL_PURPOSES,
+    WIRESHARK_TOOL_REQUIREMENTS,
+)
+
 logger = logging.getLogger("wireshark_mcp")
 
 
-class TSharkClient:
-    """Production-grade TShark wrapper with validation, sandboxing, and error handling."""
+class WiresharkSuiteClient:
+    """Production-grade Wireshark CLI suite wrapper with validation and error handling."""
 
     # Protocol whitelists
     VALID_ENDPOINT_TYPES = {"eth", "ip", "ipv6", "tcp", "udp", "sctp", "wlan"}
@@ -20,36 +28,28 @@ class TSharkClient:
     VALID_STREAM_PROTOCOLS = {"tcp", "udp", "tls", "http", "http2"}
 
     # Commands that are allowed to be executed
-    _ALLOWED_BINARIES = {
-        "tshark",
-        "tshark.exe",
-        "capinfos",
-        "capinfos.exe",
-        "mergecap",
-        "mergecap.exe",
-        "editcap",
-        "editcap.exe",
-    }
-    _TOOL_ENV_VARS = {
-        "tshark": "WIRESHARK_MCP_TSHARK_PATH",
-        "capinfos": "WIRESHARK_MCP_CAPINFOS_PATH",
-        "mergecap": "WIRESHARK_MCP_MERGECAP_PATH",
-        "editcap": "WIRESHARK_MCP_EDITCAP_PATH",
-    }
+    _ALLOWED_BINARIES = {name for tool in WIRESHARK_TOOL_ORDER for name in (tool, f"{tool}.exe")}
+    _TOOL_ENV_VARS = WIRESHARK_TOOL_ENV_VARS
 
     def __init__(
         self,
         tshark_path: str = "tshark",
         allowed_dirs: list[str] | None = None,
     ) -> None:
-        if tshark_path == "tshark":
-            self.tshark_path = os.environ.get(self._TOOL_ENV_VARS["tshark"]) or shutil.which("tshark") or "tshark"
-        else:
-            self.tshark_path = shutil.which(tshark_path) or tshark_path
-
-        self.capinfos_path = os.environ.get(self._TOOL_ENV_VARS["capinfos"]) or shutil.which("capinfos")
-        self.mergecap_path = os.environ.get(self._TOOL_ENV_VARS["mergecap"]) or shutil.which("mergecap")
-        self.editcap_path = os.environ.get(self._TOOL_ENV_VARS["editcap"]) or shutil.which("editcap")
+        self._tool_paths: dict[str, str | None] = {
+            "tshark": self._resolve_tool_path("tshark", tshark_path),
+            "capinfos": self._resolve_tool_path("capinfos"),
+            "mergecap": self._resolve_tool_path("mergecap"),
+            "editcap": self._resolve_tool_path("editcap"),
+            "dumpcap": self._resolve_tool_path("dumpcap"),
+            "text2pcap": self._resolve_tool_path("text2pcap"),
+        }
+        self.tshark_path = self._tool_paths["tshark"] or tshark_path
+        self.capinfos_path = self._tool_paths["capinfos"]
+        self.mergecap_path = self._tool_paths["mergecap"]
+        self.editcap_path = self._tool_paths["editcap"]
+        self.dumpcap_path = self._tool_paths["dumpcap"]
+        self.text2pcap_path = self._tool_paths["text2pcap"]
         self._version: str | None = None
 
         # Path sandbox: if set, only files within these directories are accessible
@@ -57,6 +57,74 @@ class TSharkClient:
         if allowed_dirs:
             self._allowed_dirs = [Path(d).resolve() for d in allowed_dirs]
             logger.info("Path sandbox enabled: %s", self._allowed_dirs)
+
+    def _resolve_tool_path(self, tool_name: str, preferred: str | None = None) -> str | None:
+        """Resolve a suite tool using env overrides, PATH, or the provided value."""
+        env_override = os.environ.get(self._TOOL_ENV_VARS[tool_name])
+        if env_override:
+            return env_override
+
+        if preferred and preferred != tool_name:
+            return shutil.which(preferred) or preferred
+
+        return shutil.which(tool_name) or preferred
+
+    @staticmethod
+    def _tool_is_available(tool_path: str | None) -> bool:
+        """Return True when a binary path or command is resolvable."""
+        if not tool_path:
+            return False
+        return os.path.isfile(tool_path) or shutil.which(tool_path) is not None
+
+    def _select_capture_backend(self) -> str:
+        """Pick the best available capture backend without making optional tools mandatory."""
+        for tool_name in WIRESHARK_CAPTURE_BACKEND_ORDER:
+            tool_path = self._tool_paths.get(tool_name)
+            if self._tool_is_available(tool_path):
+                return tool_name
+        return "tshark"
+
+    def _capability_snapshot(self) -> dict[str, Any]:
+        """Return the current suite capability map without version probing."""
+        capabilities: dict[str, Any] = {}
+        for tool_name in WIRESHARK_TOOL_ORDER:
+            path = self._tool_paths.get(tool_name)
+            capabilities[tool_name] = {
+                "available": self._tool_is_available(path),
+                "path": path,
+                "requirement": WIRESHARK_TOOL_REQUIREMENTS[tool_name],
+                "purpose": WIRESHARK_TOOL_PURPOSES[tool_name],
+            }
+
+        capabilities["_meta"] = {
+            "required": [name for name, level in WIRESHARK_TOOL_REQUIREMENTS.items() if level == "required"],
+            "recommended": [name for name, level in WIRESHARK_TOOL_REQUIREMENTS.items() if level == "recommended"],
+            "optional": [name for name, level in WIRESHARK_TOOL_REQUIREMENTS.items() if level == "optional"],
+            "capture_backend": self._select_capture_backend(),
+        }
+        return capabilities
+
+    def describe_capabilities(self) -> dict[str, Any]:
+        """Public capability snapshot for resources and diagnostics."""
+        return self._capability_snapshot()
+
+    def _require_tool(self, tool_name: str) -> dict[str, Any]:
+        """Return success or a ToolNotFound error payload for an optional suite tool."""
+        tool_path = self._tool_paths.get(tool_name)
+        if self._tool_is_available(tool_path):
+            return {"success": True}
+        return {
+            "success": False,
+            "error": {
+                "type": "ToolNotFound",
+                "message": f"{tool_name} tool not found",
+                "details": {
+                    "tool": tool_name,
+                    "requirement": WIRESHARK_TOOL_REQUIREMENTS[tool_name],
+                    "env_var": self._TOOL_ENV_VARS[tool_name],
+                },
+            },
+        }
 
     # --- Validation Methods ---
 
@@ -142,7 +210,7 @@ class TSharkClient:
         """Check availability and version of all Wireshark suite tools."""
 
         async def get_version(tool_path: str | None) -> dict[str, Any]:
-            if not tool_path:
+            if not self._tool_is_available(tool_path):
                 return {"available": False}
             try:
                 proc = await asyncio.create_subprocess_exec(
@@ -158,19 +226,16 @@ class TSharkClient:
             except Exception:
                 return {"available": True, "version": "unknown"}
 
-        return {
-            "success": True,
-            "data": {
-                "tshark": await get_version(self.tshark_path),
-                "capinfos": await get_version(self.capinfos_path),
-                "mergecap": await get_version(self.mergecap_path),
-                "editcap": await get_version(self.editcap_path),
-            },
-        }
+        capabilities = self._capability_snapshot()
+        for tool_name in WIRESHARK_TOOL_ORDER:
+            capabilities[tool_name].update(await get_version(self._tool_paths.get(tool_name)))
+
+        return {"success": True, "data": capabilities}
 
     async def list_interfaces(self) -> str:
         """List interfaces (-D)."""
-        return await self._run_command([self.tshark_path, "-D"])
+        backend = self.dumpcap_path if self._tool_is_available(self.dumpcap_path) else self.tshark_path
+        return await self._run_command([backend, "-D"])
 
     # --- Capture Management ---
 
@@ -188,7 +253,8 @@ class TSharkClient:
         if not output_validation["success"]:
             return json.dumps(output_validation)
 
-        cmd = [self.tshark_path, "-i", interface, "-w", output_file]
+        backend = self.dumpcap_path if self._tool_is_available(self.dumpcap_path) else self.tshark_path
+        cmd = [backend, "-i", interface, "-w", output_file]
 
         if capture_filter:
             cmd.extend(["-f", capture_filter])
@@ -596,25 +662,17 @@ class TSharkClient:
         if not validation["success"]:
             return json.dumps(validation)
 
-        if not self.capinfos_path:
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": {"type": "ToolNotFound", "message": "capinfos tool not found"},
-                }
-            )
+        required = self._require_tool("capinfos")
+        if not required["success"]:
+            return json.dumps(required)
 
         return await self._run_command([self.capinfos_path, pcap_file])
 
     async def merge_pcap_files(self, output_file: str, input_files: list[str]) -> str:
         """Mergecap: Merge multiple pcaps."""
-        if not self.mergecap_path:
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": {"type": "ToolNotFound", "message": "mergecap tool not found"},
-                }
-            )
+        required = self._require_tool("mergecap")
+        if not required["success"]:
+            return json.dumps(required)
 
         for f in input_files:
             validation = self._validate_file(f)
@@ -626,6 +684,138 @@ class TSharkClient:
             return json.dumps(output_validation)
 
         cmd = [self.mergecap_path, "-w", output_file] + input_files
+        return await self._run_command(cmd)
+
+    async def editcap_trim(
+        self,
+        input_file: str,
+        output_file: str,
+        start_time: str = "",
+        stop_time: str = "",
+    ) -> str:
+        """Editcap: Trim packets by timestamp window."""
+        required = self._require_tool("editcap")
+        if not required["success"]:
+            return json.dumps(required)
+
+        validation = self._validate_file(input_file)
+        if not validation["success"]:
+            return json.dumps(validation)
+
+        output_validation = self._validate_output_path(output_file)
+        if not output_validation["success"]:
+            return json.dumps(output_validation)
+
+        cmd = [self.editcap_path]
+        if start_time:
+            cmd.extend(["-A", start_time])
+        if stop_time:
+            cmd.extend(["-B", stop_time])
+        cmd.extend([input_file, output_file])
+        return await self._run_command(cmd)
+
+    async def editcap_split(
+        self,
+        input_file: str,
+        output_prefix: str,
+        packets_per_file: int = 0,
+        seconds_per_file: int = 0,
+    ) -> str:
+        """Editcap: Split a capture by packet count or interval."""
+        required = self._require_tool("editcap")
+        if not required["success"]:
+            return json.dumps(required)
+
+        validation = self._validate_file(input_file)
+        if not validation["success"]:
+            return json.dumps(validation)
+
+        output_validation = self._validate_output_path(output_prefix)
+        if not output_validation["success"]:
+            return json.dumps(output_validation)
+
+        if packets_per_file <= 0 and seconds_per_file <= 0:
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {
+                        "type": "InvalidParameter",
+                        "message": "Provide packets_per_file or seconds_per_file for editcap split",
+                    },
+                }
+            )
+
+        cmd = [self.editcap_path]
+        if packets_per_file > 0:
+            cmd.extend(["-c", str(packets_per_file)])
+        if seconds_per_file > 0:
+            cmd.extend(["-i", str(seconds_per_file)])
+        cmd.extend([input_file, output_prefix])
+        return await self._run_command(cmd)
+
+    async def editcap_time_shift(self, input_file: str, output_file: str, seconds: float) -> str:
+        """Editcap: Shift packet timestamps by a relative amount."""
+        required = self._require_tool("editcap")
+        if not required["success"]:
+            return json.dumps(required)
+
+        validation = self._validate_file(input_file)
+        if not validation["success"]:
+            return json.dumps(validation)
+
+        output_validation = self._validate_output_path(output_file)
+        if not output_validation["success"]:
+            return json.dumps(output_validation)
+
+        cmd = [self.editcap_path, "-t", str(seconds), input_file, output_file]
+        return await self._run_command(cmd)
+
+    async def editcap_deduplicate(self, input_file: str, output_file: str, duplicate_window: int = 5) -> str:
+        """Editcap: Remove duplicate packets using a configurable packet window."""
+        required = self._require_tool("editcap")
+        if not required["success"]:
+            return json.dumps(required)
+
+        validation = self._validate_file(input_file)
+        if not validation["success"]:
+            return json.dumps(validation)
+
+        output_validation = self._validate_output_path(output_file)
+        if not output_validation["success"]:
+            return json.dumps(output_validation)
+
+        cmd = [self.editcap_path, "-D", str(duplicate_window), input_file, output_file]
+        return await self._run_command(cmd)
+
+    async def text2pcap_import(
+        self,
+        input_text_file: str,
+        output_file: str,
+        encapsulation: str = "ether",
+        timestamp_format: str = "",
+        ascii_mode: bool = False,
+    ) -> str:
+        """Text2pcap: Convert an ASCII or hex dump into a capture file."""
+        required = self._require_tool("text2pcap")
+        if not required["success"]:
+            return json.dumps(required)
+
+        validation = self._validate_file(input_text_file)
+        if not validation["success"]:
+            return json.dumps(validation)
+
+        output_validation = self._validate_output_path(output_file)
+        if not output_validation["success"]:
+            return json.dumps(output_validation)
+
+        cmd = [self.text2pcap_path]
+        if timestamp_format:
+            cmd.extend(["-t", timestamp_format])
+        if ascii_mode:
+            cmd.append("-a")
+        if encapsulation:
+            cmd.extend(["-E", encapsulation])
+        cmd.extend([input_text_file, output_file])
         return await self._run_command(cmd)
 
     async def filter_and_save(self, input_file: str, output_file: str, display_filter: str) -> str:
@@ -748,3 +938,6 @@ class TSharkClient:
                     },
                 }
             )
+
+
+TSharkClient = WiresharkSuiteClient

@@ -12,12 +12,15 @@ from .resources import register_resources
 from .tools.agents import register_agent_tools
 from .tools.capture import register_capture_tools
 from .tools.decode import register_decode_tools
+from .tools.edit import register_edit_tools
 from .tools.extract import register_extract_tools
 from .tools.files import register_files_tools
+from .tools.imports import register_import_tools
 from .tools.registry import ToolRegistry, register_open_file_tool
 from .tools.stats import register_stats_tools
+from .tools.suite import register_suite_tools
 from .tools.visualize import register_visualize_tools
-from .tshark.client import TSharkClient
+from .tshark.client import WiresharkSuiteClient
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -42,7 +45,7 @@ def _build_server() -> FastMCP:
     allowed_dirs = [d.strip() for d in allowed_dirs_env.split(",") if d.strip()] or None
 
     mcp = FastMCP("Wireshark MCP", dependencies=["tshark"])
-    client = TSharkClient(allowed_dirs=allowed_dirs)
+    client = WiresharkSuiteClient(allowed_dirs=allowed_dirs)
 
     # ── Core tools (always registered) ──────────────────────────────────
     register_capture_tools(mcp, client)
@@ -52,6 +55,9 @@ def _build_server() -> FastMCP:
     register_decode_tools(mcp)
     register_visualize_tools(mcp, client)
     register_agent_tools(mcp, client)
+    register_suite_tools(mcp, client)
+    register_edit_tools(mcp, client)
+    register_import_tools(mcp, client)
 
     # ── Progressive Discovery ───────────────────────────────────────────
     # Build the contextual tool catalog (not registered yet)
@@ -62,7 +68,7 @@ def _build_server() -> FastMCP:
     register_open_file_tool(mcp, client, registry)
 
     # ── Resources and Prompts ───────────────────────────────────────────
-    register_resources(mcp)
+    register_resources(mcp, client)
     register_prompts(mcp)
 
     return mcp

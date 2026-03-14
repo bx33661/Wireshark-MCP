@@ -18,6 +18,16 @@ class MockTSharkClient(TSharkClient):
         self.capinfos_path = "capinfos"
         self.mergecap_path = "mergecap"
         self.editcap_path = "editcap"
+        self.dumpcap_path = "dumpcap"
+        self.text2pcap_path = "text2pcap"
+        self._tool_paths = {
+            "tshark": self.tshark_path,
+            "capinfos": self.capinfos_path,
+            "mergecap": self.mergecap_path,
+            "editcap": self.editcap_path,
+            "dumpcap": self.dumpcap_path,
+            "text2pcap": self.text2pcap_path,
+        }
         self._version: str | None = None
         self._allowed_dirs = [Path(d).resolve() for d in allowed_dirs] if allowed_dirs else None
         self._last_cmd: list[str] = []

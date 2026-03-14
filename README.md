@@ -39,7 +39,7 @@ Drop a <code>.pcap</code> file, ask questions in plain English — get answers b
 
 ## What is this?
 
-Wireshark MCP is an [MCP Server](https://modelcontextprotocol.io/introduction) that wraps `tshark` into structured tools, letting AI assistants like Claude or Cursor perform deep packet analysis without you touching the command line.
+Wireshark MCP is an [MCP Server](https://modelcontextprotocol.io/introduction) that turns `tshark` into a structured analysis interface, then layers in optional Wireshark suite utilities such as `capinfos`, `mergecap`, `editcap`, `dumpcap`, and `text2pcap` when they are available. The result is a packet-analysis server that still works with only `tshark`, but gets stronger automatically on hosts with more of the Wireshark toolchain installed.
 
 ```
 You:    "Find all DNS queries going to suspicious domains in this capture."
@@ -53,6 +53,9 @@ Claude: [calls wireshark_extract_dns_queries → wireshark_check_threats]
 
 - **Python 3.10+**
 - **Wireshark** installed with `tshark`
+- `tshark` is the only required Wireshark CLI dependency
+- Optional suite tools such as `capinfos`, `mergecap`, `editcap`, `dumpcap`, and `text2pcap` are auto-detected and enable extra MCP features when present
+- Live capture prefers `dumpcap` when available, but falls back to `tshark` so a minimal installation still works
 - `tshark` on your `PATH` is recommended, but `wireshark-mcp --install` also records detected absolute Wireshark tool paths for GUI clients
 - Any [MCP-compatible client](https://modelcontextprotocol.io/clients): Claude Desktop, Claude Code, Cursor, VS Code, etc.
 
@@ -143,7 +146,7 @@ This detects all installed MCP clients and writes the config automatically. Exis
 The generated entry always uses the current Python interpreter (`python -u -m wireshark_mcp.server`), forwards your current `PATH`, and stores detected absolute Wireshark tool paths when available, so GUI MCP clients do not need `wireshark-mcp` or `tshark` to be discoverable on their own.
 
 > ⚠️ **Restart your MCP client** after running `--install` for changes to take effect.
-> 🔎 If analysis tools still fail to launch, run `wireshark-mcp --doctor` to verify Python, `tshark`, and client config detection.
+> 🔎 If analysis tools still fail to launch, run `wireshark-mcp --doctor` to verify Python, required vs optional Wireshark CLI tools, and client config detection.
 
 ### Manual Configuration
 
@@ -388,6 +391,7 @@ Your task is to diagnose network performance issues in <file.pcap>.
 | `wireshark_security_audit` | **One-call security audit**: 8-phase analysis (threat intel, credential scan, port scan, DNS tunnel, cleartext, anomalies) with risk scoring (0-100) and recommendations |
 | `wireshark_quick_analysis` | **One-call traffic overview**: file info, protocol distribution, top talkers, conversations, hostnames, anomaly summary, suggested next steps |
 | `wireshark_open_file` | **Smart file opener**: analyzes pcap content and dynamically activates protocol-specific tools (Progressive Discovery) |
+| `wireshark_get_capabilities` | **Toolchain capability report**: required, recommended, and optional Wireshark suite tools visible to the current MCP server |
 
 > 💡 These tools replace the need to manually chain 5-10 tool calls. Just call one and get a complete report.
 
@@ -457,6 +461,23 @@ Your task is to diagnose network performance issues in <file.pcap>.
 </details>
 
 <details>
+<summary><b>Suite Utilities</b> — optional Wireshark companion tools</summary>
+
+<br>
+
+These tools are additive. The server still starts with only `tshark`, and only advertises or uses the extra workflows below when the corresponding Wireshark companion binaries are present.
+
+| Tool | Description |
+|---|---|
+| `wireshark_editcap_trim` | Trim a capture to a timestamp window using `editcap` |
+| `wireshark_editcap_split` | Split a capture by packet count or interval using `editcap` |
+| `wireshark_editcap_time_shift` | Shift packet timestamps by a relative offset using `editcap` |
+| `wireshark_editcap_deduplicate` | Remove duplicate packets using `editcap`'s duplicate window |
+| `wireshark_text2pcap_import` | Convert ASCII or hex dumps into capture files using `text2pcap` |
+
+</details>
+
+<details>
 <summary><b>Security Analysis</b></summary>
 
 <br>
@@ -511,6 +532,7 @@ Your task is to diagnose network performance issues in <file.pcap>.
 | `wireshark://reference/display-filters` | Complete display filter syntax cheatsheet with common examples |
 | `wireshark://reference/protocol-fields` | Protocol field name reference for filters and extraction |
 | `wireshark://guide/usage` | Recommended analysis workflows and tips |
+| `wireshark://capabilities` | Current required, recommended, and optional Wireshark suite capabilities |
 
 ## MCP Prompts
 
