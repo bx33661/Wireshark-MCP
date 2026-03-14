@@ -30,6 +30,7 @@ class TestPythonEnvDetection:
         assert len(result) > 0
 
     def test_get_python_executable_in_venv(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "linux")
         venv_dir = tmp_path / "venv"
         bin_dir = venv_dir / "bin"
         bin_dir.mkdir(parents=True)
@@ -279,7 +280,7 @@ class TestInstallMcpServers:
 
 class TestPlatformConfigs:
     def test_join_path_uses_target_platform_separators(self):
-        assert _join_path("/Users/tester", "Library", "Claude") == "/Users/tester/Library/Claude"
+        assert _join_path("/Users/tester", "Library", "Claude", platform="darwin") == "/Users/tester/Library/Claude"
         assert (
             _join_path(r"C:\Users\tester", "AppData", "Roaming", platform="win32") == r"C:\Users\tester\AppData\Roaming"
         )

@@ -38,6 +38,11 @@ class MockTSharkClient(TSharkClient):
             return super()._validate_file(filepath)
         return {"success": True}
 
+    @staticmethod
+    def _tool_is_available(tool_path: str | None) -> bool:
+        """Treat any configured mock command name as available."""
+        return bool(tool_path)
+
     async def _run_command(
         self,
         cmd: list[str],
