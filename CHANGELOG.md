@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-03-14
+
+### Fixed
+- Follow-up packaging release to restore a green CI state after the cross-client skill discovery work by fixing a lint issue in the new skill distribution test.
+
 ## [0.6.3] - 2026-03-14
 
 ### Added
@@ -89,7 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Decoding: `wireshark_decode_payload` with auto-detection (Base64, Hex, URL, Gzip, Deflate, Rot13)
 - Visualization: ASCII traffic plot, ASCII protocol hierarchy tree
 
-[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.0...v0.6.1

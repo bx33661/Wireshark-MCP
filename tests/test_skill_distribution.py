@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_DIR = ROOT / "skills" / "wireshark-traffic-analysis"
 GITHUB_DIR = ROOT / ".github" / "skills" / "wireshark-traffic-analysis"
