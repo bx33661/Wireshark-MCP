@@ -33,7 +33,8 @@ async def _download_threat_feed() -> str:
 
     def _fetch() -> str:
         with urllib.request.urlopen(URLHAUS_URL, timeout=30) as response:
-            return response.read().decode("utf-8")
+            payload = bytes(response.read())
+            return payload.decode("utf-8")
 
     data = await asyncio.to_thread(_fetch)
 

@@ -88,6 +88,19 @@ class TestCapabilities:
         assert "tshark" in result["data"]
         assert "capinfos" in result["data"]
 
+    def test_client_prefers_env_tool_paths(self, monkeypatch) -> None:
+        monkeypatch.setenv("WIRESHARK_MCP_TSHARK_PATH", "/opt/wireshark/tshark")
+        monkeypatch.setenv("WIRESHARK_MCP_CAPINFOS_PATH", "/opt/wireshark/capinfos")
+        monkeypatch.setenv("WIRESHARK_MCP_MERGECAP_PATH", "/opt/wireshark/mergecap")
+        monkeypatch.setenv("WIRESHARK_MCP_EDITCAP_PATH", "/opt/wireshark/editcap")
+
+        client = TSharkClient()
+
+        assert client.tshark_path == "/opt/wireshark/tshark"
+        assert client.capinfos_path == "/opt/wireshark/capinfos"
+        assert client.mergecap_path == "/opt/wireshark/mergecap"
+        assert client.editcap_path == "/opt/wireshark/editcap"
+
 
 class TestRunCommand:
     """Tests for _run_command error handling."""
@@ -114,9 +127,7 @@ class TestRunCommand:
         assert result["error"]["type"] != "SecurityError"
 
     @pytest.mark.asyncio
-    async def test_binary_whitelist_allows_windows_exe_names_case_insensitive(
-        self, real_client: TSharkClient
-    ) -> None:
+    async def test_binary_whitelist_allows_windows_exe_names_case_insensitive(self, real_client: TSharkClient) -> None:
         result_str = await real_client._run_command(["C:\\Wireshark\\tshark.EXE", "-v"])
         result = json.loads(result_str)
         assert not result["success"]

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-03-14
+
+### Fixed
+- Auto-install now works more reliably across macOS, Linux, and Windows by using platform-correct client config paths and a stable Python module entrypoint.
+- GUI MCP clients now receive forwarded runtime environment variables plus detected absolute Wireshark tool paths, reducing failures caused by missing `PATH` state.
+- Added `wireshark-mcp --doctor` to diagnose Python resolution, Wireshark CLI discovery, and detected MCP client configs.
+- TShark command validation now accepts Windows-style executable paths consistently.
+
+### Changed
+- GitHub Actions CI now uses current `actions/checkout` and `actions/setup-python` major versions.
+- The CI type-check step now runs with a package-based mypy invocation that works with the repository's `src/` layout.
+- The CI test job installs `tshark` non-interactively and no longer assumes a pre-existing `wireshark` Unix group on GitHub-hosted runners.
+
 ## [0.6.0] - 2025-06-27
 
 ### Added
@@ -56,7 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Decoding: `wireshark_decode_payload` with auto-detection (Base64, Hex, URL, Gzip, Deflate, Rot13)
 - Visualization: ASCII traffic plot, ASCII protocol hierarchy tree
 
-[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.4.0...v0.6.0
 [0.4.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.2.1...v0.4.0
 [0.2.1]: https://github.com/bx33661/Wireshark-MCP/releases/tag/v0.2.1

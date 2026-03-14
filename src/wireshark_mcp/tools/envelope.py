@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, cast
 
 
 def _error_object(error: Any) -> dict[str, Any]:
@@ -76,4 +76,4 @@ def normalize_tool_result(result: Any) -> str:
 
 
 def parse_tool_result(result: Any) -> dict[str, Any]:
-    return json.loads(normalize_tool_result(result))
+    return cast("dict[str, Any]", json.loads(normalize_tool_result(result)))

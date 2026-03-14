@@ -7,9 +7,10 @@ from unittest.mock import patch
 from wireshark_mcp.installer import (
     SERVER_NAME,
     _collect_python_env,
+    _get_client_configs,
+    _get_linux_config_home,
     _get_mcp_servers_dict,
     _get_python_executable,
-    _get_client_configs,
     _read_json_config,
     _render_codex_toml_block,
     _write_json_config,
@@ -60,6 +61,27 @@ class TestGenerateMcpConfig:
         config = generate_mcp_config()
         # Should either be the script path or a python executable
         assert len(config["command"]) > 0
+
+    def test_non_windows_uses_python_module_entrypoint(self, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "darwin")
+        monkeypatch.setattr("wireshark_mcp.installer._get_python_executable", lambda: "/venv/bin/python3")
+        monkeypatch.setenv("PATH", "/opt/homebrew/bin:/usr/bin")
+        monkeypatch.setattr(
+            "wireshark_mcp.installer._detect_wireshark_tool_paths",
+            lambda: {
+                "WIRESHARK_MCP_TSHARK_PATH": "/Applications/Wireshark.app/Contents/MacOS/tshark",
+                "WIRESHARK_MCP_CAPINFOS_PATH": None,
+                "WIRESHARK_MCP_MERGECAP_PATH": None,
+                "WIRESHARK_MCP_EDITCAP_PATH": None,
+            },
+        )
+        config = generate_mcp_config()
+        assert config["command"] == "/venv/bin/python3"
+        assert config["args"] == ["-u", "-m", "wireshark_mcp.server"]
+        assert config["env"]["PYTHONUNBUFFERED"] == "1"
+        assert config["env"]["PYTHONIOENCODING"] == "utf-8"
+        assert config["env"]["PATH"] == "/opt/homebrew/bin:/usr/bin"
+        assert config["env"]["WIRESHARK_MCP_TSHARK_PATH"] == "/Applications/Wireshark.app/Contents/MacOS/tshark"
 
     def test_windows_stdio_uses_unbuffered_python(self, monkeypatch):
         monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "win32")
@@ -251,19 +273,33 @@ class TestInstallMcpServers:
 
 
 class TestPlatformConfigs:
+    def test_linux_config_home_uses_xdg(self, monkeypatch):
+        monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
+        assert _get_linux_config_home("/home/tester") == "/tmp/xdg-config"
+
+    def test_linux_client_configs_use_xdg(self, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "linux")
+        monkeypatch.setattr("wireshark_mcp.installer.os.path.expanduser", lambda _: "/home/tester")
+        monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
+
+        configs = _get_client_configs()
+
+        assert configs["VS Code"] == ("/tmp/xdg-config/Code/User", "settings.json")
+        assert configs["Zed"] == ("/tmp/xdg-config/zed", "settings.json")
+
     def test_windows_client_configs_include_supported_paths(self, monkeypatch):
         monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "win32")
-        monkeypatch.setenv("APPDATA", r"C:\\Users\\tester\\AppData\\Roaming")
-        monkeypatch.setattr("wireshark_mcp.installer.os.path.expanduser", lambda _: r"C:\\Users\\tester")
+        monkeypatch.setenv("APPDATA", r"C:\Users\tester\AppData\Roaming")
+        monkeypatch.setattr("wireshark_mcp.installer.os.path.expanduser", lambda _: r"C:\Users\tester")
 
         configs = _get_client_configs()
 
         assert configs["Claude"] == (
-            r"C:\\Users\\tester\\AppData\\Roaming\\Claude",
+            r"C:\Users\tester\AppData\Roaming\Claude",
             "claude_desktop_config.json",
         )
-        assert configs["Codex"] == (r"C:\\Users\\tester\\.codex", "config.toml")
+        assert configs["Codex"] == (r"C:\Users\tester\.codex", "config.toml")
         assert configs["VS Code"] == (
-            r"C:\\Users\\tester\\AppData\\Roaming\\Code\\User",
+            r"C:\Users\tester\AppData\Roaming\Code\User",
             "settings.json",
         )

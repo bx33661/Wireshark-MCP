@@ -10,10 +10,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: "3.12"
 
@@ -29,7 +29,7 @@ jobs:
       run: ruff format --check src/ tests/
 
     - name: Type check
-      run: mypy src/wireshark_mcp/ --ignore-missing-imports
+      run: mypy --package wireshark_mcp --ignore-missing-imports --no-namespace-packages
 
   test:
     runs-on: ubuntu-latest
@@ -38,10 +38,10 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -53,8 +53,8 @@ jobs:
     - name: Install TShark
       run: |
         sudo apt-get update
-        sudo apt-get install -y tshark
-        sudo usermod -aG wireshark $USER
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
+        tshark -v
 
     - name: Run tests with coverage
       run: |

@@ -52,7 +52,8 @@ Claude: [calls wireshark_extract_dns_queries → wireshark_check_threats]
 ## Prerequisites
 
 - **Python 3.10+**
-- **Wireshark** installed with `tshark` available in your PATH
+- **Wireshark** installed with `tshark`
+- `tshark` on your `PATH` is recommended, but `wireshark-mcp --install` also records detected absolute Wireshark tool paths for GUI clients
 - Any [MCP-compatible client](https://modelcontextprotocol.io/clients): Claude Desktop, Claude Code, Cursor, VS Code, etc.
 
 ---
@@ -70,6 +71,12 @@ wireshark-mcp --install
 ```
 
 That's it — restart your AI client and you're ready to go. 🎉
+
+If anything still looks off, run:
+
+```sh
+wireshark-mcp --doctor
+```
 
 > **What does `--install` do?** It scans your system for known MCP client config files (Claude, Cursor, VS Code, etc.) and injects the `wireshark-mcp` server entry. Existing settings are preserved. See [Supported Clients](#supported-clients) for the full list.
 
@@ -96,7 +103,7 @@ wireshark-mcp --uninstall
 
 ## Supported Clients
 
-`wireshark-mcp --install` auto-configures the following clients (macOS & Linux):
+`wireshark-mcp --install` auto-configures the following clients across macOS, Linux, and Windows:
 
 | Client | Config File |
 |--------|------------|
@@ -133,12 +140,14 @@ wireshark-mcp --install
 ```
 
 This detects all installed MCP clients and writes the config automatically. Existing settings are preserved.
+The generated entry always uses the current Python interpreter (`python -u -m wireshark_mcp.server`), forwards your current `PATH`, and stores detected absolute Wireshark tool paths when available, so GUI MCP clients do not need `wireshark-mcp` or `tshark` to be discoverable on their own.
 
 > ⚠️ **Restart your MCP client** after running `--install` for changes to take effect.
+> 🔎 If analysis tools still fail to launch, run `wireshark-mcp --doctor` to verify Python, `tshark`, and client config detection.
 
 ### Manual Configuration
 
-If you prefer to configure manually, or your client is not in the [supported list](#supported-clients):
+If you prefer to configure manually, or your client is not in the [supported list](#supported-clients), run `wireshark-mcp --config` first to print the exact command block for your current environment. The examples below use the shorter PATH-based form for readability.
 
 <details>
 <summary><b>Claude Desktop</b></summary>

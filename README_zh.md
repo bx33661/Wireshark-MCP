@@ -52,7 +52,8 @@ Claude: [调用 wireshark_extract_dns_queries → wireshark_check_threats]
 ## 环境要求
 
 - **Python 3.10+**
-- **Wireshark** 已安装且 `tshark` 在 PATH 中
+- **Wireshark** 已安装并包含 `tshark`
+- 最好让 `tshark` 出现在 `PATH` 中，但 `wireshark-mcp --install` 也会尽量把探测到的 Wireshark 绝对路径写入 GUI 客户端配置
 - 任意 [MCP 客户端](https://modelcontextprotocol.io/clients): Claude Desktop、Claude Code、Cursor、Codex 等
 
 ---
@@ -70,6 +71,12 @@ wireshark-mcp --install
 ```
 
 搞定！重启你的 AI 客户端即可使用。 🎉
+
+如果装完还是不对劲，可以继续执行：
+
+```sh
+wireshark-mcp --doctor
+```
 
 > **`--install` 做了什么？** 它会扫描系统中所有已知的 MCP 客户端配置文件（Claude、Cursor、VS Code 等），自动注入 `wireshark-mcp` 服务器配置。已有配置不会被覆盖。完整列表见 [支持的客户端](#支持的客户端)。
 
@@ -96,7 +103,7 @@ wireshark-mcp --uninstall
 
 ## 支持的客户端
 
-`wireshark-mcp --install` 自动配置以下客户端（macOS 和 Linux）：
+`wireshark-mcp --install` 会在 macOS、Linux 和 Windows 上自动配置以下客户端：
 
 | 客户端 | 配置文件 |
 |--------|--------|
@@ -133,10 +140,13 @@ wireshark-mcp --install
 ```
 
 自动检测已安装的 MCP 客户端并写入配置，不会覆盖已有设置。
+自动生成的配置会固定使用当前 Python 解释器（`python -u -m wireshark_mcp.server`），同时透传当前 `PATH`，并在可探测到时写入 Wireshark 工具绝对路径，因此 GUI MCP 客户端不需要自己再去猜 `wireshark-mcp` 或 `tshark` 在哪里。
+
+> 如果分析工具依然无法启动，运行 `wireshark-mcp --doctor` 检查 Python、`tshark` 和客户端配置探测结果。
 
 ### 手动配置
 
-如果你需要手动配置，或客户端不在[支持列表](#支持的客户端)中：
+如果你需要手动配置，或客户端不在[支持列表](#支持的客户端)中，建议先运行 `wireshark-mcp --config`，拿到当前环境的精确命令块。下面的示例为了便于阅读，仍然使用较短的 PATH 形式。
 
 <details>
 <summary><b>Claude Desktop</b></summary>

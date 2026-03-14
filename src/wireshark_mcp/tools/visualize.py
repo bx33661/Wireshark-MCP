@@ -93,8 +93,8 @@ def _parse_protocol_hierarchy(output: str) -> dict[str, Any]:
     # Find root indentation logic
     # TShark output usually starts with the protocol name. hierarchy is by indentation.
     # We need a dummy root to hold everything.
-    root = {"name": "root", "frames": 0, "bytes": 0, "children": []}
-    stack = [(root, -1)]  # (node, indent_level)
+    root: dict[str, Any] = {"name": "root", "frames": 0, "bytes": 0, "children": []}
+    stack: list[tuple[dict[str, Any], int]] = [(root, -1)]  # (node, indent_level)
 
     for line in lines:
         if "frames:bytes" in line or "Filter:" in line or "Statistics" in line or "====" in line:
@@ -113,7 +113,7 @@ def _parse_protocol_hierarchy(output: str) -> dict[str, Any]:
             frames = int(match.group(2))
             bytes_val = int(match.group(3))
 
-            node = {"name": name, "frames": frames, "bytes": bytes_val, "children": []}
+            node: dict[str, Any] = {"name": name, "frames": frames, "bytes": bytes_val, "children": []}
 
             # Find parent: parent indent must be less than current indent
             while stack and stack[-1][1] >= indent:
@@ -121,11 +121,15 @@ def _parse_protocol_hierarchy(output: str) -> dict[str, Any]:
 
             if stack:
                 parent = stack[-1][0]
-                parent["children"].append(node)
+                children = parent.get("children")
+                if isinstance(children, list):
+                    children.append(node)
                 stack.append((node, indent))
             else:
                 # Should not happen if we have a root, but as fallback
-                root["children"].append(node)
+                root_children = root.get("children")
+                if isinstance(root_children, list):
+                    root_children.append(node)
                 stack.append((node, indent))
 
     return root

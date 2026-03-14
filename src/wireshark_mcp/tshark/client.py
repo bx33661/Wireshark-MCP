@@ -30,16 +30,26 @@ class TSharkClient:
         "editcap",
         "editcap.exe",
     }
+    _TOOL_ENV_VARS = {
+        "tshark": "WIRESHARK_MCP_TSHARK_PATH",
+        "capinfos": "WIRESHARK_MCP_CAPINFOS_PATH",
+        "mergecap": "WIRESHARK_MCP_MERGECAP_PATH",
+        "editcap": "WIRESHARK_MCP_EDITCAP_PATH",
+    }
 
     def __init__(
         self,
         tshark_path: str = "tshark",
         allowed_dirs: list[str] | None = None,
     ) -> None:
-        self.tshark_path = shutil.which(tshark_path) or tshark_path
-        self.capinfos_path = shutil.which("capinfos")
-        self.mergecap_path = shutil.which("mergecap")
-        self.editcap_path = shutil.which("editcap")
+        if tshark_path == "tshark":
+            self.tshark_path = os.environ.get(self._TOOL_ENV_VARS["tshark"]) or shutil.which("tshark") or "tshark"
+        else:
+            self.tshark_path = shutil.which(tshark_path) or tshark_path
+
+        self.capinfos_path = os.environ.get(self._TOOL_ENV_VARS["capinfos"]) or shutil.which("capinfos")
+        self.mergecap_path = os.environ.get(self._TOOL_ENV_VARS["mergecap"]) or shutil.which("mergecap")
+        self.editcap_path = os.environ.get(self._TOOL_ENV_VARS["editcap"]) or shutil.which("editcap")
         self._version: str | None = None
 
         # Path sandbox: if set, only files within these directories are accessible
@@ -88,6 +98,11 @@ class TSharkClient:
             return True
         except ValueError:
             return False
+
+    @staticmethod
+    def _get_binary_name(command: str) -> str:
+        """Extract the executable name from POSIX or Windows-style paths."""
+        return command.replace("\\", "/").rsplit("/", 1)[-1].lower()
 
     def _validate_protocol(self, protocol: str, valid_set: set) -> dict[str, Any]:
         """Validate protocol against whitelist."""
@@ -644,7 +659,7 @@ class TSharkClient:
     ) -> str:
         """Run command with error handling, validation, and timeout."""
         # Validate the binary being executed
-        binary = Path(cmd[0]).name.lower() if cmd else ""
+        binary = self._get_binary_name(cmd[0]) if cmd else ""
         if binary not in self._ALLOWED_BINARIES:
             logger.error("Blocked execution of disallowed binary: %s", binary)
             return json.dumps(

@@ -98,6 +98,11 @@ def main() -> None:
         action="store_true",
         help="Print MCP config JSON for manual client setup and exit",
     )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Run installation diagnostics for MCP clients and Wireshark tools, then exit",
+    )
 
     # ── Server options ──────────────────────────────────────────────────
     parser.add_argument(
@@ -122,11 +127,12 @@ def main() -> None:
     args = parser.parse_args()
 
     # Handle install / uninstall / config — exit without starting server
-    if args.install or args.uninstall or args.config:
+    if args.install or args.uninstall or args.config or args.doctor:
         run_install(
             install=args.install,
             uninstall=args.uninstall,
             config=args.config,
+            doctor=args.doctor,
         )
         return
 
