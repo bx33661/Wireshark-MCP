@@ -26,6 +26,21 @@ jobs:
         
     - name: Build package
       run: python -m build
+
+    - name: Validate built wheel contents
+      run: |
+        python -c "import glob, os, zipfile; wheel = max(glob.glob('dist/*.whl'), key=os.path.getmtime); names = set(zipfile.ZipFile(wheel).namelist()); assert any(name.endswith('wireshark_mcp/skills/wireshark-traffic-analysis/SKILL.md') for name in names), 'Skill package missing from wheel'"
+
+    - name: Install built wheel
+      run: |
+        python -c "import glob, os, subprocess, sys; wheel = max(glob.glob('dist/*.whl'), key=os.path.getmtime); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', wheel])"
+
+    - name: Run release smoke tests
+      run: |
+        wireshark-mcp --version
+        python -m wireshark_mcp.server --version
+        wireshark-mcp --config
+        wireshark-mcp --doctor
       
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
