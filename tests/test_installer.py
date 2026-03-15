@@ -11,6 +11,8 @@ from wireshark_mcp.installer import (
     _get_linux_config_home,
     _get_mcp_servers_dict,
     _get_python_executable,
+    _iter_wireshark_search_dirs,
+    _join_path,
     _read_json_config,
     _render_codex_toml_block,
     _write_json_config,
@@ -28,6 +30,7 @@ class TestPythonEnvDetection:
         assert len(result) > 0
 
     def test_get_python_executable_in_venv(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "linux")
         venv_dir = tmp_path / "venv"
         bin_dir = venv_dir / "bin"
         bin_dir.mkdir(parents=True)
@@ -276,9 +279,34 @@ class TestInstallMcpServers:
 
 
 class TestPlatformConfigs:
+    def test_join_path_uses_target_platform_separators(self):
+        assert _join_path("/Users/tester", "Library", "Claude", platform="darwin") == "/Users/tester/Library/Claude"
+        assert (
+            _join_path(r"C:\Users\tester", "AppData", "Roaming", platform="win32") == r"C:\Users\tester\AppData\Roaming"
+        )
+
     def test_linux_config_home_uses_xdg(self, monkeypatch):
         monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
         assert _get_linux_config_home("/home/tester") == "/tmp/xdg-config"
+
+    def test_mac_client_configs_use_application_support(self, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "darwin")
+        monkeypatch.setattr("wireshark_mcp.installer.os.path.expanduser", lambda _: "/Users/tester")
+
+        configs = _get_client_configs()
+
+        assert configs["Claude"] == (
+            "/Users/tester/Library/Application Support/Claude",
+            "claude_desktop_config.json",
+        )
+        assert configs["Zed"] == (
+            "/Users/tester/Library/Application Support/Zed",
+            "settings.json",
+        )
+        assert configs["VS Code"] == (
+            "/Users/tester/Library/Application Support/Code/User",
+            "settings.json",
+        )
 
     def test_linux_client_configs_use_xdg(self, monkeypatch):
         monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "linux")
@@ -306,3 +334,27 @@ class TestPlatformConfigs:
             r"C:\Users\tester\AppData\Roaming\Code\User",
             "settings.json",
         )
+
+    def test_iter_wireshark_search_dirs_for_macos(self, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "darwin")
+        monkeypatch.setattr("wireshark_mcp.installer.os.path.expanduser", lambda _: "/Users/tester")
+
+        search_dirs = _iter_wireshark_search_dirs()
+
+        assert "/Applications/Wireshark.app/Contents/MacOS" in search_dirs
+        assert "/Applications/Wireshark.app/Contents/Helpers" in search_dirs
+        assert "/Users/tester/Applications/Wireshark.app/Contents/MacOS" in search_dirs
+        assert "/opt/homebrew/bin" in search_dirs
+
+    def test_iter_wireshark_search_dirs_for_windows(self, monkeypatch):
+        monkeypatch.setattr("wireshark_mcp.installer.sys.platform", "win32")
+        monkeypatch.setattr("wireshark_mcp.installer.os.path.expanduser", lambda _: r"C:\Users\tester")
+        monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\tester\AppData\Local")
+        monkeypatch.setenv("PROGRAMFILES", r"C:\Program Files")
+        monkeypatch.setenv("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
+
+        search_dirs = _iter_wireshark_search_dirs()
+
+        assert r"C:\Program Files\Wireshark" in search_dirs
+        assert r"C:\Program Files (x86)\Wireshark" in search_dirs
+        assert r"C:\Users\tester\AppData\Local\Programs\Wireshark" in search_dirs

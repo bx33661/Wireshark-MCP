@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [ "master", "main" ]
+    branches: [ "master", "main", "codex/**" ]
   pull_request:
     branches: [ "master", "main" ]
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -32,9 +33,11 @@ jobs:
       run: mypy --package wireshark_mcp --ignore-missing-imports --no-namespace-packages
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
@@ -50,15 +53,72 @@ jobs:
         python -m pip install --upgrade pip
         pip install .[dev]
 
-    - name: Install TShark
-      run: |
-        sudo apt-get update
-        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
-        tshark -v
-
     - name: Run tests with coverage
       run: |
         pytest tests/ --cov=wireshark_mcp --cov-report=term-missing -v
 
     - name: Compile check
       run: python -m compileall src/
+
+  integration-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .[dev]
+
+    - name: Install TShark
+      run: |
+        sudo apt-get update
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
+        tshark -v
+
+    - name: Run Linux TShark integration smoke tests
+      run: |
+        pytest tests/test_client.py -k "real_tshark" -v
+
+  package-smoke:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Install build tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+
+    - name: Build package
+      run: python -m build
+
+    - name: Validate packaged skill files
+      run: |
+        python -c "import glob, os, zipfile; wheel = max(glob.glob('dist/*.whl'), key=os.path.getmtime); names = set(zipfile.ZipFile(wheel).namelist()); assert any(name.endswith('wireshark_mcp/skills/wireshark-traffic-analysis/SKILL.md') for name in names), 'Skill package missing from wheel'"
+
+    - name: Install built wheel
+      run: |
+        python -c "import glob, os, subprocess, sys; wheel = max(glob.glob('dist/*.whl'), key=os.path.getmtime); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', wheel])"
+
+    - name: Run packaged CLI smoke tests
+      run: |
+        wireshark-mcp --version
+        python -m wireshark_mcp.server --version
+        wireshark-mcp --config
+        wireshark-mcp --doctor

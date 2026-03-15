@@ -126,6 +126,18 @@ class WiresharkSuiteClient:
             },
         }
 
+    def _get_checked_tool_path(self, tool_name: str) -> str:
+        """Return a tool path after availability has already been validated."""
+        tool_path = self._tool_paths.get(tool_name)
+        if not self._tool_is_available(tool_path):
+            raise RuntimeError(f"{tool_name} tool not available")
+        assert tool_path is not None
+        return tool_path
+
+    def _select_capture_backend_path(self) -> str:
+        """Return the resolved executable for the preferred capture backend."""
+        return self._get_checked_tool_path(self._select_capture_backend())
+
     # --- Validation Methods ---
 
     def _validate_file(self, filepath: str) -> dict[str, Any]:
@@ -212,6 +224,7 @@ class WiresharkSuiteClient:
         async def get_version(tool_path: str | None) -> dict[str, Any]:
             if not self._tool_is_available(tool_path):
                 return {"available": False}
+            assert tool_path is not None
             try:
                 proc = await asyncio.create_subprocess_exec(
                     tool_path,
@@ -234,7 +247,7 @@ class WiresharkSuiteClient:
 
     async def list_interfaces(self) -> str:
         """List interfaces (-D)."""
-        backend = self.dumpcap_path if self._tool_is_available(self.dumpcap_path) else self.tshark_path
+        backend = self._select_capture_backend_path()
         return await self._run_command([backend, "-D"])
 
     # --- Capture Management ---
@@ -253,7 +266,7 @@ class WiresharkSuiteClient:
         if not output_validation["success"]:
             return json.dumps(output_validation)
 
-        backend = self.dumpcap_path if self._tool_is_available(self.dumpcap_path) else self.tshark_path
+        backend = self._select_capture_backend_path()
         cmd = [backend, "-i", interface, "-w", output_file]
 
         if capture_filter:
@@ -666,7 +679,8 @@ class WiresharkSuiteClient:
         if not required["success"]:
             return json.dumps(required)
 
-        return await self._run_command([self.capinfos_path, pcap_file])
+        capinfos_path = self._get_checked_tool_path("capinfos")
+        return await self._run_command([capinfos_path, pcap_file])
 
     async def merge_pcap_files(self, output_file: str, input_files: list[str]) -> str:
         """Mergecap: Merge multiple pcaps."""
@@ -683,7 +697,8 @@ class WiresharkSuiteClient:
         if not output_validation["success"]:
             return json.dumps(output_validation)
 
-        cmd = [self.mergecap_path, "-w", output_file] + input_files
+        mergecap_path = self._get_checked_tool_path("mergecap")
+        cmd = [mergecap_path, "-w", output_file] + input_files
         return await self._run_command(cmd)
 
     async def editcap_trim(
@@ -706,7 +721,8 @@ class WiresharkSuiteClient:
         if not output_validation["success"]:
             return json.dumps(output_validation)
 
-        cmd = [self.editcap_path]
+        editcap_path = self._get_checked_tool_path("editcap")
+        cmd = [editcap_path]
         if start_time:
             cmd.extend(["-A", start_time])
         if stop_time:
@@ -745,7 +761,8 @@ class WiresharkSuiteClient:
                 }
             )
 
-        cmd = [self.editcap_path]
+        editcap_path = self._get_checked_tool_path("editcap")
+        cmd = [editcap_path]
         if packets_per_file > 0:
             cmd.extend(["-c", str(packets_per_file)])
         if seconds_per_file > 0:
@@ -767,7 +784,8 @@ class WiresharkSuiteClient:
         if not output_validation["success"]:
             return json.dumps(output_validation)
 
-        cmd = [self.editcap_path, "-t", str(seconds), input_file, output_file]
+        editcap_path = self._get_checked_tool_path("editcap")
+        cmd = [editcap_path, "-t", str(seconds), input_file, output_file]
         return await self._run_command(cmd)
 
     async def editcap_deduplicate(self, input_file: str, output_file: str, duplicate_window: int = 5) -> str:
@@ -784,7 +802,8 @@ class WiresharkSuiteClient:
         if not output_validation["success"]:
             return json.dumps(output_validation)
 
-        cmd = [self.editcap_path, "-D", str(duplicate_window), input_file, output_file]
+        editcap_path = self._get_checked_tool_path("editcap")
+        cmd = [editcap_path, "-D", str(duplicate_window), input_file, output_file]
         return await self._run_command(cmd)
 
     async def text2pcap_import(
@@ -808,7 +827,8 @@ class WiresharkSuiteClient:
         if not output_validation["success"]:
             return json.dumps(output_validation)
 
-        cmd = [self.text2pcap_path]
+        text2pcap_path = self._get_checked_tool_path("text2pcap")
+        cmd = [text2pcap_path]
         if timestamp_format:
             cmd.extend(["-t", timestamp_format])
         if ascii_mode:

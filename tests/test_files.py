@@ -74,6 +74,6 @@ class TestText2PcapTools:
             ascii_mode=True,
         )
         assert "text2pcap" in result
-        assert '-t %H:%M:%S.%f' in result
+        assert "-t %H:%M:%S.%f" in result
         assert "-a" in result
         assert "-E ether" in result
