@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.bx33661/wireshark-mcp",
+  "description": "Professional network analysis with tshark. Security audits, deep-dives, and threat detection.",
+  "repository": {
+    "url": "https://github.com/bx33661/Wireshark-MCP",
+    "source": "github"
+  },
+  "version": "0.6.5",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "wireshark-mcp",
+      "version": "0.6.5",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "websiteUrl": "https://github.com/bx33661/Wireshark-MCP"
+}
