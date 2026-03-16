@@ -1,5 +1,8 @@
 """Tests for server bootstrap behavior."""
 
+from importlib import metadata
+
+import wireshark_mcp
 import wireshark_mcp.server as server
 
 
@@ -45,3 +48,7 @@ class TestWindowsEventLoop:
         server._configure_windows_event_loop()
 
         assert applied == []
+
+
+def test_package_version_matches_installed_metadata():
+    assert wireshark_mcp.__version__ == metadata.version("wireshark-mcp")
