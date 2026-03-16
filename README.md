@@ -85,6 +85,14 @@ If one of these baseline items stops working, that is a `1.0.x` bug, not a "futu
 
 ## Installation
 
+### Install Demo
+
+<video src="docs/install.mp4" controls muted playsinline preload="metadata" width="100%">
+  Your browser does not support embedded video. Download or watch the demo at <a href="docs/install.mp4">docs/install.mp4</a>.
+</video>
+
+[Download the install demo video](docs/install.mp4)
+
 ### Option 1 — One-click install in Cursor (no pre-install needed)
 
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.png)](cursor://anysphere.cursor-deeplink/mcp/install?name=wireshark-mcp&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJ3aXJlc2hhcmstbWNwIl19)

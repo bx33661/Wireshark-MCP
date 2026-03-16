@@ -85,6 +85,14 @@ Claude: [调用 wireshark_extract_dns_queries → wireshark_check_threats]
 
 ## 安装
 
+### 安装演示视频
+
+<video src="docs/install.mp4" controls muted playsinline preload="metadata" width="100%">
+  当前环境不支持内嵌视频播放，可直接打开 <a href="docs/install.mp4">docs/install.mp4</a> 查看。
+</video>
+
+[下载或播放安装演示视频](docs/install.mp4)
+
 ### 方式一 — Cursor 一键安装（无需提前安装包）
 
 [![在 Cursor 中安装](https://cursor.com/deeplink/mcp-install-dark.png)](cursor://anysphere.cursor-deeplink/mcp/install?name=wireshark-mcp&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJ3aXJlc2hhcmstbWNwIl19)
