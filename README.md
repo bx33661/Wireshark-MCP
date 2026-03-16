@@ -63,6 +63,14 @@ Claude: [calls wireshark_extract_dns_queries → wireshark_check_threats]
 
 ## Installation
 
+### Option 1 — One-click install in Cursor (no pre-install needed)
+
+[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.png)](cursor://anysphere.cursor-deeplink/mcp/install?name=wireshark-mcp&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJ3aXJlc2hhcmstbWNwIl19)
+
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and [Wireshark](https://www.wireshark.org/) to be installed on your system.
+
+### Option 2 — pip install + auto-configure
+
 ```sh
 pip install wireshark-mcp
 ```
