@@ -1,8 +1,11 @@
-"""Tests for the Progressive Discovery registry module."""
+"""Tests for the stable contextual tool registry module."""
+
+import json
 
 from conftest import MockTSharkClient
 
-from wireshark_mcp.tools.registry import ToolRegistry, parse_protocol_hierarchy
+from wireshark_mcp.tools.envelope import error_response, success_response
+from wireshark_mcp.tools.registry import ToolRegistry, parse_protocol_hierarchy, register_open_file_tool
 
 
 class TestParseProtocolHierarchy:
@@ -80,85 +83,81 @@ class TestToolRegistryBuildCatalog:
 
 
 class TestContextualRegistration:
-    """Tests for dynamic tool registration and removal."""
+    """Tests for stable contextual registration and recommendations."""
 
-    def test_registers_http_tools(self, mock_client: MockTSharkClient) -> None:
+    def test_registers_all_contextual_tools_at_startup(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
 
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
 
-        registered = registry.register_contextual_tools({"http"})
-        assert "wireshark_extract_http_requests" in registered
-        assert "wireshark_export_objects" in registered
-        assert "wireshark_extract_credentials" in registered
+        registered = registry.register_all_contextual_tools()
+        assert len(registered) == registry.catalog_size
+        assert registry.active_contextual_tools == set(registered)
 
-    def test_registers_dns_tools(self, mock_client: MockTSharkClient) -> None:
+    def test_recommends_http_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
 
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
 
-        registered = registry.register_contextual_tools({"dns"})
-        assert "wireshark_extract_dns_queries" in registered
-        assert "wireshark_detect_dns_tunnel" in registered
-        # HTTP tools should NOT be registered
-        assert "wireshark_extract_http_requests" not in registered
+        recommended = registry.recommended_tools_for_protocols({"http"})
+        assert "wireshark_extract_http_requests" in recommended
+        assert "wireshark_export_objects" in recommended
+        assert "wireshark_extract_credentials" in recommended
 
-    def test_registers_tls_tools(self, mock_client: MockTSharkClient) -> None:
+    def test_recommends_dns_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
 
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
 
-        registered = registry.register_contextual_tools({"tls"})
-        assert "wireshark_extract_tls_handshakes" in registered
-        assert "wireshark_verify_ssl_decryption" in registered
+        recommended = registry.recommended_tools_for_protocols({"dns"})
+        assert "wireshark_extract_dns_queries" in recommended
+        assert "wireshark_detect_dns_tunnel" in recommended
+        assert "wireshark_extract_http_requests" not in recommended
 
-    def test_clear_removes_all_contextual(self, mock_client: MockTSharkClient) -> None:
+    def test_recommends_tls_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
 
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
 
-        registry.register_contextual_tools({"http", "dns"})
-        assert len(registry.active_contextual_tools) > 0
+        recommended = registry.recommended_tools_for_protocols({"tls"})
+        assert "wireshark_extract_tls_handshakes" in recommended
+        assert "wireshark_verify_ssl_decryption" in recommended
 
-        registry.clear_contextual_tools()
-        assert len(registry.active_contextual_tools) == 0
+    def test_recommendations_do_not_mutate_registered_tools(self, mock_client: MockTSharkClient) -> None:
+        from mcp.server.fastmcp import FastMCP
 
-    def test_switching_protocols_replaces_tools(self, mock_client: MockTSharkClient) -> None:
+        mcp = FastMCP("test")
+        registry = ToolRegistry(mcp, mock_client)
+        registry.build_catalog()
+        registry.register_all_contextual_tools()
+
+        before = registry.active_contextual_tools
+
+        registry.recommended_tools_for_protocols({"http"})
+        registry.recommended_tools_for_protocols({"dns"})
+
+        assert registry.active_contextual_tools == before
+
+    def test_ip_recommends_security_tools(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
 
         mcp = FastMCP("test")
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
 
-        # First: register HTTP tools
-        registry.register_contextual_tools({"http"})
-        assert "wireshark_extract_http_requests" in registry.active_contextual_tools
-
-        # Switch to DNS-only
-        registry.register_contextual_tools({"dns"})
-        assert "wireshark_extract_dns_queries" in registry.active_contextual_tools
-        assert "wireshark_extract_http_requests" not in registry.active_contextual_tools
-
-    def test_ip_registers_security_tools(self, mock_client: MockTSharkClient) -> None:
-        from mcp.server.fastmcp import FastMCP
-
-        mcp = FastMCP("test")
-        registry = ToolRegistry(mcp, mock_client)
-        registry.build_catalog()
-
-        registered = registry.register_contextual_tools({"ip"})
-        assert "wireshark_check_threats" in registered
-        assert "wireshark_detect_port_scan" in registered
-        assert "wireshark_detect_dos_attack" in registered
-        assert "wireshark_analyze_suspicious_traffic" in registered
+        recommended = registry.recommended_tools_for_protocols({"ip"})
+        assert "wireshark_check_threats" in recommended
+        assert "wireshark_detect_port_scan" in recommended
+        assert "wireshark_detect_dos_attack" in recommended
+        assert "wireshark_analyze_suspicious_traffic" in recommended
 
     def test_multiple_protocols(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
@@ -167,12 +166,11 @@ class TestContextualRegistration:
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
 
-        registered = registry.register_contextual_tools({"http", "dns", "tls", "ip"})
-        # Should have HTTP + DNS + TLS + IP security tools
-        assert "wireshark_extract_http_requests" in registered
-        assert "wireshark_extract_dns_queries" in registered
-        assert "wireshark_extract_tls_handshakes" in registered
-        assert "wireshark_check_threats" in registered
+        recommended = registry.recommended_tools_for_protocols({"http", "dns", "tls", "ip"})
+        assert "wireshark_extract_http_requests" in recommended
+        assert "wireshark_extract_dns_queries" in recommended
+        assert "wireshark_extract_tls_handshakes" in recommended
+        assert "wireshark_check_threats" in recommended
 
     def test_unknown_protocol_registers_nothing(self, mock_client: MockTSharkClient) -> None:
         from mcp.server.fastmcp import FastMCP
@@ -181,5 +179,64 @@ class TestContextualRegistration:
         registry = ToolRegistry(mcp, mock_client)
         registry.build_catalog()
 
-        registered = registry.register_contextual_tools({"unknown_protocol"})
-        assert len(registered) == 0
+        recommended = registry.recommended_tools_for_protocols({"unknown_protocol"})
+        assert len(recommended) == 0
+
+
+class TestOpenFileTool:
+    def test_open_file_recommends_tools_without_mutating_tool_surface(self, mock_client: MockTSharkClient) -> None:
+        from mcp.server.fastmcp import FastMCP
+
+        async def fake_get_protocol_stats(_pcap_file: str) -> str:
+            return success_response("eth  frames:10 bytes:100\n  ip  frames:10 bytes:90\n    tcp  frames:5 bytes:50\n      http  frames:5 bytes:50\n")
+
+        async def fake_get_file_info(_pcap_file: str) -> str:
+            return success_response("file name: test.pcap\n")
+
+        mcp = FastMCP("test")
+        registry = ToolRegistry(mcp, mock_client)
+        registry.build_catalog()
+        registry.register_all_contextual_tools()
+        mock_client.get_protocol_stats = fake_get_protocol_stats  # type: ignore[method-assign]
+        mock_client.get_file_info = fake_get_file_info  # type: ignore[method-assign]
+        register_open_file_tool(mcp, mock_client, registry)
+
+        before = registry.active_contextual_tools
+        result = json.loads(
+            self._run_async(mcp._tool_manager.call_tool("wireshark_open_file", {"pcap_file": "test.pcap"}))
+        )
+
+        assert result["success"] is True
+        assert "Recommended Tools" in result["data"]
+        assert "wireshark_extract_http_requests" in result["data"]
+        assert registry.active_contextual_tools == before
+
+    def test_open_file_degrades_when_capinfos_is_unavailable(self, mock_client: MockTSharkClient) -> None:
+        from mcp.server.fastmcp import FastMCP
+
+        async def fake_get_protocol_stats(_pcap_file: str) -> str:
+            return success_response("eth  frames:10 bytes:100\n  ip  frames:10 bytes:90\n")
+
+        async def fake_get_file_info(_pcap_file: str) -> str:
+            return error_response("capinfos tool not found", error_type="ToolNotFound")
+
+        mcp = FastMCP("test")
+        registry = ToolRegistry(mcp, mock_client)
+        registry.build_catalog()
+        registry.register_all_contextual_tools()
+        mock_client.get_protocol_stats = fake_get_protocol_stats  # type: ignore[method-assign]
+        mock_client.get_file_info = fake_get_file_info  # type: ignore[method-assign]
+        register_open_file_tool(mcp, mock_client, registry)
+
+        result = json.loads(
+            self._run_async(mcp._tool_manager.call_tool("wireshark_open_file", {"pcap_file": "test.pcap"}))
+        )
+
+        assert result["success"] is True
+        assert "Detailed file metadata unavailable" in result["data"]
+
+    @staticmethod
+    def _run_async(coro):
+        import asyncio
+
+        return asyncio.run(coro)

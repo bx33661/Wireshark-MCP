@@ -100,7 +100,8 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
         """
         [DEPRECATED] Read packet data in structured JSON format.
         WARNING: This tool can return very large, complex JSON.
-        Prefer `wireshark_get_packet_list` and `wireshark_get_packet_details` for efficient analysis.
+        Retained for 1.x compatibility; new workflows should prefer
+        `wireshark_get_packet_list` and `wireshark_get_packet_details`.
 
         Args:
             pcap_file: Path to capture file
@@ -269,7 +270,7 @@ def register_extract_tools(mcp: FastMCP, client: TSharkClient):
 
 
 def make_contextual_extract_tools(client: TSharkClient) -> list[tuple[str, Any]]:
-    """Create contextual extract tools (registered on demand by the registry)."""
+    """Create contextual extract tools for the stable contextual catalog."""
 
     async def wireshark_extract_http_requests(pcap_file: str, limit: int = 100) -> str:
         """[HTTP] Extract HTTP request details (method, URI, host). Pre-configured for HTTP analysis.

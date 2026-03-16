@@ -33,6 +33,11 @@ def _extract_data(result: str) -> str | None:
     return None
 
 
+def _coerce_int(value: object) -> int:
+    """Best-effort integer coercion for loosely typed tool summaries."""
+    return value if isinstance(value, int) else int(value) if isinstance(value, str) and value.isdigit() else 0
+
+
 async def _safe_run(coro, default=None):
     """Run a coroutine, returning default on any exception."""
     try:
@@ -92,39 +97,38 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
     # ── Phase 2: Threat Intelligence ─────────────────────────────────────
     report.append("┌─── 3. Threat Intelligence ────────────────────────────")
 
-    # Extract unique IPs
-    unique_ips: set[str] = set()
-    ips_raw = await _safe_run(client.extract_fields(pcap_file, ["ip.src", "ip.dst"], limit=10000), "")
-    ips_data = _extract_data(ips_raw) if ips_raw else None
-    if ips_data:
-        for line in ips_data.splitlines()[1:]:
-            for val in line.split("\t"):
-                val = val.strip().strip('"')
-                if val and not val.startswith("["):
-                    unique_ips.add(val)
-
-    report.append(f"│  Unique IPs found: {len(unique_ips)}")
-
-    # Check against URLhaus
-    malicious_ips: list[str] = []
+    urlhaus_summary: dict[str, object] | None = None
     try:
-        from .security import _get_threat_data
+        from .security import _analyze_urlhaus_matches
 
-        threat_feed = await _get_threat_data()
-        malicious_ips = [ip for ip in unique_ips if ip in threat_feed]
+        urlhaus_summary = await _analyze_urlhaus_matches(client, pcap_file)
+        urls_checked = _coerce_int(urlhaus_summary.get("urls_checked", 0))
+        domains_checked = _coerce_int(urlhaus_summary.get("domains_checked", 0))
+        malicious_urls = urlhaus_summary.get("malicious_urls", [])
+        malicious_domains = urlhaus_summary.get("malicious_domains", [])
 
-        if malicious_ips:
+        report.append(f"│  URLs checked: {urls_checked}")
+        report.append(f"│  Domains checked: {domains_checked}")
+
+        if malicious_urls or malicious_domains:
             risk_score += 40
-            findings.append(f"🔴 {len(malicious_ips)} IP(s) found in URLhaus threat feed")
-            report.append(f"│  🔴 MALICIOUS IPs: {len(malicious_ips)}")
-            for ip in malicious_ips[:10]:
-                report.append(f"│     • {ip}")
-            if len(malicious_ips) > 10:
-                report.append(f"│     ... and {len(malicious_ips) - 10} more")
+            findings.append("🔴 Captured URL or domain matched URLhaus threat intelligence")
+            if isinstance(malicious_urls, list) and malicious_urls:
+                report.append(f"│  🔴 Malicious URLs: {len(malicious_urls)}")
+                for url in malicious_urls[:5]:
+                    report.append(f"│     • {url}")
+                if len(malicious_urls) > 5:
+                    report.append(f"│     ... and {len(malicious_urls) - 5} more")
+            if isinstance(malicious_domains, list) and malicious_domains:
+                report.append(f"│  🔴 Malicious domains: {len(malicious_domains)}")
+                for domain in malicious_domains[:5]:
+                    report.append(f"│     • {domain}")
+                if len(malicious_domains) > 5:
+                    report.append(f"│     ... and {len(malicious_domains) - 5} more")
         else:
-            report.append("│  🟢 No IPs matched known threat feeds")
-    except Exception as e:
-        report.append(f"│  ⚠️  Threat feed unavailable: {e}")
+            report.append("│  🟢 No URLs or domains matched known threat feeds")
+    except Exception as exc:
+        report.append(f"│  ⚠️  Threat feed unavailable: {exc}")
 
     report.append("└───────────────────────────────────────────────────────\n")
 
@@ -337,7 +341,7 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
 
     report.append("\n── Recommendations ──")
     if risk_score >= 40:
-        report.append("  • Investigate flagged malicious IPs and credential exposure immediately")
+        report.append("  • Investigate flagged malicious URLs/domains and credential exposure immediately")
         report.append("  • Use wireshark_follow_stream to examine suspicious connections")
         report.append("  • Consider blocking identified scanner/attacker IPs")
     if cleartext_found:

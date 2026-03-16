@@ -57,8 +57,26 @@ Claude: [calls wireshark_extract_dns_queries → wireshark_check_threats]
 - `tshark` is the only required Wireshark CLI dependency
 - Optional suite tools such as `capinfos`, `mergecap`, `editcap`, `dumpcap`, and `text2pcap` are auto-detected and enable extra MCP features when present
 - Live capture prefers `dumpcap` when available, but falls back to `tshark` so a minimal installation still works
-- `tshark` on your `PATH` is recommended, but `wireshark-mcp --install` also records detected absolute Wireshark tool paths for GUI clients
+- `tshark` on your `PATH` is recommended, but `wireshark-mcp install` also records detected absolute Wireshark tool paths for GUI clients
 - Any [MCP-compatible client](https://modelcontextprotocol.io/clients): Claude Desktop, Claude Code, Cursor, VS Code, etc.
+
+---
+
+## 1.0 Support Matrix
+
+For `v1.0`, "stable" means the project commits to the following baseline:
+
+| Area | v1.0 baseline |
+|---|---|
+| Operating systems | Windows, Linux, and macOS |
+| CI validation | Test suite runs on all three platforms; packaged CLI smoke tests run on all three platforms; real `tshark` integration smoke runs on Linux |
+| Python versions | 3.10, 3.11, 3.12, 3.13 |
+| Required Wireshark dependency | `tshark` |
+| Optional Wireshark suite tools | `capinfos`, `mergecap`, `editcap`, `dumpcap`, `text2pcap` auto-detected when present |
+| Supported install paths | `pip install wireshark-mcp`, source install, and manual MCP config snippets |
+| User-facing verification | `wireshark-mcp doctor`, `wireshark-mcp clients`, and `wireshark-mcp config` |
+
+If one of these baseline items stops working, that is a `1.0.x` bug, not a "future enhancement".
 
 ---
 
@@ -79,7 +97,7 @@ pip install wireshark-mcp
 Then auto-configure **all** your MCP clients in one command:
 
 ```sh
-wireshark-mcp --install
+wireshark-mcp install
 ```
 
 That's it — restart your AI client and you're ready to go. 🎉
@@ -87,17 +105,17 @@ That's it — restart your AI client and you're ready to go. 🎉
 If anything still looks off, run:
 
 ```sh
-wireshark-mcp --doctor
+wireshark-mcp doctor
 ```
 
-> **What does `--install` do?** It scans your system for known MCP client config files (Claude, Cursor, VS Code, etc.) and injects the `wireshark-mcp` server entry. Existing settings are preserved. See [Supported Clients](#supported-clients) for the full list.
+> **What does `install` do?** It scans your system for known MCP client config files (Claude, Cursor, VS Code, etc.) and injects the `wireshark-mcp` server entry. Existing settings are preserved. See [Supported Clients](#supported-clients) for the full list.
 
 <details>
 <summary>Install from source</summary>
 
 ```sh
 pip install git+https://github.com/bx33661/Wireshark-MCP.git
-wireshark-mcp --install
+wireshark-mcp install
 ```
 
 </details>
@@ -106,8 +124,65 @@ wireshark-mcp --install
 <summary>Uninstall from all clients</summary>
 
 ```sh
-wireshark-mcp --uninstall
+wireshark-mcp uninstall
 ```
+
+</details>
+
+---
+
+## Platform Setup
+
+Use this section when you want the shortest reliable path to a working setup on each OS.
+
+<details>
+<summary><b>macOS</b></summary>
+
+1. Install Python 3.10+.
+2. Install Wireshark and make sure the `tshark` CLI is available.
+3. Install the package:
+
+```sh
+pip install wireshark-mcp
+wireshark-mcp install
+wireshark-mcp doctor
+```
+
+If you plan to use live capture, `dumpcap` is preferred when available.
+
+</details>
+
+<details>
+<summary><b>Linux</b></summary>
+
+1. Install Python 3.10+.
+2. Install Wireshark or the distro package that provides `tshark`.
+3. Install the package:
+
+```sh
+pip install wireshark-mcp
+wireshark-mcp install
+wireshark-mcp doctor
+```
+
+Live capture may require extra capture permissions depending on your distro. Offline `.pcap` analysis works as soon as `tshark` is available.
+
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+1. Install Python 3.10+.
+2. Install Wireshark and keep the `TShark` component enabled in the installer.
+3. In PowerShell or Command Prompt, run:
+
+```powershell
+py -m pip install wireshark-mcp
+wireshark-mcp install
+wireshark-mcp doctor
+```
+
+The installer writes absolute Python and Wireshark tool paths for GUI MCP clients, which is especially helpful on Windows where GUI apps often do not inherit your shell environment.
 
 </details>
 
@@ -115,7 +190,7 @@ wireshark-mcp --uninstall
 
 ## Supported Clients
 
-`wireshark-mcp --install` auto-configures the following clients across macOS, Linux, and Windows:
+`wireshark-mcp install` auto-configures the following clients across macOS, Linux, and Windows:
 
 | Client | Config File |
 |--------|------------|
@@ -138,7 +213,7 @@ wireshark-mcp --uninstall
 | **Amazon Q** | `mcp_config.json` |
 | **Codex** | `config.toml` |
 
-For unsupported clients, run `wireshark-mcp --config` to get the JSON snippet and paste it manually.
+For unsupported clients, run `wireshark-mcp config` to get the JSON snippet and paste it manually.
 
 ---
 
@@ -148,139 +223,97 @@ For unsupported clients, run `wireshark-mcp --config` to get the JSON snippet an
 
 ```sh
 pip install wireshark-mcp
-wireshark-mcp --install
+wireshark-mcp install
 ```
 
 This detects all installed MCP clients and writes the config automatically. Existing settings are preserved.
 The generated entry always uses the current Python interpreter (`python -u -m wireshark_mcp.server`), forwards your current `PATH`, and stores detected absolute Wireshark tool paths when available, so GUI MCP clients do not need `wireshark-mcp` or `tshark` to be discoverable on their own.
 
-> ⚠️ **Restart your MCP client** after running `--install` for changes to take effect.
-> 🔎 If analysis tools still fail to launch, run `wireshark-mcp --doctor` to verify Python, required vs optional Wireshark CLI tools, and client config detection.
+> ⚠️ **Restart your MCP client** after running `install` for changes to take effect.
+> 🔎 If analysis tools still fail to launch, run `wireshark-mcp doctor` to verify Python, required vs optional Wireshark CLI tools, and client config detection.
 
 ### Manual Configuration
 
-If you prefer to configure manually, or your client is not in the [supported list](#supported-clients), run `wireshark-mcp --config` first to print the exact command block for your current environment. The examples below use the shorter PATH-based form for readability.
-
-<details>
-<summary><b>Claude Desktop</b></summary>
-
-Edit `claude_desktop_config.json`:
-
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "wireshark-mcp": {
-      "command": "wireshark-mcp",
-      "args": []
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><b>Claude Code (CLI)</b></summary>
-
-```bash
-claude mcp add wireshark-mcp -- wireshark-mcp
-```
-
-Or edit `~/.claude.json` with the same JSON format above.
-
-</details>
-
-<details>
-<summary><b>Cursor</b></summary>
-
-Go to **Settings → Features → MCP Servers → Add new MCP server**:
-
-- **Name**: `wireshark-mcp`
-- **Type**: `command`
-- **Command**: `wireshark-mcp`
-
-Or edit `~/.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "wireshark-mcp": {
-      "command": "wireshark-mcp",
-      "args": []
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><b>VS Code / VS Code Insiders</b></summary>
-
-Add to your `settings.json`:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "wireshark-mcp": {
-        "command": "wireshark-mcp",
-        "args": []
-      }
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><b>OpenAI Codex CLI</b></summary>
-
-```bash
-codex mcp add wireshark-mcp -- wireshark-mcp
-```
-
-Or edit `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.wireshark-mcp]
-command = "wireshark-mcp"
-args = []
-```
-
-</details>
-
-<details>
-<summary><b>Other clients</b></summary>
-
-Run the following to get the JSON config snippet:
+If you prefer to configure manually, start with:
 
 ```sh
-wireshark-mcp --config
+wireshark-mcp config
 ```
 
-Output:
+If you use Codex:
 
-```json
-{
-  "mcpServers": {
-    "wireshark-mcp": {
-      "command": "wireshark-mcp",
-      "args": []
-    }
-  }
-}
+```sh
+wireshark-mcp config --format codex-toml
 ```
 
-Paste this into your client's MCP config file.
+Detailed client-by-client instructions now live in [docs/manual-configuration.md](docs/manual-configuration.md), including Claude Desktop, Claude Code, Cursor, VS Code, Codex, generic JSON-based clients, and Docker / SSE mode.
 
-</details>
+---
 
-> **Docker / SSE mode**: `docker compose up -d` then point your client to `http://localhost:8080/sse`
+## 5-Minute Verification
+
+After installation, this is the fastest way to confirm the setup is actually production-usable:
+
+1. Check the package entrypoint:
+
+```sh
+wireshark-mcp --version
+```
+
+2. Verify Python and Wireshark tool discovery:
+
+```sh
+wireshark-mcp doctor
+```
+
+Automation-friendly form:
+
+```sh
+wireshark-mcp doctor --format json
+```
+
+3. Confirm your client targets were detected:
+
+```sh
+wireshark-mcp clients
+```
+
+Automation-friendly form:
+
+```sh
+wireshark-mcp clients --format json
+```
+
+4. Print the exact manual config for the current machine:
+
+```sh
+wireshark-mcp config
+```
+
+If you use Codex specifically, you can also render TOML directly:
+
+```sh
+wireshark-mcp config --format codex-toml
+```
+
+5. Open your MCP client, attach a small `.pcap`, and run:
+
+```text
+Use wireshark_open_file on this capture, summarize the protocols you see, then run wireshark_quick_analysis.
+```
+
+If all five checks work, the install is in the expected `v1.0` steady state.
+
+---
+
+## Operational Docs
+
+Detailed steady-state and release docs now live under `docs/`:
+
+- [Platform validation](docs/platform-validation.md)
+- [Release checklist](docs/release-checklist.md)
+- [Manual configuration](docs/manual-configuration.md)
+- [Prompt engineering](docs/prompt-engineering.md)
 
 ---
 
@@ -291,7 +324,7 @@ Paste this into your AI client after pointing it at a pcap file:
 ```
 Analyze <path/to/file.pcap> using the Wireshark MCP tools.
 
-- Start with wireshark_open_file to load the file and activate relevant tools.
+- Start with wireshark_open_file to get capture-wide context and recommended tools.
 - Use wireshark_security_audit for a one-call security analysis.
 - Or use wireshark_quick_analysis for a fast traffic overview.
 - Drill into details with wireshark_follow_stream or wireshark_get_packet_details.
@@ -325,73 +358,30 @@ Start in triage mode, escalate if you find suspicious behavior, and produce a co
 
 ---
 
+## Compatibility Policy
+
+- The stable CLI for `1.x` is the subcommand interface: `serve`, `install`, `uninstall`, `doctor`, `config`, `clients`.
+- Legacy flags such as `--install`, `--doctor`, and `--config` remain supported throughout `1.x`.
+- `wireshark_read_packets` remains available throughout `1.x` for backwards compatibility, but it is deprecated and not recommended for new workflows.
+- New packet-inspection workflows should use `wireshark_get_packet_list` and `wireshark_get_packet_details`.
+
+---
+
 ## Prompt Engineering
 
-LLMs perform best with specific, structured prompts. Below are refined prompts for common scenarios:
+LLMs perform best when you tell them to:
 
-<details>
-<summary><b>Security Audit</b></summary>
+- start with `wireshark_open_file`
+- use agentic tools first, then drill down
+- verify instead of guessing
+- produce a structured report
 
-```
-Your task is to perform a comprehensive security audit on <file.pcap>.
-
-1. Start with wireshark_open_file to activate all relevant tools
-2. Run wireshark_security_audit for automated 8-phase analysis
-3. For any findings, drill deeper:
-   - Use wireshark_follow_stream to inspect suspicious sessions
-   - Use wireshark_extract_credentials to check for cleartext passwords
-   - Use wireshark_check_threats to validate IOCs against threat intel
-4. NEVER guess display filter syntax — use the wireshark://reference/display-filters resource
-5. NEVER fabricate packet data — always verify with tools
-6. Write a structured report to report.md with risk scores (0-100)
-```
-
-</details>
-
-<details>
-<summary><b>CTF Challenge</b></summary>
-
-```
-Your task is to solve a CTF network challenge using <file.pcap>.
-
-1. Start with wireshark_open_file then wireshark_quick_analysis for overview
-2. Look for flags using wireshark_search_packets with patterns like "flag{", "CTF{"
-3. Check every stream with wireshark_follow_stream — flags often hide in HTTP bodies or TCP data
-4. Use wireshark_decode_payload to decode Base64, hex, URL-encoded, or gzipped data
-5. Export embedded files with wireshark_export_objects (HTTP, SMB, TFTP)
-6. NEVER base64-decode or hex-decode yourself — always use wireshark_decode_payload
-7. Document all steps taken and flag found in report.md
-```
-
-</details>
-
-<details>
-<summary><b>Performance Troubleshooting</b></summary>
-
-```
-Your task is to diagnose network performance issues in <file.pcap>.
-
-1. Start with wireshark_open_file to activate protocol-specific tools
-2. Use wireshark_analyze_tcp_health to check retransmissions, zero windows, RSTs
-3. Use wireshark_stats_io_graph to find traffic spikes or drops
-4. Use wireshark_stats_service_response_time for HTTP/DNS latency
-5. Use wireshark_stats_expert_info for anomalies
-6. Identify top talkers with wireshark_stats_endpoints
-7. Write findings to report.md with specific timestamps and recommendations
-```
-
-</details>
-
-> **Tips for better results:**
-> - Always call `wireshark_open_file` first — it activates protocol-specific tools via Progressive Discovery
-> - Use the Agentic tools (`security_audit`, `quick_analysis`) for broad analysis, then drill down
-> - Never guess filter syntax — use the `wireshark://reference/display-filters` resource
-> - Never decode payloads manually — use `wireshark_decode_payload`
+Ready-to-paste prompt templates for security audits, CTF work, and performance troubleshooting now live in [docs/prompt-engineering.md](docs/prompt-engineering.md).
 
 ## Tools
 
 <details>
-<summary><b>⚡ Agentic Workflows</b> — one-call comprehensive analysis (NEW in v0.6)</summary>
+<summary><b>⚡ Agentic Workflows</b> — one-call comprehensive analysis</summary>
 
 <br>
 
@@ -399,7 +389,7 @@ Your task is to diagnose network performance issues in <file.pcap>.
 |---|---|
 | `wireshark_security_audit` | **One-call security audit**: 8-phase analysis (threat intel, credential scan, port scan, DNS tunnel, cleartext, anomalies) with risk scoring (0-100) and recommendations |
 | `wireshark_quick_analysis` | **One-call traffic overview**: file info, protocol distribution, top talkers, conversations, hostnames, anomaly summary, suggested next steps |
-| `wireshark_open_file` | **Smart file opener**: analyzes pcap content and dynamically activates protocol-specific tools (Progressive Discovery) |
+| `wireshark_open_file` | **Smart file opener**: analyzes pcap content and recommends the most relevant tools while keeping the MCP tool surface stable |
 | `wireshark_get_capabilities` | **Toolchain capability report**: required, recommended, and optional Wireshark suite tools visible to the current MCP server |
 
 > 💡 These tools replace the need to manually chain 5-10 tool calls. Just call one and get a complete report.
@@ -417,6 +407,7 @@ Your task is to diagnose network performance issues in <file.pcap>.
 | `wireshark_get_packet_details` | Full JSON dissection of a single frame, with optional layer filtering to cut token usage |
 | `wireshark_get_packet_bytes` | Raw Hex + ASCII dump (Wireshark's "Packet Bytes" pane) |
 | `wireshark_get_packet_context` | View N packets before and after a frame for contextual debugging |
+| `wireshark_read_packets` | Deprecated compatibility tool retained for `1.x`; prefer `wireshark_get_packet_list` and `wireshark_get_packet_details` |
 | `wireshark_follow_stream` | Reassemble a full TCP / UDP / HTTP stream with pagination and search |
 | `wireshark_search_packets` | Pattern search across raw bytes or decoded fields (Regex supported) |
 
@@ -493,7 +484,7 @@ These tools are additive. The server still starts with only `tshark`, and only a
 
 | Tool | Description |
 |---|---|
-| `wireshark_check_threats` | Cross-reference captured IPs against [URLhaus](https://urlhaus.abuse.ch/) threat intelligence |
+| `wireshark_check_threats` | Cross-reference captured URLs and hostnames against [URLhaus](https://urlhaus.abuse.ch/) threat intelligence |
 | `wireshark_extract_credentials` | Detect plaintext credentials in HTTP Basic Auth, FTP, and Telnet |
 | `wireshark_detect_port_scan` | Detect SYN, FIN, NULL, and Xmas port scans with configurable threshold |
 | `wireshark_detect_dns_tunnel` | Detect DNS tunneling (long queries, TXT abuse, subdomain entropy) |
@@ -530,7 +521,7 @@ These tools are additive. The server still starts with only `tshark`, and only a
 
 </details>
 
-> **Note**: Security, Protocol, and Threat tools are *contextual* — they activate automatically when you call `wireshark_open_file`. The Agentic tools (`security_audit`, `quick_analysis`) are always available.
+> **Note**: Security, Protocol, and Threat tools stay available for the whole session. `wireshark_open_file` recommends which ones are most relevant for the current capture.
 
 ---
 
@@ -558,13 +549,25 @@ There are other network analysis MCP servers out there, but Wireshark MCP was bu
 
 | Feature | Wireshark MCP | Others |
 |---------|:---:|:---:|
-| One-command install (`--install`) | ✅ | ❌ |
+| One-command install (`install`) | ✅ | ❌ |
 | Agentic workflows (one-call security audit) | ✅ | ❌ |
-| Progressive Discovery (auto-activate tools) | ✅ | ❌ |
+| Capture-aware recommendations with stable tool surface | ✅ | ❌ |
 | 40+ specialized analysis tools | ✅ | 5-10 |
 | Threat intelligence integration | ✅ | ❌ |
 | Smart Python env detection | ✅ | ❌ |
 | 18+ MCP client support | ✅ | Manual |
+
+---
+
+## Troubleshooting
+
+| Symptom | What it usually means | What to do |
+|---|---|---|
+| `tshark` is missing in `doctor` | Wireshark or the CLI component is not installed, or the path is not discoverable | Install Wireshark with `tshark`, then rerun `wireshark-mcp doctor` |
+| MCP client sees the server but tool calls fail to launch | The GUI client is missing runtime env vars or absolute tool paths | Rerun `wireshark-mcp install`, restart the client, then rerun `wireshark-mcp doctor` |
+| Live capture fails but offline `.pcap` analysis works | Capture permissions or `dumpcap` availability are the issue, not the core server | Use offline capture files first; if you need live capture, grant the required OS-specific capture permissions |
+| `capinfos`, `editcap`, or `text2pcap` are missing | Optional Wireshark suite tools are not installed | This is not fatal; the server still works with `tshark`, but those extra workflows stay unavailable |
+| Your client is not in the supported list | Auto-install only covers known config formats | Run `wireshark-mcp config` or `wireshark-mcp config --format codex-toml` and paste the output manually |
 
 ---
 
@@ -585,14 +588,14 @@ npx -y @modelcontextprotocol/inspector uv run wireshark-mcp
 **Run the test suite:**
 
 ```sh
-pytest tests/ -v
+uv run python -m pytest tests/ -v
 ```
 
 **Lint & type check:**
 
 ```sh
-ruff check src/ tests/
-mypy src/wireshark_mcp/
+uv run python -m ruff check src/ tests/
+uv run python -m mypy --package wireshark_mcp --ignore-missing-imports --no-namespace-packages
 ```
 
 **Docker:**
@@ -605,12 +608,21 @@ docker compose up -d
 **CLI options:**
 
 ```sh
-wireshark-mcp --install                # Auto-configure all detected MCP clients
-wireshark-mcp --uninstall              # Remove config from all clients
-wireshark-mcp --config                 # Print JSON config for manual setup
-wireshark-mcp --version                # Show version
-wireshark-mcp --transport sse --port 8080 --log-level INFO   # Start SSE server
+wireshark-mcp                          # Start the stdio MCP server
+wireshark-mcp serve --transport sse --host 0.0.0.0 --port 8080
+wireshark-mcp install                  # Auto-configure all detected MCP clients
+wireshark-mcp install --client codex   # Target a specific client
+wireshark-mcp uninstall
+wireshark-mcp doctor                   # Human-readable diagnostics
+wireshark-mcp doctor --format json     # Machine-readable diagnostics
+wireshark-mcp clients                  # Human-readable client detection
+wireshark-mcp clients --format json    # Machine-readable client detection
+wireshark-mcp config                   # Print JSON config for manual setup
+wireshark-mcp config --format codex-toml
+wireshark-mcp --version
 ```
+
+Legacy flags such as `--install`, `--doctor`, and `--config` remain supported for backwards compatibility.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup guide.
 

@@ -15,7 +15,12 @@ import sys
 import tempfile
 from typing import Any, cast
 
-from .toolchain import WIRESHARK_TOOL_ENV_VARS, WIRESHARK_TOOL_ORDER, WIRESHARK_TOOL_REQUIREMENTS
+from .toolchain import (
+    WIRESHARK_TOOL_ENV_VARS,
+    WIRESHARK_TOOL_ORDER,
+    WIRESHARK_TOOL_PURPOSES,
+    WIRESHARK_TOOL_REQUIREMENTS,
+)
 
 SERVER_NAME = "wireshark-mcp"
 
@@ -200,10 +205,18 @@ def generate_mcp_config() -> dict[str, Any]:
     return config
 
 
-def print_mcp_config() -> None:
-    """Print the MCP config JSON for manual client setup."""
-    config = {"mcpServers": {SERVER_NAME: generate_mcp_config()}}
-    print(json.dumps(config, indent=2))
+def print_mcp_config(*, output_format: str = "json") -> None:
+    """Print a manual MCP config snippet in the requested format."""
+    if output_format == "json":
+        config = {"mcpServers": {SERVER_NAME: generate_mcp_config()}}
+        print(json.dumps(config, indent=2))
+        return
+
+    if output_format == "codex-toml":
+        print(_render_codex_toml_block())
+        return
+
+    raise ValueError(f"Unsupported config format: {output_format}")
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +406,40 @@ def _get_client_configs() -> dict[str, tuple[str, str]]:
     return configs
 
 
+def _normalize_client_key(name: str) -> str:
+    """Normalize a client name for forgiving CLI matching."""
+    return re.sub(r"[^a-z0-9]+", "", name.casefold())
+
+
+def get_client_configs(selected_clients: list[str] | None = None) -> dict[str, tuple[str, str]]:
+    """Return all known clients or a validated subset selected by the CLI."""
+    configs = _get_client_configs()
+    if not selected_clients:
+        return configs
+
+    normalized_map = {_normalize_client_key(name): name for name in configs}
+    resolved: dict[str, tuple[str, str]] = {}
+    unknown: list[str] = []
+
+    for raw_name in selected_clients:
+        normalized = _normalize_client_key(raw_name)
+        if not normalized or normalized == "all":
+            return configs
+
+        client_name = normalized_map.get(normalized)
+        if client_name is None:
+            unknown.append(raw_name)
+            continue
+
+        resolved[client_name] = configs[client_name]
+
+    if unknown:
+        supported = ", ".join(configs) if configs else "none"
+        raise ValueError(f"Unknown client(s): {', '.join(unknown)}. Supported clients: {supported}.")
+
+    return resolved
+
+
 _SPECIAL_JSON_STRUCTURES: dict[str, tuple[str, str]] = {
     "VS Code": ("mcp", "servers"),
     "VS Code Insiders": ("mcp", "servers"),
@@ -502,35 +549,50 @@ def _has_server_entry(config_path: str, client_name: str) -> bool:
     return _has_server_entry_in_json_config(_read_json_config(config_path), client_name)
 
 
-def print_install_doctor() -> None:
-    """Print install diagnostics for Python, Wireshark tools, and client configs."""
-    print("Wireshark MCP doctor")
-    print(f"  Python: {_get_python_executable()}")
-    print()
-    print("Wireshark suite tools:")
+def _status_marker(status: str) -> str:
+    """Return a short ASCII status label for CLI output."""
+    return {
+        "configured": "[OK]",
+        "installed": "[OK]",
+        "uninstalled": "[OK]",
+        "config file found": "[INFO]",
+        "client detected": "[INFO]",
+        "already configured": "[SKIP]",
+        "not installed": "[SKIP]",
+        "not detected": "[MISS]",
+    }.get(status, "[INFO]")
 
-    detected_tools = _detect_wireshark_tool_paths()
-    for requirement in ("required", "recommended", "optional"):
-        print(f"  {requirement}:")
-        for tool_name in WIRESHARK_TOOL_ORDER:
-            if WIRESHARK_TOOL_REQUIREMENTS[tool_name] != requirement:
-                continue
-            env_var = WIRESHARK_TOOL_ENV_VARS[tool_name]
-            status = detected_tools.get(env_var) or "missing"
-            print(f"    {tool_name}: {status}")
 
-    if not detected_tools["WIRESHARK_MCP_TSHARK_PATH"]:
-        print()
-        print("Warning: tshark was not found.")
-        print("  Install Wireshark CLI tools or set WIRESHARK_MCP_TSHARK_PATH before starting the MCP server.")
-    else:
-        print()
-        capture_backend = "dumpcap" if detected_tools.get("WIRESHARK_MCP_DUMPCAP_PATH") else "tshark"
-        print(f"Preferred capture backend: {capture_backend}")
+def _print_title(title: str) -> None:
+    """Print a simple section header."""
+    print(title)
+    print("=" * len(title))
 
-    print()
-    print("MCP client targets:")
-    for name, (config_dir, config_file) in _get_client_configs().items():
+
+def _print_rows(rows: list[dict[str, str]]) -> None:
+    """Print aligned status rows with optional paths."""
+    if not rows:
+        return
+
+    width = max(len(row["name"]) for row in rows)
+    for row in rows:
+        marker = row.get("marker") or _status_marker(row.get("status", ""))
+        detail = row.get("detail", "")
+        print(f"  {marker:<6} {row['name']:<{width}} {detail}")
+        path = row.get("path")
+        if path:
+            print(f"         {path}")
+
+
+def _summarize_status_rows(rows: list[dict[str, str]], statuses: tuple[str, ...]) -> dict[str, int]:
+    """Summarize row counts for the requested statuses."""
+    return {status: sum(row["status"] == status for row in rows) for status in statuses if any(row["status"] == status for row in rows)}
+
+
+def _collect_client_rows(selected_clients: list[str] | None = None) -> list[dict[str, str]]:
+    """Collect client detection/configuration status rows."""
+    rows: list[dict[str, str]] = []
+    for name, (config_dir, config_file) in get_client_configs(selected_clients).items():
         config_path = os.path.join(config_dir, config_file)
         if os.path.exists(config_path):
             status = "configured" if _has_server_entry(config_path, name) else "config file found"
@@ -538,8 +600,113 @@ def print_install_doctor() -> None:
             status = "client detected"
         else:
             status = "not detected"
-        print(f"  {name}: {status}")
-        print(f"    {config_path}")
+        rows.append({"name": name, "status": status, "detail": status, "path": config_path})
+    return rows
+
+
+def _build_client_targets_payload(selected_clients: list[str] | None = None) -> dict[str, Any]:
+    """Build a machine-readable payload for client detection status."""
+    rows = _collect_client_rows(selected_clients)
+    summary_order = ("configured", "config file found", "client detected", "not detected")
+    return {
+        "clients": rows,
+        "summary": _summarize_status_rows(rows, summary_order),
+    }
+
+
+def print_client_targets(*, selected_clients: list[str] | None = None, output_format: str = "text") -> None:
+    """Print supported client targets and detection status."""
+    payload = _build_client_targets_payload(selected_clients)
+    rows = cast("list[dict[str, str]]", payload["clients"])
+    if output_format == "json":
+        print(json.dumps(payload, indent=2))
+        return
+
+    _print_title("Wireshark MCP clients")
+    _print_rows(rows)
+
+    summary = [f"{count} {status}" for status, count in cast("dict[str, int]", payload["summary"]).items()]
+    if summary:
+        print()
+        print("Summary: " + ", ".join(summary))
+
+
+def _build_doctor_payload(selected_clients: list[str] | None = None) -> dict[str, Any]:
+    """Build a machine-readable payload for doctor diagnostics."""
+    detected_tools = _detect_wireshark_tool_paths()
+    tools: dict[str, dict[str, Any]] = {}
+    for tool_name in WIRESHARK_TOOL_ORDER:
+        env_var = WIRESHARK_TOOL_ENV_VARS[tool_name]
+        tool_path = detected_tools.get(env_var)
+        tools[tool_name] = {
+            "available": bool(tool_path),
+            "path": tool_path,
+            "requirement": WIRESHARK_TOOL_REQUIREMENTS[tool_name],
+            "purpose": WIRESHARK_TOOL_PURPOSES[tool_name],
+        }
+
+    warnings: list[str] = []
+    capture_backend: str | None = None
+    if not detected_tools["WIRESHARK_MCP_TSHARK_PATH"]:
+        warnings.append(
+            "tshark was not found. Install Wireshark CLI tools or set WIRESHARK_MCP_TSHARK_PATH before starting the MCP server."
+        )
+    else:
+        capture_backend = "dumpcap" if detected_tools.get("WIRESHARK_MCP_DUMPCAP_PATH") else "tshark"
+
+    client_payload = _build_client_targets_payload(selected_clients)
+    return {
+        "python_executable": _get_python_executable(),
+        "wireshark_tools": tools,
+        "capture_backend": capture_backend,
+        "warnings": warnings,
+        "clients": client_payload["clients"],
+        "client_summary": client_payload["summary"],
+    }
+
+
+def print_install_doctor(*, selected_clients: list[str] | None = None, output_format: str = "text") -> None:
+    """Print install diagnostics for Python, Wireshark tools, and client configs."""
+    payload = _build_doctor_payload(selected_clients)
+    if output_format == "json":
+        print(json.dumps(payload, indent=2))
+        return
+
+    _print_title("Wireshark MCP doctor")
+    print(f"Python executable : {payload['python_executable']}")
+    print()
+    print("Wireshark suite tools")
+    print("---------------------")
+
+    tools = cast("dict[str, dict[str, Any]]", payload["wireshark_tools"])
+    for requirement in ("required", "recommended", "optional"):
+        print(f"{requirement.title()}:")
+        for tool_name in WIRESHARK_TOOL_ORDER:
+            if WIRESHARK_TOOL_REQUIREMENTS[tool_name] != requirement:
+                continue
+            tool_path = cast("str | None", tools[tool_name]["path"])
+            marker = "[OK]" if tool_path else "[MISS]"
+            print(f"  {marker:<6} {tool_name:<10} {tool_path or 'not found'}")
+
+    print()
+    warnings = cast("list[str]", payload["warnings"])
+    if warnings:
+        print("[WARN] tshark was not found.")
+        print("       Install Wireshark CLI tools or set WIRESHARK_MCP_TSHARK_PATH before starting the MCP server.")
+    else:
+        capture_backend = cast("str", payload["capture_backend"])
+        print(f"Preferred capture backend : {capture_backend}")
+
+    print()
+    print("MCP client targets")
+    print("------------------")
+    client_rows = cast("list[dict[str, str]]", payload["clients"])
+    _print_rows(client_rows)
+
+    summary = [f"{count} {status}" for status, count in cast("dict[str, int]", payload["client_summary"]).items()]
+    if summary:
+        print()
+        print("Summary: " + ", ".join(summary))
 
 
 def _upsert_named_toml_block(content: str, section_name: str, block: str) -> str:
@@ -600,9 +767,9 @@ def _install_codex_config(config_path: str, *, uninstall: bool) -> bool:
     return True
 
 
-def install_mcp_servers(*, uninstall: bool = False) -> int:
+def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] | None = None) -> int:
     """Install or uninstall wireshark-mcp from all detected MCP clients."""
-    configs = _get_client_configs()
+    configs = get_client_configs(selected_clients)
     if not configs:
         print(f"Unsupported platform: {sys.platform}")
         return 0
@@ -610,20 +777,25 @@ def install_mcp_servers(*, uninstall: bool = False) -> int:
     installed = 0
     skipped = 0
     action_word = "uninstall" if uninstall else "installation"
+    result_rows: list[dict[str, str]] = []
+
+    _print_title("Wireshark MCP uninstall" if uninstall else "Wireshark MCP install")
 
     if not uninstall:
         detected_tools = _detect_wireshark_tool_paths()
         if not detected_tools["WIRESHARK_MCP_TSHARK_PATH"]:
-            print(
-                "Warning: tshark was not found. The MCP server config will be installed, but packet analysis will fail until Wireshark CLI tools are available."
-            )
-            print("Run `wireshark-mcp --doctor` after installing Wireshark to verify the tool paths.\n")
+            print("[WARN] tshark was not found. Client configs can still be written,")
+            print("       but packet analysis will fail until Wireshark CLI tools are available.")
+            print("       Run `wireshark-mcp doctor` after installing Wireshark to verify the tool paths.")
+            print()
 
     for name, (config_dir, config_file) in configs.items():
         config_path = os.path.join(config_dir, config_file)
 
         if not os.path.exists(config_dir):
-            print(f"Skipping {name} {action_word}\n  Config: {config_path} (not found)")
+            result_rows.append(
+                {"marker": "[SKIP]", "name": name, "detail": f"{action_word} skipped (config dir not found)", "path": config_path}
+            )
             skipped += 1
             continue
 
@@ -631,12 +803,12 @@ def install_mcp_servers(*, uninstall: bool = False) -> int:
             changed = _install_codex_config(config_path, uninstall=uninstall)
             if not changed:
                 reason = "not installed" if uninstall else "already configured"
-                print(f"Skipping {name} {action_word}\n  Config: {config_path} ({reason})")
+                result_rows.append({"marker": "[SKIP]", "name": name, "detail": reason, "path": config_path})
                 skipped += 1
                 continue
 
-            done_word = "Uninstalled" if uninstall else "Installed"
-            print(f"{done_word} {name} MCP server (restart required)\n  Config: {config_path}")
+            done_word = "uninstalled" if uninstall else "installed"
+            result_rows.append({"marker": "[OK]", "name": name, "detail": f"{done_word} (restart required)", "path": config_path})
             installed += 1
             continue
 
@@ -645,7 +817,7 @@ def install_mcp_servers(*, uninstall: bool = False) -> int:
 
         if uninstall:
             if SERVER_NAME not in mcp_servers:
-                print(f"Skipping {name} uninstall\n  Config: {config_path} (not installed)")
+                result_rows.append({"marker": "[SKIP]", "name": name, "detail": "not installed", "path": config_path})
                 skipped += 1
                 continue
             del mcp_servers[SERVER_NAME]
@@ -654,11 +826,14 @@ def install_mcp_servers(*, uninstall: bool = False) -> int:
 
         _write_json_config(config_path, config)
 
-        done_word = "Uninstalled" if uninstall else "Installed"
-        print(f"{done_word} {name} MCP server (restart required)\n  Config: {config_path}")
+        done_word = "uninstalled" if uninstall else "installed"
+        result_rows.append({"marker": "[OK]", "name": name, "detail": f"{done_word} (restart required)", "path": config_path})
         installed += 1
 
+    _print_rows(result_rows)
+
     if not uninstall and installed == 0:
+        print()
         print("No MCP clients detected. For unsupported clients, use the following config:\n")
         print_mcp_config()
     else:
@@ -668,24 +843,38 @@ def install_mcp_servers(*, uninstall: bool = False) -> int:
     return installed
 
 
-def run_install(*, install: bool = False, uninstall: bool = False, config: bool = False, doctor: bool = False) -> None:
+def run_install(
+    *,
+    install: bool = False,
+    uninstall: bool = False,
+    config: bool = False,
+    doctor: bool = False,
+    list_clients: bool = False,
+    selected_clients: list[str] | None = None,
+    config_format: str = "json",
+    output_format: str = "text",
+) -> None:
     """Dispatcher called from the CLI entry point."""
-    if sum(bool(flag) for flag in (install, uninstall, config, doctor)) > 1:
-        print("Choose only one of: --install, --uninstall, --config, --doctor.")
+    if sum(bool(flag) for flag in (install, uninstall, config, doctor, list_clients)) > 1:
+        print("Choose only one action at a time: install, uninstall, config, doctor, or clients.")
         sys.exit(1)
 
     if install:
-        install_mcp_servers(uninstall=False)
+        install_mcp_servers(uninstall=False, selected_clients=selected_clients)
         return
 
     if uninstall:
-        install_mcp_servers(uninstall=True)
+        install_mcp_servers(uninstall=True, selected_clients=selected_clients)
         return
 
     if config:
-        print_mcp_config()
+        print_mcp_config(output_format=config_format)
         return
 
     if doctor:
-        print_install_doctor()
+        print_install_doctor(selected_clients=selected_clients, output_format=output_format)
+        return
+
+    if list_clients:
+        print_client_targets(selected_clients=selected_clients, output_format=output_format)
         return

@@ -21,12 +21,13 @@ You are a senior network security analyst performing a comprehensive security au
 Follow this systematic workflow:
 
 ## Step 1: Reconnaissance
+- Use `wireshark_open_file("{pcap_file}")` first for capture-wide context and tool recommendations.
 - Use `wireshark_get_file_info("{pcap_file}")` to understand capture duration, packet count, and file type.
 - Use `wireshark_stats_protocol_hierarchy("{pcap_file}")` to see overall protocol distribution.
 - Use `wireshark_stats_endpoints("{pcap_file}")` to identify all communicating hosts.
 
 ## Step 2: Threat Intelligence
-- Use `wireshark_check_threats("{pcap_file}")` to check IPs against URLhaus.
+- Use `wireshark_check_threats("{pcap_file}")` to check captured URLs and hostnames against URLhaus.
 - Use `wireshark_extract_credentials("{pcap_file}")` to find any plaintext credentials.
 
 ## Step 3: Attack Pattern Detection
@@ -60,6 +61,7 @@ You are a network performance engineer analyzing traffic for performance issues.
 **Target file**: `{pcap_file}`
 
 ## Step 1: Overview
+- Use `wireshark_open_file("{pcap_file}")` first for capture-wide context and tool recommendations.
 - Use `wireshark_get_file_info("{pcap_file}")` for capture metadata.
 - Use `wireshark_stats_io_graph("{pcap_file}", interval=1)` to visualize traffic patterns.
 - Use `wireshark_plot_traffic("{pcap_file}")` for a quick visual.
@@ -100,6 +102,7 @@ You are an experienced CTF player solving a network forensics challenge.
 ## Strategy: Cast a Wide Net First
 
 ### Phase 1: Quick Overview
+- Use `wireshark_open_file("{pcap_file}")` first for capture-wide context and tool recommendations.
 - Use `wireshark_get_file_info("{pcap_file}")` for basic info.
 - Use `wireshark_stats_protocol_hierarchy("{pcap_file}")` — unusual protocols are often the key!
 - Use `wireshark_get_packet_list("{pcap_file}", limit=50)` to scan the first packets.
@@ -139,12 +142,13 @@ You are a SOC analyst investigating a potential security incident from a network
 **Target file**: `{pcap_file}`
 
 ## Phase 1: Triage (5 minutes)
+- Use `wireshark_open_file("{pcap_file}")` first for capture-wide context and tool recommendations.
 - Use `wireshark_get_file_info("{pcap_file}")` — when was this captured? how long?
 - Use `wireshark_stats_protocol_hierarchy("{pcap_file}")` — any unusual protocols?
 - Use `wireshark_stats_endpoints("{pcap_file}")` — identify all hosts involved.
 
 ## Phase 2: IOC Extraction (10 minutes)
-- Use `wireshark_check_threats("{pcap_file}")` — any known malicious IPs?
+- Use `wireshark_check_threats("{pcap_file}")` — any known malicious URLs or domains?
 - Use `wireshark_list_ips("{pcap_file}")` — get full IP list for SIEM correlation.
 - Use `wireshark_extract_dns_queries("{pcap_file}")` — check for DGA domains.
 - Use `wireshark_detect_dns_tunnel("{pcap_file}")` — check for command & control.
@@ -177,12 +181,13 @@ Provide a concise overview of the network traffic in the capture file.
 
 **Target file**: `{pcap_file}`
 
-1. Use `wireshark_get_file_info("{pcap_file}")` for capture metadata.
-2. Use `wireshark_stats_protocol_hierarchy("{pcap_file}")` for protocol breakdown.
-3. Use `wireshark_stats_endpoints("{pcap_file}")` for top talkers.
-4. Use `wireshark_stats_conversations("{pcap_file}")` for communication pairs.
-5. Use `wireshark_plot_traffic("{pcap_file}")` for traffic timeline.
-6. Use `wireshark_plot_protocols("{pcap_file}")` for protocol distribution.
+1. Use `wireshark_open_file("{pcap_file}")` for capture-wide context and recommended tools.
+2. Use `wireshark_get_file_info("{pcap_file}")` for capture metadata.
+3. Use `wireshark_stats_protocol_hierarchy("{pcap_file}")` for protocol breakdown.
+4. Use `wireshark_stats_endpoints("{pcap_file}")` for top talkers.
+5. Use `wireshark_stats_conversations("{pcap_file}")` for communication pairs.
+6. Use `wireshark_plot_traffic("{pcap_file}")` for traffic timeline.
+7. Use `wireshark_plot_protocols("{pcap_file}")` for protocol distribution.
 
 Summarize: what type of traffic is this? What are the main hosts communicating? Any anomalies visible at a glance?
 """

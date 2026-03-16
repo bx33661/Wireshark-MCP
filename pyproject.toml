@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wireshark-mcp"
-version = "0.6.5"
+version = "1.0.0"
 description = "A production-grade Model Context Protocol (MCP) server for Wireshark"
 readme = "README.md"
 keywords = ["mcp", "wireshark", "tshark", "packet-analysis", "network", "pcap", "model-context-protocol", "llm", "security"]
@@ -14,7 +14,7 @@ authors = [
     { name = "bx33661" },
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
@@ -28,7 +28,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2.0.0",
 ]
 
 [project.optional-dependencies]

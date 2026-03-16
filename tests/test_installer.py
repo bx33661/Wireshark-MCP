@@ -17,7 +17,11 @@ from wireshark_mcp.installer import (
     _render_codex_toml_block,
     _write_json_config,
     generate_mcp_config,
+    get_client_configs,
     install_mcp_servers,
+    print_client_targets,
+    print_install_doctor,
+    print_mcp_config,
 )
 
 
@@ -97,6 +101,12 @@ class TestGenerateMcpConfig:
         assert config["args"] == ["-u", "-m", "wireshark_mcp.server"]
         assert config["env"]["PYTHONUNBUFFERED"] == "1"
         assert config["env"]["PYTHONIOENCODING"] == "utf-8"
+
+    def test_print_mcp_config_supports_codex_toml(self, capsys):
+        print_mcp_config(output_format="codex-toml")
+        output = capsys.readouterr().out
+        assert f"[mcp_servers.{SERVER_NAME}]" in output
+        assert 'args = ["-u", "-m", "wireshark_mcp.server"]' in output
 
 
 class TestReadWriteJsonConfig:
@@ -276,6 +286,81 @@ class TestInstallMcpServers:
 
         assert count == 1
         assert f"[mcp_servers.{SERVER_NAME}]" not in config_path.read_text(encoding="utf-8")
+
+    def test_install_can_target_selected_clients(self, tmp_path):
+        fake = self._make_fake_clients(tmp_path)
+        with patch("wireshark_mcp.installer._get_client_configs", return_value=fake):
+            count = install_mcp_servers(uninstall=False, selected_clients=["cursor"])
+
+        assert count == 1
+        assert not (tmp_path / "claude" / "claude_desktop_config.json").exists()
+        assert (tmp_path / "cursor" / "mcp.json").exists()
+
+
+class TestClientSelection:
+    def test_get_client_configs_matches_case_and_punctuation(self):
+        fake = {
+            "VS Code": ("/tmp/vscode", "settings.json"),
+            "Codex": ("/tmp/codex", "config.toml"),
+        }
+        with patch("wireshark_mcp.installer._get_client_configs", return_value=fake):
+            result = get_client_configs(["vs-code", "codex"])
+
+        assert list(result) == ["VS Code", "Codex"]
+
+    def test_get_client_configs_rejects_unknown_clients(self):
+        fake = {"Codex": ("/tmp/codex", "config.toml")}
+        with patch("wireshark_mcp.installer._get_client_configs", return_value=fake):
+            try:
+                get_client_configs(["unknown"])
+            except ValueError as exc:
+                assert "Supported clients: Codex." in str(exc)
+            else:
+                raise AssertionError("Expected ValueError for unknown client")
+
+
+class TestMachineReadableOutput:
+    def test_print_client_targets_supports_json(self, tmp_path, capsys):
+        codex_dir = tmp_path / "codex"
+        codex_dir.mkdir()
+        (codex_dir / "config.toml").write_text(_render_codex_toml_block(), encoding="utf-8")
+
+        fake = {"Codex": (str(codex_dir), "config.toml")}
+        with patch("wireshark_mcp.installer._get_client_configs", return_value=fake):
+            print_client_targets(output_format="json")
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["summary"] == {"configured": 1}
+        assert payload["clients"][0]["name"] == "Codex"
+        assert payload["clients"][0]["status"] == "configured"
+
+    def test_print_install_doctor_supports_json(self, tmp_path, capsys):
+        codex_dir = tmp_path / "codex"
+        codex_dir.mkdir()
+        (codex_dir / "config.toml").write_text(_render_codex_toml_block(), encoding="utf-8")
+        fake_clients = {"Codex": (str(codex_dir), "config.toml")}
+        fake_tools = {
+            "WIRESHARK_MCP_TSHARK_PATH": "/opt/tools/tshark",
+            "WIRESHARK_MCP_CAPINFOS_PATH": None,
+            "WIRESHARK_MCP_MERGECAP_PATH": None,
+            "WIRESHARK_MCP_EDITCAP_PATH": None,
+            "WIRESHARK_MCP_DUMPCAP_PATH": None,
+            "WIRESHARK_MCP_TEXT2PCAP_PATH": None,
+        }
+
+        with (
+            patch("wireshark_mcp.installer._get_client_configs", return_value=fake_clients),
+            patch("wireshark_mcp.installer._detect_wireshark_tool_paths", return_value=fake_tools),
+            patch("wireshark_mcp.installer._get_python_executable", return_value="/venv/bin/python3"),
+        ):
+            print_install_doctor(output_format="json")
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["python_executable"] == "/venv/bin/python3"
+        assert payload["capture_backend"] == "tshark"
+        assert payload["wireshark_tools"]["tshark"]["available"] is True
+        assert payload["wireshark_tools"]["capinfos"]["available"] is False
+        assert payload["client_summary"] == {"configured": 1}
 
 
 class TestPlatformConfigs:

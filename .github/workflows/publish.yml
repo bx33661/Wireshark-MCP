@@ -39,8 +39,12 @@ jobs:
       run: |
         wireshark-mcp --version
         python -m wireshark_mcp.server --version
+        wireshark-mcp config
+        wireshark-mcp doctor
+        wireshark-mcp doctor --format json
+        wireshark-mcp clients
+        wireshark-mcp clients --format json
         wireshark-mcp --config
-        wireshark-mcp --doctor
       
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1

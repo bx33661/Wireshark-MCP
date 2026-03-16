@@ -1,8 +1,9 @@
-"""Progressive Discovery — dynamic tool registration based on pcap content.
+"""Stable contextual tool catalog with capture-aware recommendations.
 
 Manages two categories of tools:
 - **Core tools**: Always registered at startup (packet list, stats, capture, etc.)
-- **Contextual tools**: Registered on-demand based on detected protocols in a pcap file.
+- **Contextual tools**: Also registered at startup, but highlighted by `wireshark_open_file`
+  based on detected protocols in the current capture.
 """
 
 import logging
@@ -24,7 +25,7 @@ ContextualToolFactory = Callable[[TSharkClient], list[tuple[str, Any]]]
 
 # ── Protocol → Tool mapping ─────────────────────────────────────────────────
 
-# Each entry: protocol_keyword → list of tool names that should be activated
+# Each entry: protocol_keyword → list of tool names that should be recommended
 PROTOCOL_TOOL_MAP: dict[str, list[str]] = {
     # HTTP-related
     "http": [
@@ -83,7 +84,7 @@ PROTOCOL_TOOL_MAP: dict[str, list[str]] = {
 
 
 class ToolRegistry:
-    """Manages progressive discovery of MCP tools."""
+    """Manages the contextual tool catalog and capture-aware recommendations."""
 
     def __init__(self, mcp: FastMCP, client: TSharkClient) -> None:
         self._mcp = mcp
@@ -118,56 +119,56 @@ class ToolRegistry:
             len(self._contextual_catalog),
         )
 
-    def clear_contextual_tools(self) -> None:
-        """Remove all currently registered contextual tools."""
-        for name in list(self._active_contextual):
-            try:
-                self._mcp.remove_tool(name)
-                logger.debug("Removed contextual tool: %s", name)
-            except Exception:
-                logger.debug("Tool %s was not registered, skipping removal", name)
-        self._active_contextual.clear()
+    def register_all_contextual_tools(self) -> list[str]:
+        """Register every contextual tool once at startup.
 
-    def register_contextual_tools(self, detected_protocols: set[str]) -> list[str]:
-        """Register contextual tools based on detected protocols.
+        Returns:
+            List of newly registered contextual tool names.
+        """
+        newly_registered: list[str] = []
+        for tool_name in sorted(self._contextual_catalog):
+            if tool_name in self._active_contextual:
+                continue
+
+            fn = self._contextual_catalog[tool_name]
+            try:
+                self._mcp.add_tool(fn, name=tool_name)
+                self._active_contextual.add(tool_name)
+                newly_registered.append(tool_name)
+                logger.debug("Registered contextual tool: %s", tool_name)
+            except Exception as exc:
+                logger.warning("Failed to register contextual tool %s: %s", tool_name, exc)
+
+        logger.info("Registered %d contextual tools at startup", len(newly_registered))
+        return newly_registered
+
+    def recommended_tools_for_protocols(self, detected_protocols: set[str]) -> list[str]:
+        """Return the contextual tools most relevant to the detected protocols.
 
         Args:
             detected_protocols: Set of protocol names found in the current pcap.
 
         Returns:
-            List of newly registered tool names.
+            Sorted list of recommended contextual tool names.
         """
-        # First, clear any previously registered contextual tools
-        self.clear_contextual_tools()
-
-        # Determine which tools to activate
-        tools_to_activate: set[str] = set()
+        tools_to_recommend: set[str] = set()
         for protocol in detected_protocols:
             protocol_lower = protocol.lower().strip()
             if protocol_lower in PROTOCOL_TOOL_MAP:
-                tools_to_activate.update(PROTOCOL_TOOL_MAP[protocol_lower])
+                tools_to_recommend.update(PROTOCOL_TOOL_MAP[protocol_lower])
 
-        # Register the tools
-        newly_registered: list[str] = []
-        for tool_name in sorted(tools_to_activate):
-            if tool_name in self._contextual_catalog:
-                fn = self._contextual_catalog[tool_name]
-                try:
-                    self._mcp.add_tool(fn, name=tool_name)
-                    self._active_contextual.add(tool_name)
-                    newly_registered.append(tool_name)
-                    logger.debug("Registered contextual tool: %s", tool_name)
-                except Exception as e:
-                    logger.warning("Failed to register tool %s: %s", tool_name, e)
-            else:
-                logger.warning("Tool %s is in PROTOCOL_TOOL_MAP but not in catalog", tool_name)
+        recommended = sorted(tool_name for tool_name in tools_to_recommend if tool_name in self._contextual_catalog)
+
+        missing_tools = sorted(tool_name for tool_name in tools_to_recommend if tool_name not in self._contextual_catalog)
+        for tool_name in missing_tools:
+            logger.warning("Tool %s is in PROTOCOL_TOOL_MAP but not in catalog", tool_name)
 
         logger.info(
-            "Registered %d contextual tools for protocols: %s",
-            len(newly_registered),
+            "Recommended %d contextual tools for protocols: %s",
+            len(recommended),
             ", ".join(sorted(detected_protocols)),
         )
-        return newly_registered
+        return recommended
 
     @property
     def active_contextual_tools(self) -> set[str]:
@@ -208,34 +209,34 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
     @mcp.tool()
     async def wireshark_open_file(pcap_file: str) -> str:
         """
-        [Entry Point] Open a pcap file and activate relevant analysis tools.
+        [Entry Point] Open a pcap file and recommend the most relevant analysis tools.
 
         This is the recommended FIRST tool to call. It analyzes the capture file,
-        detects what protocols are present, and dynamically enables the most relevant
-        tools for your analysis. This keeps the tool list focused and efficient.
+        detects what protocols are present, and points the assistant at the most
+        relevant tools for this specific capture.
 
-        After calling this tool, new protocol-specific tools will become available
-        (e.g., HTTP extraction, DNS tunnel detection, TLS handshake analysis).
+        All contextual tools remain available for the full session. This opener
+        provides capture-wide context and recommendations without mutating the
+        MCP tool surface mid-session.
 
         Args:
             pcap_file: Path to the capture file (.pcap, .pcapng, etc.)
 
         Returns:
-            File overview, protocol summary, and list of newly activated tools.
+            File overview, protocol summary, and recommended next tools.
 
         Example:
             wireshark_open_file("/path/to/capture.pcap")
         """
-        # Step 1: Get file info
-        file_info_raw = await client.get_file_info(pcap_file)
-        file_info = parse_tool_result(normalize_tool_result(file_info_raw))
-
-        if not file_info["success"]:
-            return normalize_tool_result(file_info)
-
-        # Step 2: Get protocol hierarchy
+        # Step 1: Get protocol hierarchy (required, tshark-backed)
         phs_raw = await client.get_protocol_stats(pcap_file)
         phs_result = parse_tool_result(normalize_tool_result(phs_raw))
+        if not phs_result["success"]:
+            return normalize_tool_result(phs_result)
+
+        # Step 2: Get file info (optional, capinfos-backed)
+        file_info_raw = await client.get_file_info(pcap_file)
+        file_info = parse_tool_result(normalize_tool_result(file_info_raw))
 
         detected_protocols: set[str] = set()
         if phs_result["success"]:
@@ -243,35 +244,37 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
             if isinstance(phs_data, str):
                 detected_protocols = parse_protocol_hierarchy(phs_data)
 
-        # Step 3: Register contextual tools based on detected protocols
-        newly_registered = registry.register_contextual_tools(detected_protocols)
+        # Step 3: Recommend contextual tools based on detected protocols
+        recommended_tools = registry.recommended_tools_for_protocols(detected_protocols)
 
         # Step 4: Build response
-        output_parts = [
-            "=== File Opened Successfully ===\n",
-            "--- File Info ---",
-            file_info.get("data", "N/A")
-            if isinstance(file_info.get("data"), str)
-            else str(file_info.get("data", "N/A")),
-        ]
+        output_parts = ["=== File Opened Successfully ===\n", "--- File Info ---"]
+        if file_info["success"]:
+            output_parts.append(
+                file_info.get("data", "N/A")
+                if isinstance(file_info.get("data"), str)
+                else str(file_info.get("data", "N/A"))
+            )
+        else:
+            output_parts.append("Detailed file metadata unavailable (capinfos not installed or file summary failed).")
 
         if detected_protocols:
             output_parts.append(f"\n--- Detected Protocols ({len(detected_protocols)}) ---")
             output_parts.append(", ".join(sorted(detected_protocols)))
 
-        if newly_registered:
-            output_parts.append(f"\n--- Activated Tools ({len(newly_registered)}) ---")
-            output_parts.append("The following specialized tools are now available for this capture:")
-            for tool_name in newly_registered:
+        if recommended_tools:
+            output_parts.append(f"\n--- Recommended Tools ({len(recommended_tools)}) ---")
+            output_parts.append("These tools are already available and are especially relevant for this capture:")
+            for tool_name in recommended_tools:
                 fn = registry._contextual_catalog.get(tool_name)
                 doc = (fn.__doc__ or "").strip().split("\n")[0] if fn else ""
                 output_parts.append(f"  • {tool_name}: {doc}")
         else:
-            output_parts.append("\n--- No additional tools activated ---")
-            output_parts.append("No protocol-specific tools were needed for this capture.")
+            output_parts.append("\n--- No protocol-specific recommendations ---")
+            output_parts.append("The core tools should be enough to start, and all contextual tools remain available if needed.")
 
         output_parts.append(
-            "\n💡 Tip: Use the core tools (wireshark_get_packet_list, wireshark_stats_*, etc.) to begin your analysis."
+            "\n💡 Tip: Start broad with wireshark_quick_analysis or wireshark_get_packet_list, then narrow using the recommended tools above."
         )
 
         return success_response("\n".join(output_parts))

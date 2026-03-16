@@ -7,13 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-16
+
 ### Added
 - Added suite capability reporting via `wireshark_get_capabilities` and the `wireshark://capabilities` resource.
 - Added optional Wireshark suite tools for `editcap`-based trimming, splitting, time shifting, and deduplication, plus `text2pcap` import support.
+- Added regression tests for startup-wide contextual tool registration, `wireshark_open_file` recommendations, `capinfos`-free open-file fallback, and deterministic URLhaus URL/domain matching.
+- Added machine-readable `--format json` output for `wireshark-mcp doctor` and `wireshark-mcp clients`.
+- Added focused `docs/` guides for manual configuration and prompt engineering so the main README can stay closer to a landing page.
 
 ### Changed
+- Promoted the project to a 1.0-stable release and pinned the runtime `mcp` dependency to the 1.x line to reduce future compatibility drift.
+- The MCP server now keeps a stable tool surface for the full session: contextual tools are registered at startup, and `wireshark_open_file` recommends the most relevant tools for a capture instead of mutating the tool catalog mid-session.
+- `wireshark_open_file` now degrades gracefully when `capinfos` is unavailable, so the recommended capture-opening workflow still works on minimal `tshark`-only installations.
+- `wireshark_check_threats` now matches captured HTTP URLs plus DNS/TLS hostnames against cached URLhaus data, replacing the earlier IP-oriented matching semantics with a more reproducible URL/domain workflow.
+- `wireshark_security_audit`, MCP prompts, MCP resources, and both READMEs were updated to align with the stable 1.0 workflow and the new threat-intelligence semantics.
+- The CLI documentation, CI smoke tests, and contribution docs now use the stable subcommand-oriented interface (`install`, `doctor`, `config`, `clients`) while still documenting legacy flag compatibility.
 - Live capture now prefers `dumpcap` when available while keeping `tshark` as the only required Wireshark dependency.
 - Installer diagnostics now classify Wireshark tools as required, recommended, or optional.
+- Release metadata and support-policy files now agree on the 1.0 version line across packaging, registry metadata, and security documentation.
+
+### Deprecated
+- `wireshark_read_packets` remains available for 1.x compatibility, but new workflows should use `wireshark_get_packet_list` plus `wireshark_get_packet_details`.
+
+### Removed
+- Removed the unused root `requirements.txt` file to avoid implying a second, undocumented installation path alongside the packaged release flow.
 
 ## [0.6.4] - 2026-03-14
 
@@ -102,7 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Decoding: `wireshark_decode_payload` with auto-detection (Base64, Hex, URL, Gzip, Deflate, Rot13)
 - Visualization: ASCII traffic plot, ASCII protocol hierarchy tree
 
-[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.4...HEAD
+[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.4...v1.0.0
 [0.6.4]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.1...v0.6.2

@@ -159,16 +159,17 @@ WIRESHARK_MCP_GUIDE = """\
 
 ## Analysis Workflow
 
-1. **Start with overview**: Use `wireshark_get_file_info` to understand the capture
-2. **Protocol hierarchy**: Use `wireshark_stats_protocol_hierarchy` to see what's in the traffic
-3. **Packet list**: Use `wireshark_get_packet_list` to browse packets (apply filters as needed)
-4. **Deep dive**: Use `wireshark_get_packet_details` for a specific packet
-5. **Follow streams**: Use `wireshark_follow_stream` to see full conversations
-6. **Extract data**: Use specialized tools like `wireshark_extract_http_requests`
+1. **Start with capture-wide context**: Use `wireshark_open_file` to inspect the file and see recommended tools
+2. **Get file overview**: Use `wireshark_get_file_info` when `capinfos` is available
+3. **Protocol hierarchy**: Use `wireshark_stats_protocol_hierarchy` to see what's in the traffic
+4. **Packet list**: Use `wireshark_get_packet_list` to browse packets (apply filters as needed)
+5. **Deep dive**: Use `wireshark_get_packet_details` for a specific packet
+6. **Follow streams**: Use `wireshark_follow_stream` to see full conversations
+7. **Extract data**: Use specialized tools like `wireshark_extract_http_requests`
 
 ## Security Analysis Workflow
 
-1. Use `wireshark_check_threats` to check IPs against threat intelligence
+1. Use `wireshark_check_threats` to check captured URLs and hostnames against threat intelligence
 2. Use `wireshark_extract_credentials` to find plaintext credentials
 3. Use `wireshark_detect_port_scan` to find scanning activity
 4. Use `wireshark_detect_dns_tunnel` to check for DNS tunneling
@@ -184,6 +185,8 @@ WIRESHARK_MCP_GUIDE = """\
 
 ## Tips for Efficient Analysis
 
+- `wireshark_open_file` is recommended, not required: all tools stay available for the session
+- `wireshark_read_packets` is retained only for 1.x compatibility; prefer `wireshark_get_packet_list` and `wireshark_get_packet_details`
 - Always start broad, then narrow down with display filters
 - Use `custom_columns` in `get_packet_list` to extract exactly the fields you need
 - Use `layers` parameter in `get_packet_details` to reduce output size

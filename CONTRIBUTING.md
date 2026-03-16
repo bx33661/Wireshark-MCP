@@ -11,19 +11,14 @@ Thank you for your interest in contributing! This guide will help you get starte
 git clone https://github.com/bx33661/Wireshark-MCP.git
 cd Wireshark-MCP
 
-# Install in editable mode with dev dependencies
-pip install -e .
-pip install pytest pytest-asyncio ruff mypy
+# Install the locked development environment
+uv sync --group dev
 ```
 
 ## Running Tests
 
 ```sh
-# Run all tests
-python -m unittest discover tests
-
-# Or with pytest
-pytest tests/
+uv run python -m pytest tests/
 ```
 
 ## Code Style
@@ -32,13 +27,16 @@ This project uses [ruff](https://docs.astral.sh/ruff/) for linting and formattin
 
 ```sh
 # Check for issues
-ruff check src/
+uv run python -m ruff check src/ tests/
 
 # Auto-fix
-ruff check --fix src/
+uv run python -m ruff check --fix src/ tests/
 
 # Format
-ruff format src/
+uv run python -m ruff format src/ tests/
+
+# Type check
+uv run python -m mypy --package wireshark_mcp --ignore-missing-imports --no-namespace-packages
 ```
 
 **Key conventions:**
@@ -68,10 +66,13 @@ src/wireshark_mcp/
 
 1. **Fork** the repository and create a branch from `main`
 2. **Write or update tests** for your changes
-3. **Ensure all tests pass**: `pytest tests/`
-4. **Lint your code**: `ruff check src/`
+3. **Ensure all tests pass**: `uv run python -m pytest tests/`
+4. **Lint your code**: `uv run python -m ruff check src/ tests/`
 5. **Add a change record** under `spec/changes/` following the format in `spec/README.md`
 6. **Open a Pull Request** — fill in the PR template
+
+For release work, use [docs/release-checklist.md](docs/release-checklist.md) and
+[docs/platform-validation.md](docs/platform-validation.md) before tagging a version.
 
 ## Adding a New Tool
 

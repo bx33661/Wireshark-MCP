@@ -19,7 +19,7 @@ def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
 
 def make_contextual_threat_tools(client: TSharkClient) -> list[tuple[str, Any]]:
-    """Create contextual threat tools (registered on demand by the registry)."""
+    """Create contextual threat tools for the stable contextual catalog."""
 
     async def wireshark_detect_port_scan(pcap_file: str, threshold: int = 15) -> str:
         """[Security] Detect port scanning (SYN, FIN, NULL, Xmas scans).

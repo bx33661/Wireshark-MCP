@@ -19,6 +19,7 @@ htmlcov/
 
 # Runtime caches
 urlhaus_cache.txt
+.mcpregistry_*
 
 # Spec (internal)
 spec/

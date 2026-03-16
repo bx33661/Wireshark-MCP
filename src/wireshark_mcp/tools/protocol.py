@@ -19,7 +19,7 @@ def register_protocol_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
 
 def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]]:
-    """Create contextual protocol tools (registered on demand by the registry)."""
+    """Create contextual protocol tools for the stable contextual catalog."""
 
     async def wireshark_extract_tls_handshakes(pcap_file: str, limit: int = 50) -> str:
         """[TLS] Extract TLS/SSL handshake information (version, cipher, SNI, cert issuer).

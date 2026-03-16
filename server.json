@@ -6,12 +6,12 @@
     "url": "https://github.com/bx33661/Wireshark-MCP",
     "source": "github"
   },
-  "version": "0.6.5",
+  "version": "1.0.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "wireshark-mcp",
-      "version": "0.6.5",
+      "version": "1.0.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
