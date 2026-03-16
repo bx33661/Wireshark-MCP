@@ -29,7 +29,7 @@ class FakeThreatClient:
 
         if fields == ["http.request.full_uri", "http.host", "http.request.uri"] and display_filter == "http.request":
             return success_response(
-                'http.request.full_uri\thttp.host\thttp.request.uri\n'
+                "http.request.full_uri\thttp.host\thttp.request.uri\n"
                 '"http://bad.example/evil"\t"bad.example"\t"/evil"\n'
                 '""\t"only-host.example"\t"/download"\n'
             )

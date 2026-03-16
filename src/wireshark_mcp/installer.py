@@ -586,7 +586,11 @@ def _print_rows(rows: list[dict[str, str]]) -> None:
 
 def _summarize_status_rows(rows: list[dict[str, str]], statuses: tuple[str, ...]) -> dict[str, int]:
     """Summarize row counts for the requested statuses."""
-    return {status: sum(row["status"] == status for row in rows) for status in statuses if any(row["status"] == status for row in rows)}
+    return {
+        status: sum(row["status"] == status for row in rows)
+        for status in statuses
+        if any(row["status"] == status for row in rows)
+    }
 
 
 def _collect_client_rows(selected_clients: list[str] | None = None) -> list[dict[str, str]]:
@@ -794,7 +798,12 @@ def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] 
 
         if not os.path.exists(config_dir):
             result_rows.append(
-                {"marker": "[SKIP]", "name": name, "detail": f"{action_word} skipped (config dir not found)", "path": config_path}
+                {
+                    "marker": "[SKIP]",
+                    "name": name,
+                    "detail": f"{action_word} skipped (config dir not found)",
+                    "path": config_path,
+                }
             )
             skipped += 1
             continue
@@ -808,7 +817,9 @@ def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] 
                 continue
 
             done_word = "uninstalled" if uninstall else "installed"
-            result_rows.append({"marker": "[OK]", "name": name, "detail": f"{done_word} (restart required)", "path": config_path})
+            result_rows.append(
+                {"marker": "[OK]", "name": name, "detail": f"{done_word} (restart required)", "path": config_path}
+            )
             installed += 1
             continue
 
@@ -827,7 +838,9 @@ def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] 
         _write_json_config(config_path, config)
 
         done_word = "uninstalled" if uninstall else "installed"
-        result_rows.append({"marker": "[OK]", "name": name, "detail": f"{done_word} (restart required)", "path": config_path})
+        result_rows.append(
+            {"marker": "[OK]", "name": name, "detail": f"{done_word} (restart required)", "path": config_path}
+        )
         installed += 1
 
     _print_rows(result_rows)

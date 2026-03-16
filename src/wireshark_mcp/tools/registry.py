@@ -159,7 +159,9 @@ class ToolRegistry:
 
         recommended = sorted(tool_name for tool_name in tools_to_recommend if tool_name in self._contextual_catalog)
 
-        missing_tools = sorted(tool_name for tool_name in tools_to_recommend if tool_name not in self._contextual_catalog)
+        missing_tools = sorted(
+            tool_name for tool_name in tools_to_recommend if tool_name not in self._contextual_catalog
+        )
         for tool_name in missing_tools:
             logger.warning("Tool %s is in PROTOCOL_TOOL_MAP but not in catalog", tool_name)
 
@@ -271,7 +273,9 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
                 output_parts.append(f"  • {tool_name}: {doc}")
         else:
             output_parts.append("\n--- No protocol-specific recommendations ---")
-            output_parts.append("The core tools should be enough to start, and all contextual tools remain available if needed.")
+            output_parts.append(
+                "The core tools should be enough to start, and all contextual tools remain available if needed."
+            )
 
         output_parts.append(
             "\n💡 Tip: Start broad with wireshark_quick_analysis or wireshark_get_packet_list, then narrow using the recommended tools above."

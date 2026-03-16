@@ -188,7 +188,9 @@ class TestOpenFileTool:
         from mcp.server.fastmcp import FastMCP
 
         async def fake_get_protocol_stats(_pcap_file: str) -> str:
-            return success_response("eth  frames:10 bytes:100\n  ip  frames:10 bytes:90\n    tcp  frames:5 bytes:50\n      http  frames:5 bytes:50\n")
+            return success_response(
+                "eth  frames:10 bytes:100\n  ip  frames:10 bytes:90\n    tcp  frames:5 bytes:50\n      http  frames:5 bytes:50\n"
+            )
 
         async def fake_get_file_info(_pcap_file: str) -> str:
             return success_response("file name: test.pcap\n")
