@@ -83,15 +83,23 @@ If one of these baseline items stops working, that is a `1.0.x` bug, not a "futu
 
 ---
 
-## Installation
+## Demo Videos
 
 ### Install Demo
 
-<video src="docs/install.mp4" controls muted playsinline preload="metadata" width="100%">
-  Your browser does not support embedded video. Download or watch the demo at <a href="docs/install.mp4">docs/install.mp4</a>.
-</video>
+[![Install demo video preview](docs/install-demo.png)](docs/install.mp4)
 
-[Download the install demo video](docs/install.mp4)
+[Play or download the install demo video](docs/install.mp4)
+
+### Analysis Demo
+
+[![Analysis demo video preview](docs/run-demo.png)](docs/run.mp4)
+
+[Play or download the analysis demo video](docs/run.mp4)
+
+---
+
+## Installation
 
 ### Option 1 — One-click install in Cursor (no pre-install needed)
 

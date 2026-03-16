@@ -83,15 +83,23 @@ Claude: [调用 wireshark_extract_dns_queries → wireshark_check_threats]
 
 ---
 
-## 安装
+## 演示视频
 
 ### 安装演示视频
 
-<video src="docs/install.mp4" controls muted playsinline preload="metadata" width="100%">
-  当前环境不支持内嵌视频播放，可直接打开 <a href="docs/install.mp4">docs/install.mp4</a> 查看。
-</video>
+[![安装演示视频预览图](docs/install-demo.png)](docs/install.mp4)
 
-[下载或播放安装演示视频](docs/install.mp4)
+[播放或下载安装演示视频](docs/install.mp4)
+
+### 分析演示视频
+
+[![分析演示视频预览图](docs/run-demo.png)](docs/run.mp4)
+
+[播放或下载分析演示视频](docs/run.mp4)
+
+---
+
+## 安装
 
 ### 方式一 — Cursor 一键安装（无需提前安装包）
 
