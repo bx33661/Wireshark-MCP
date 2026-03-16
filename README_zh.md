@@ -14,6 +14,9 @@
   <a href="https://github.com/bx33661/Wireshark-MCP/actions/workflows/ci.yml">
     <img src="https://github.com/bx33661/Wireshark-MCP/actions/workflows/ci.yml/badge.svg" alt="CI">
   </a>
+  <a href="https://github.com/bx33661/Wireshark-MCP/releases/latest">
+    <img src="https://img.shields.io/github/v/release/bx33661/Wireshark-MCP?label=GitHub%20Release&color=24292f" alt="GitHub Release">
+  </a>
   <a href="https://pypi.org/project/wireshark-mcp/">
     <img src="https://img.shields.io/pypi/v/wireshark-mcp?label=PyPI&color=0066cc" alt="PyPI">
   </a>
