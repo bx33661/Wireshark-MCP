@@ -150,6 +150,10 @@ wireshark-mcp uninstall
 
 ---
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/bx33661-wireshark-mcp).
+
 ## Platform Setup
 
 Use this section when you want the shortest reliable path to a working setup on each OS.
