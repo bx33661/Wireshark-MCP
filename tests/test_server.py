@@ -67,6 +67,7 @@ def test_main_routes_install_subcommand(monkeypatch):
     assert calls == [
         {
             "install": True,
+            "update": False,
             "uninstall": False,
             "config": False,
             "doctor": False,
@@ -91,6 +92,7 @@ def test_main_routes_legacy_doctor_flag(monkeypatch):
     assert calls == [
         {
             "install": False,
+            "update": False,
             "uninstall": False,
             "config": False,
             "doctor": True,
@@ -115,6 +117,7 @@ def test_main_routes_config_subcommand(monkeypatch):
     assert calls == [
         {
             "install": False,
+            "update": False,
             "uninstall": False,
             "config": True,
             "doctor": False,
@@ -139,6 +142,7 @@ def test_main_routes_doctor_json_subcommand(monkeypatch):
     assert calls == [
         {
             "install": False,
+            "update": False,
             "uninstall": False,
             "config": False,
             "doctor": True,
@@ -163,6 +167,7 @@ def test_main_routes_clients_json_subcommand(monkeypatch):
     assert calls == [
         {
             "install": False,
+            "update": False,
             "uninstall": False,
             "config": False,
             "doctor": False,
@@ -187,6 +192,7 @@ def test_main_routes_legacy_doctor_flag_with_json(monkeypatch):
     assert calls == [
         {
             "install": False,
+            "update": False,
             "uninstall": False,
             "config": False,
             "doctor": True,

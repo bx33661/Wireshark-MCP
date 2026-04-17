@@ -15,6 +15,13 @@ import sys
 import tempfile
 from typing import Any, cast
 
+from .toolchain import (
+    WIRESHARK_TOOL_ENV_VARS,
+    WIRESHARK_TOOL_ORDER,
+    WIRESHARK_TOOL_PURPOSES,
+    WIRESHARK_TOOL_REQUIREMENTS,
+)
+
 # ---------------------------------------------------------------------------
 # TUI: arrow-key + space checkbox selector (pure stdlib, no dependencies)
 # ---------------------------------------------------------------------------
@@ -46,10 +53,9 @@ def _read_key_unix() -> str:
 
             if select.select([sys.stdin], [], [], 0.05)[0]:
                 ch2 = sys.stdin.buffer.read(1)
-                if ch2 == b"[":
-                    if select.select([sys.stdin], [], [], 0.05)[0]:
-                        ch3 = sys.stdin.buffer.read(1)
-                        return {b"A": "UP", b"B": "DOWN"}.get(ch3, "ESC")
+                if ch2 == b"[" and select.select([sys.stdin], [], [], 0.05)[0]:
+                    ch3 = sys.stdin.buffer.read(1)
+                    return {b"A": "UP", b"B": "DOWN"}.get(ch3, "ESC")
             return "ESC"
         return {
             b" ": "SPACE",
@@ -138,10 +144,7 @@ def _interactive_select_clients(all_clients: dict[str, tuple[str, str]]) -> list
         for i, name in enumerate(names):
             chk = _c(_ANSI_GREEN, "●") if i in selected else _c(_ANSI_DIM, "○")
             tag = _c(_ANSI_DIM, " (detected)") if name in detected else ""
-            if i == cursor:
-                line = _c(_ANSI_CYAN, f"  ❯ {chk} {name}") + tag
-            else:
-                line = f"    {chk} {name}{tag}"
+            line = _c(_ANSI_CYAN, f"  ❯ {chk} {name}") + tag if i == cursor else f"    {chk} {name}{tag}"
             rows.append(line)
         footer = [""]
         lines = header + rows + footer
@@ -194,12 +197,6 @@ def _interactive_select_clients(all_clients: dict[str, tuple[str, str]]) -> list
 
     return [names[i] for i in sorted(selected)]
 
-from .toolchain import (
-    WIRESHARK_TOOL_ENV_VARS,
-    WIRESHARK_TOOL_ORDER,
-    WIRESHARK_TOOL_PURPOSES,
-    WIRESHARK_TOOL_REQUIREMENTS,
-)
 
 SERVER_NAME = "wireshark-mcp"
 
