@@ -98,6 +98,28 @@ command = "wireshark-mcp"
 args = []
 ```
 
+### OpenCode
+
+配置文件位置：
+
+- macOS / Linux: `~/.config/opencode/opencode.json`（遵循 `$XDG_CONFIG_HOME`）
+- Windows: `%APPDATA%\opencode\opencode.json`
+
+示例：
+
+```json
+{
+  "mcp": {
+    "wireshark-mcp": {
+      "type": "local",
+      "command": ["<python路径>", "-u", "-m", "wireshark_mcp.server"]
+    }
+  }
+}
+```
+
+运行 `wireshark-mcp config` 获取当前机器的精确命令路径，将其中的 `command` 值填入上方配置即可。
+
 ## 其他客户端
 
 如果你的客户端不在上面的列表里，先运行：

@@ -15,6 +15,185 @@ import sys
 import tempfile
 from typing import Any, cast
 
+# ---------------------------------------------------------------------------
+# TUI: arrow-key + space checkbox selector (pure stdlib, no dependencies)
+# ---------------------------------------------------------------------------
+
+# ANSI escape sequences
+_ANSI_HIDE_CURSOR = "\x1b[?25l"
+_ANSI_SHOW_CURSOR = "\x1b[?25h"
+_ANSI_CLEAR_LINE = "\x1b[2K\r"
+_ANSI_UP = "\x1b[{}A"
+_ANSI_CYAN = "\x1b[96m"
+_ANSI_GREEN = "\x1b[92m"
+_ANSI_DIM = "\x1b[2m"
+_ANSI_RESET = "\x1b[0m"
+
+
+def _read_key_unix() -> str:
+    """Read a single keypress on Unix, handling escape sequences."""
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        ch = sys.stdin.buffer.read(1)
+        if ch == b"\x1b":
+            # Read potential escape sequence with a short timeout
+            import select
+
+            if select.select([sys.stdin], [], [], 0.05)[0]:
+                ch2 = sys.stdin.buffer.read(1)
+                if ch2 == b"[":
+                    if select.select([sys.stdin], [], [], 0.05)[0]:
+                        ch3 = sys.stdin.buffer.read(1)
+                        return {b"A": "UP", b"B": "DOWN"}.get(ch3, "ESC")
+            return "ESC"
+        return {
+            b" ": "SPACE",
+            b"\r": "ENTER",
+            b"\n": "ENTER",
+            b"a": "a",
+            b"A": "a",
+            b"n": "n",
+            b"N": "n",
+            b"q": "ESC",
+            b"Q": "ESC",
+            b"\x03": "ESC",  # Ctrl-C
+        }.get(ch, "")
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def _read_key_windows() -> str:
+    """Read a single keypress on Windows."""
+    import importlib
+
+    msvcrt = importlib.import_module("msvcrt")
+    ch = msvcrt.getch().decode("mbcs", errors="replace")
+    if ch in ("\x00", "\xe0"):
+        ch2 = msvcrt.getch().decode("mbcs", errors="replace")
+        return {"H": "UP", "P": "DOWN"}.get(ch2, "")
+    return {
+        " ": "SPACE",
+        "\r": "ENTER",
+        "\n": "ENTER",
+        "a": "a",
+        "A": "a",
+        "n": "n",
+        "N": "n",
+        "q": "ESC",
+        "Q": "ESC",
+        "\x03": "ESC",
+    }.get(ch, "")
+
+
+def _supports_ansi() -> bool:
+    """Return True if the terminal likely supports ANSI colour codes."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            # Enable VIRTUAL_TERMINAL_PROCESSING (0x0004)
+            kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+            return True
+        except Exception:
+            return False
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+def _interactive_select_clients(all_clients: dict[str, tuple[str, str]]) -> list[str] | None:
+    """Arrow-key + space TUI checkbox to pick which MCP clients to configure.
+
+    Returns None  — stdin not a TTY (fall back to install-all).
+    Returns []    — user aborted (ESC / q) or confirmed with nothing selected.
+    Returns [str] — list of client names chosen by the user.
+    """
+    if not sys.stdin.isatty():
+        return None
+
+    read_key = _read_key_windows if sys.platform == "win32" else _read_key_unix
+    use_ansi = _supports_ansi()
+
+    names = list(all_clients)
+    detected = {name for name, (config_dir, _) in all_clients.items() if os.path.exists(config_dir)}
+    selected: set[int] = {i for i, n in enumerate(names) if n in detected}
+    cursor = 0
+    n = len(names)
+
+    def _c(code: str, text: str) -> str:
+        return f"{code}{text}{_ANSI_RESET}" if use_ansi else text
+
+    def _render(first: bool = False) -> int:
+        header = [
+            "",
+            "  Select MCP clients to install wireshark-mcp into:",
+            _c(_ANSI_DIM, "  ↑/↓ move   Space toggle   a select-all   n clear   Enter confirm   q quit"),
+            "",
+        ]
+        rows = []
+        for i, name in enumerate(names):
+            chk = _c(_ANSI_GREEN, "●") if i in selected else _c(_ANSI_DIM, "○")
+            tag = _c(_ANSI_DIM, " (detected)") if name in detected else ""
+            if i == cursor:
+                line = _c(_ANSI_CYAN, f"  ❯ {chk} {name}") + tag
+            else:
+                line = f"    {chk} {name}{tag}"
+            rows.append(line)
+        footer = [""]
+        lines = header + rows + footer
+        total = len(lines)
+
+        if not first and use_ansi:
+            sys.stdout.write(_ANSI_UP.format(total) + "\r")
+        for line in lines:
+            if use_ansi:
+                sys.stdout.write(_ANSI_CLEAR_LINE + line + "\n")
+            else:
+                print(line)
+        sys.stdout.flush()
+        return total
+
+    if use_ansi:
+        sys.stdout.write(_ANSI_HIDE_CURSOR)
+        sys.stdout.flush()
+
+    try:
+        _render(first=True)
+        while True:
+            key = read_key()
+            if key == "UP":
+                cursor = (cursor - 1) % n
+            elif key == "DOWN":
+                cursor = (cursor + 1) % n
+            elif key == "SPACE":
+                if cursor in selected:
+                    selected.discard(cursor)
+                else:
+                    selected.add(cursor)
+            elif key == "a":
+                selected = set(range(n))
+            elif key == "n":
+                selected = set()
+            elif key == "ENTER":
+                _render()
+                break
+            elif key == "ESC":
+                _render()
+                return []
+            else:
+                continue
+            _render()
+    finally:
+        if use_ansi:
+            sys.stdout.write(_ANSI_SHOW_CURSOR)
+            sys.stdout.flush()
+
+    return [names[i] for i in sorted(selected)]
+
 from .toolchain import (
     WIRESHARK_TOOL_ENV_VARS,
     WIRESHARK_TOOL_ORDER,
@@ -205,6 +384,25 @@ def generate_mcp_config() -> dict[str, Any]:
     return config
 
 
+def _generate_opencode_config() -> dict[str, Any]:
+    """Generate an OpenCode-format MCP server entry.
+
+    OpenCode expects command as an array and env under "environment".
+    """
+    env = _collect_runtime_env()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PYTHONUNBUFFERED", "1")
+
+    config: dict[str, Any] = {
+        "type": "local",
+        "command": [_get_python_executable(), "-u", "-m", "wireshark_mcp.server"],
+    }
+    if env:
+        config["environment"] = env
+
+    return config
+
+
 def print_mcp_config(*, output_format: str = "json") -> None:
     """Print a manual MCP config snippet in the requested format."""
     if output_format == "json":
@@ -285,6 +483,13 @@ def _get_client_configs() -> dict[str, tuple[str, str]]:
             "Trae": (_join_path(home, ".trae"), "mcp_config.json"),
             "Copilot CLI": (_join_path(home, ".copilot"), "mcp-config.json"),
             "Amazon Q": (_join_path(home, ".aws", "amazonq"), "mcp_config.json"),
+            "OpenCode": (
+                _join_path(
+                    os.environ.get("XDG_CONFIG_HOME") or _join_path(home, ".config"),
+                    "opencode",
+                ),
+                "opencode.json",
+            ),
             "VS Code": (
                 _join_path(home, "Library", "Application Support", "Code", "User"),
                 "settings.json",
@@ -342,6 +547,7 @@ def _get_client_configs() -> dict[str, tuple[str, str]]:
             "Trae": (_join_path(home, ".trae"), "mcp_config.json"),
             "Copilot CLI": (_join_path(home, ".copilot"), "mcp-config.json"),
             "Amazon Q": (_join_path(home, ".aws", "amazonq"), "mcp_config.json"),
+            "OpenCode": (_join_path(config_home, "opencode"), "opencode.json"),
             "VS Code": (_join_path(config_home, "Code", "User"), "settings.json"),
             "VS Code Insiders": (_join_path(config_home, "Code - Insiders", "User"), "settings.json"),
         }
@@ -397,6 +603,7 @@ def _get_client_configs() -> dict[str, tuple[str, str]]:
             "Trae": (_join_path(appdata, "Trae", platform="win32"), "mcp_config.json"),
             "Copilot CLI": (_join_path(home, ".copilot", platform="win32"), "mcp-config.json"),
             "Amazon Q": (_join_path(home, ".aws", "amazonq", platform="win32"), "mcp_config.json"),
+            "OpenCode": (_join_path(appdata, "opencode", platform="win32"), "opencode.json"),
             "VS Code": (_join_path(appdata, "Code", "User", platform="win32"), "settings.json"),
             "VS Code Insiders": (_join_path(appdata, "Code - Insiders", "User", platform="win32"), "settings.json"),
         }
@@ -446,6 +653,9 @@ _SPECIAL_JSON_STRUCTURES: dict[str, tuple[str, str]] = {
     "Zed": ("mcp", "servers"),
 }
 
+# Clients that use a flat {"mcp": {"server-name": {...}}} structure (no nested "servers" key).
+_OPENCODE_STYLE_CLIENTS: frozenset[str] = frozenset({"OpenCode"})
+
 
 def _read_json_config(path: str) -> dict[str, Any]:
     """Read a JSON config file, returning {} for missing/empty/invalid files."""
@@ -491,6 +701,13 @@ def _write_text_config(path: str, text: str, suffix: str) -> None:
 
 def _get_mcp_servers_dict(config: dict[str, Any], client_name: str) -> dict[str, Any]:
     """Navigate into the correct nesting level for the mcpServers dict."""
+    if client_name in _OPENCODE_STYLE_CLIENTS:
+        top_level = config.get("mcp")
+        if not isinstance(top_level, dict):
+            top_level = {}
+            config["mcp"] = top_level
+        return top_level
+
     if client_name in _SPECIAL_JSON_STRUCTURES:
         top_key, nested_key = _SPECIAL_JSON_STRUCTURES[client_name]
         top_level = config.get(top_key)
@@ -530,6 +747,8 @@ def _render_codex_toml_block() -> str:
 
 def _has_server_entry_in_json_config(config: dict[str, Any], client_name: str) -> bool:
     """Check whether a JSON config already contains this MCP server."""
+    if client_name in _OPENCODE_STYLE_CLIENTS:
+        return SERVER_NAME in config.get("mcp", {})
     if client_name in _SPECIAL_JSON_STRUCTURES:
         top_key, nested_key = _SPECIAL_JSON_STRUCTURES[client_name]
         return SERVER_NAME in config.get(top_key, {}).get(nested_key, {})
@@ -771,19 +990,49 @@ def _install_codex_config(config_path: str, *, uninstall: bool) -> bool:
     return True
 
 
-def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] | None = None) -> int:
-    """Install or uninstall wireshark-mcp from all detected MCP clients."""
-    configs = get_client_configs(selected_clients)
-    if not configs:
+def install_mcp_servers(
+    *, uninstall: bool = False, update: bool = False, selected_clients: list[str] | None = None
+) -> int:
+    """Install, update, or uninstall wireshark-mcp from detected MCP clients.
+
+    update=True  — only touch clients that already have a wireshark-mcp entry;
+                   skip clients where it is not yet installed.
+    uninstall=True — remove the entry from every matched client.
+    Neither flag  — write/overwrite the entry (install or re-install).
+
+    When no clients are explicitly selected and stdin is a TTY, an interactive
+    checklist is shown so the user can pick which clients to configure.
+    """
+    all_configs = get_client_configs()
+    if not all_configs:
         print(f"Unsupported platform: {sys.platform}")
         return 0
 
+    if selected_clients:
+        configs = get_client_configs(selected_clients)
+    else:
+        chosen = _interactive_select_clients(all_configs)
+        if chosen is None:
+            # Non-interactive: fall back to all clients (original behaviour).
+            configs = all_configs
+        elif not chosen:
+            print("No clients selected. Nothing to do.")
+            return 0
+        else:
+            configs = {name: all_configs[name] for name in chosen}
+
     installed = 0
     skipped = 0
-    action_word = "uninstall" if uninstall else "installation"
+    action_word = "uninstall" if uninstall else ("update" if update else "installation")
     result_rows: list[dict[str, str]] = []
 
-    _print_title("Wireshark MCP uninstall" if uninstall else "Wireshark MCP install")
+    if uninstall:
+        title = "Wireshark MCP uninstall"
+    elif update:
+        title = "Wireshark MCP update"
+    else:
+        title = "Wireshark MCP install"
+    _print_title(title)
 
     if not uninstall:
         detected_tools = _detect_wireshark_tool_paths()
@@ -809,14 +1058,20 @@ def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] 
             continue
 
         if config_file.endswith(".toml"):
+            # For update mode, skip if the server block is not already present.
+            if update and not _has_server_entry(config_path, name):
+                result_rows.append({"marker": "[SKIP]", "name": name, "detail": "not installed", "path": config_path})
+                skipped += 1
+                continue
+
             changed = _install_codex_config(config_path, uninstall=uninstall)
             if not changed:
-                reason = "not installed" if uninstall else "already configured"
+                reason = "not installed" if uninstall else ("already up to date" if update else "already configured")
                 result_rows.append({"marker": "[SKIP]", "name": name, "detail": reason, "path": config_path})
                 skipped += 1
                 continue
 
-            done_word = "uninstalled" if uninstall else "installed"
+            done_word = "uninstalled" if uninstall else "updated" if update else "installed"
             result_rows.append(
                 {"marker": "[OK]", "name": name, "detail": f"{done_word} (restart required)", "path": config_path}
             )
@@ -832,12 +1087,20 @@ def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] 
                 skipped += 1
                 continue
             del mcp_servers[SERVER_NAME]
+        elif update:
+            if SERVER_NAME not in mcp_servers:
+                result_rows.append({"marker": "[SKIP]", "name": name, "detail": "not installed", "path": config_path})
+                skipped += 1
+                continue
+            entry_config = _generate_opencode_config() if name in _OPENCODE_STYLE_CLIENTS else generate_mcp_config()
+            mcp_servers[SERVER_NAME] = entry_config
         else:
-            mcp_servers[SERVER_NAME] = generate_mcp_config()
+            entry_config = _generate_opencode_config() if name in _OPENCODE_STYLE_CLIENTS else generate_mcp_config()
+            mcp_servers[SERVER_NAME] = entry_config
 
         _write_json_config(config_path, config)
 
-        done_word = "uninstalled" if uninstall else "installed"
+        done_word = "uninstalled" if uninstall else "updated" if update else "installed"
         result_rows.append(
             {"marker": "[OK]", "name": name, "detail": f"{done_word} (restart required)", "path": config_path}
         )
@@ -845,12 +1108,17 @@ def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] 
 
     _print_rows(result_rows)
 
-    if not uninstall and installed == 0:
+    if not uninstall and not update and installed == 0:
         print()
         print("No MCP clients detected. For unsupported clients, use the following config:\n")
         print_mcp_config()
     else:
-        action_done = "updated" if uninstall else "configured"
+        if uninstall:
+            action_done = "uninstalled"
+        elif update:
+            action_done = "updated"
+        else:
+            action_done = "configured"
         print(f"\nSummary: {installed} client(s) {action_done}, {skipped} skipped.")
 
     return installed
@@ -859,6 +1127,7 @@ def install_mcp_servers(*, uninstall: bool = False, selected_clients: list[str] 
 def run_install(
     *,
     install: bool = False,
+    update: bool = False,
     uninstall: bool = False,
     config: bool = False,
     doctor: bool = False,
@@ -868,16 +1137,20 @@ def run_install(
     output_format: str = "text",
 ) -> None:
     """Dispatcher called from the CLI entry point."""
-    if sum(bool(flag) for flag in (install, uninstall, config, doctor, list_clients)) > 1:
-        print("Choose only one action at a time: install, uninstall, config, doctor, or clients.")
+    if sum(bool(flag) for flag in (install, update, uninstall, config, doctor, list_clients)) > 1:
+        print("Choose only one action at a time: install, update, uninstall, config, doctor, or clients.")
         sys.exit(1)
 
     if install:
-        install_mcp_servers(uninstall=False, selected_clients=selected_clients)
+        install_mcp_servers(uninstall=False, update=False, selected_clients=selected_clients)
+        return
+
+    if update:
+        install_mcp_servers(uninstall=False, update=True, selected_clients=selected_clients)
         return
 
     if uninstall:
-        install_mcp_servers(uninstall=True, selected_clients=selected_clients)
+        install_mcp_servers(uninstall=True, update=False, selected_clients=selected_clients)
         return
 
     if config:

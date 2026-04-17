@@ -1,124 +1,24 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented in the [`changelog/`](changelog/) directory — one file per release.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Releases
 
-## [1.0.0] - 2026-03-16
+| Version | Date | Highlights |
+|---------|------|------------|
+| [Unreleased — OpenCode](changelog/unreleased-opencode.md) | 2026-04-17 | OpenCode MCP client support (auto-install + manual config) |
+| [1.0.0](changelog/1.0.0.md) | 2026-03-16 | Stable release: suite tools, capabilities API, stable tool surface, threat-intel semantics |
+| [0.6.4](changelog/0.6.4.md) | 2026-03-14 | CI green-state fix after skill distribution work |
+| [0.6.3](changelog/0.6.3.md) | 2026-03-14 | Cross-app skill discovery (AGENTS.md, CLAUDE.md, GEMINI.md, Copilot), skill manifest |
+| [0.6.2](changelog/0.6.2.md) | 2026-03-14 | Bundled `wireshark-traffic-analysis` skill; skill ships with wheel builds |
+| [0.6.1](changelog/0.6.1.md) | 2026-03-14 | Cross-platform auto-install fixes, GUI client env forwarding, `--doctor` command |
+| [0.6.0](changelog/0.6.0.md) | 2025-06-27 | Agentic workflows (`security_audit`, `quick_analysis`), dynamic tool registry |
+| [0.4.0](changelog/0.4.0.md) | 2025-06-01 | Packet bytes, context view, search scopes, stream pagination |
+| [0.2.1](changelog/0.2.1.md) | 2025-05-01 | Initial public release |
 
-### Added
-- Added suite capability reporting via `wireshark_get_capabilities` and the `wireshark://capabilities` resource.
-- Added optional Wireshark suite tools for `editcap`-based trimming, splitting, time shifting, and deduplication, plus `text2pcap` import support.
-- Added regression tests for startup-wide contextual tool registration, `wireshark_open_file` recommendations, `capinfos`-free open-file fallback, and deterministic URLhaus URL/domain matching.
-- Added machine-readable `--format json` output for `wireshark-mcp doctor` and `wireshark-mcp clients`.
-- Added focused `docs/` guides for manual configuration and prompt engineering so the main README can stay closer to a landing page.
-
-### Changed
-- Promoted the project to a 1.0-stable release and pinned the runtime `mcp` dependency to the 1.x line to reduce future compatibility drift.
-- The MCP server now keeps a stable tool surface for the full session: contextual tools are registered at startup, and `wireshark_open_file` recommends the most relevant tools for a capture instead of mutating the tool catalog mid-session.
-- `wireshark_open_file` now degrades gracefully when `capinfos` is unavailable, so the recommended capture-opening workflow still works on minimal `tshark`-only installations.
-- `wireshark_check_threats` now matches captured HTTP URLs plus DNS/TLS hostnames against cached URLhaus data, replacing the earlier IP-oriented matching semantics with a more reproducible URL/domain workflow.
-- `wireshark_security_audit`, MCP prompts, MCP resources, and both READMEs were updated to align with the stable 1.0 workflow and the new threat-intelligence semantics.
-- The CLI documentation, CI smoke tests, and contribution docs now use the stable subcommand-oriented interface (`install`, `doctor`, `config`, `clients`) while still documenting legacy flag compatibility.
-- Live capture now prefers `dumpcap` when available while keeping `tshark` as the only required Wireshark dependency.
-- Installer diagnostics now classify Wireshark tools as required, recommended, or optional.
-- Release metadata and support-policy files now agree on the 1.0 version line across packaging, registry metadata, and security documentation.
-
-### Deprecated
-- `wireshark_read_packets` remains available for 1.x compatibility, but new workflows should use `wireshark_get_packet_list` plus `wireshark_get_packet_details`.
-
-### Removed
-- Removed the unused root `requirements.txt` file to avoid implying a second, undocumented installation path alongside the packaged release flow.
-
-## [0.6.4] - 2026-03-14
-
-### Fixed
-- Follow-up packaging release to restore a green CI state after the cross-client skill discovery work by fixing a lint issue in the new skill distribution test.
-
-## [0.6.3] - 2026-03-14
-
-### Added
-- Added cross-app skill discovery entrypoints with `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, GitHub Copilot repository instructions, and a reusable prompt file.
-- Added a machine-readable skill catalog at `skills/manifest.json` plus a sync script to mirror canonical skills into `.github/skills/` and `.claude/skills/`.
-- Added tests to verify that mirrored skill directories and the skill catalog stay in sync.
-
-### Changed
-- Refined the bundled `wireshark-traffic-analysis` skill to use more professional analyst language and clearer reporting structure, including separate severity and confidence guidance.
-
-## [0.6.2] - 2026-03-14
-
-### Added
-- Added a bundled Codex skill at `skills/wireshark-traffic-analysis/` for structured packet triage, security hunting, incident response, troubleshooting, and CTF workflows.
-- Added focused skill references for playbooks, evidence grading, reporting, and official Wireshark behavior notes.
-
-### Changed
-- Strengthened the bundled traffic-analysis skill with guidance grounded in official Wireshark documentation for protocol hierarchy, endpoints, conversations, expert info, display filters, and follow-stream behavior.
-- Wheel builds now include the repository `skills/` directory under the installed `wireshark_mcp` package, so the bundled skill ships with release artifacts instead of only the Git repository.
-
-## [0.6.1] - 2026-03-14
-
-### Fixed
-- Auto-install now works more reliably across macOS, Linux, and Windows by using platform-correct client config paths and a stable Python module entrypoint.
-- GUI MCP clients now receive forwarded runtime environment variables plus detected absolute Wireshark tool paths, reducing failures caused by missing `PATH` state.
-- Added `wireshark-mcp --doctor` to diagnose Python resolution, Wireshark CLI discovery, and detected MCP client configs.
-- TShark command validation now accepts Windows-style executable paths consistently.
-
-### Changed
-- GitHub Actions CI now uses current `actions/checkout` and `actions/setup-python` major versions.
-- The CI type-check step now runs with a package-based mypy invocation that works with the repository's `src/` layout.
-- The CI test job installs `tshark` non-interactively and no longer assumes a pre-existing `wireshark` Unix group on GitHub-hosted runners.
-
-## [0.6.0] - 2025-06-27
-
-### Added
-
-#### 🚀 Agentic Workflows — Server-side Orchestrated Analysis
-- `wireshark_security_audit`: One-call comprehensive security audit (8 analysis phases, risk scoring 0-100, structured report with findings and recommendations)
-- `wireshark_quick_analysis`: One-call traffic overview (file info, protocol distribution, top talkers, conversations, hostnames, anomaly summary)
-
-#### 🔍 Progressive Discovery — Dynamic Tool Registration
-- `wireshark_open_file`: New entry-point tool that analyzes pcap content and dynamically activates protocol-specific tools
-- `ToolRegistry` system: Server starts with ~17 core tools; protocol-specific tools activate on demand when matching protocols are detected
-- `PROTOCOL_TOOL_MAP`: Configurable mapping from protocols (HTTP, DNS, TLS, etc.) to relevant tool sets
-
-### Changed
-- Security tools (`wireshark_check_threats`, `wireshark_extract_credentials`) are now contextual — activated via `wireshark_open_file`
-- Protocol tools (`wireshark_extract_tls_handshakes`, `wireshark_analyze_tcp_health`, `wireshark_detect_arp_spoofing`, `wireshark_extract_smtp_emails`, `wireshark_extract_dhcp_info`) are now contextual
-- Threat detection tools (`wireshark_detect_port_scan`, `wireshark_detect_dns_tunnel`, `wireshark_detect_dos_attack`, `wireshark_analyze_suspicious_traffic`) are now contextual
-- Extract tools (`wireshark_extract_http_requests`, `wireshark_extract_dns_queries`, `wireshark_export_objects`, `wireshark_verify_ssl_decryption`) are now contextual
-
-## [0.4.0] - 2025-06-01
-
-### Added
-- `wireshark_get_packet_bytes`: Get raw Hex/ASCII dump (Packet Bytes view)
-- `wireshark_get_packet_context`: View packets surrounding a specific frame (before and after) to understand context
-- `wireshark_search_packets` enhanced with `scope` parameter:
-  - `scope="bytes"`: Search in raw payload (Hex/String)
-  - `scope="details"`: Search in decoded text/fields with Regex support
-- `wireshark_follow_stream` now supports pagination (`offset_lines`) and content search (`search_content`)
-
-### Changed
-- `wireshark_get_packet_list` now supports custom columns (e.g., `"ip.src,http.host"`)
-- `wireshark_get_packet_details` now supports layer filtering (e.g., `"ip,tcp,http"`) to reduce token usage
-
-### Deprecated
-- `wireshark_read_packets`: Use `wireshark_get_packet_details` instead
-
-## [0.2.1] - 2025-05-01
-
-### Added
-- Initial public release
-- Core packet analysis tools: `wireshark_get_packet_list`, `wireshark_get_packet_details`, `wireshark_follow_stream`
-- Data extraction: `wireshark_extract_fields`, `wireshark_extract_http_requests`, `wireshark_extract_dns_queries`, `wireshark_list_ips`, `wireshark_export_objects`
-- Statistics: protocol hierarchy, endpoints, conversations, I/O graph, expert info, service response time
-- File operations: `wireshark_get_file_info`, `wireshark_merge_pcaps`, `wireshark_filter_save`
-- Live capture: `wireshark_list_interfaces`, `wireshark_capture`
-- Security: `wireshark_check_threats` (URLhaus), `wireshark_extract_credentials`
-- Decoding: `wireshark_decode_payload` with auto-detection (Base64, Hex, URL, Gzip, Deflate, Rot13)
-- Visualization: ASCII traffic plot, ASCII protocol hierarchy tree
+## Version Links
 
 [Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.4...v1.0.0

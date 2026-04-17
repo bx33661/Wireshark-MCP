@@ -148,6 +148,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  wireshark-mcp\n"
             "  wireshark-mcp serve --transport sse --host 0.0.0.0 --port 8080\n"
             "  wireshark-mcp install --client cursor --client codex\n"
+            "  wireshark-mcp update\n"
             "  wireshark-mcp doctor --format json\n"
             "  wireshark-mcp clients --format json\n"
             "  wireshark-mcp config --format codex-toml"
@@ -190,6 +191,13 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=_HelpFormatter,
     )
     _add_client_selector_argument(install_parser)
+
+    update_parser = subparsers.add_parser(
+        "update",
+        help="Re-write the config for clients that already have wireshark-mcp installed",
+        formatter_class=_HelpFormatter,
+    )
+    _add_client_selector_argument(update_parser)
 
     uninstall_parser = subparsers.add_parser(
         "uninstall",
@@ -264,12 +272,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parser.parse_args(argv)
     command = _resolve_command(args, parser)
 
-    if command in {"install", "uninstall", "config", "doctor", "clients"}:
+    if command in {"install", "update", "uninstall", "config", "doctor", "clients"}:
         selected_clients = getattr(args, "clients", None) if args.command else args.legacy_clients
         config_format = getattr(args, "config_format", args.legacy_config_format)
         output_format = getattr(args, "output_format", args.legacy_output_format)
         run_install(
             install=command == "install",
+            update=command == "update",
             uninstall=command == "uninstall",
             config=command == "config",
             doctor=command == "doctor",

@@ -98,6 +98,28 @@ command = "wireshark-mcp"
 args = []
 ```
 
+### OpenCode
+
+Config file:
+
+- macOS / Linux: `~/.config/opencode/opencode.json` (respects `$XDG_CONFIG_HOME`)
+- Windows: `%APPDATA%\opencode\opencode.json`
+
+Example:
+
+```json
+{
+  "mcp": {
+    "wireshark-mcp": {
+      "type": "local",
+      "command": ["<path-to-python>", "-u", "-m", "wireshark_mcp.server"]
+    }
+  }
+}
+```
+
+Use `wireshark-mcp config` to get the exact command path for your machine, then paste the `command` value into the config above.
+
 ## Other Clients
 
 If your client is not listed above, use:

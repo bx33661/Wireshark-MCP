@@ -205,6 +205,17 @@ Use `wireshark://` URIs to retrieve reference content without tool calls:
 
 ---
 
+## Changelog
+
+Changes are recorded in the [`changelog/`](changelog/) directory — one Markdown file per release, named by version (e.g., `changelog/1.0.0.md`). Unreleased changes use a descriptive prefix (e.g., `changelog/unreleased-opencode.md`).
+
+When making a change:
+1. Create or update the relevant file in `changelog/`.
+2. Update the index table in `CHANGELOG.md`.
+3. Include: **what** changed, **which files** were touched, **why** the change was made, and any **usage instructions** for new features.
+
+---
+
 ## Development
 
 ```bash
