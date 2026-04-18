@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [1.1.5](changelog/1.1.5.md) | 2026-04-18 | Fix TUI arrow-key input (SS3 sequences + BufferedReader race); add Void, BoltAI, Kiro clients |
 | [1.1.0](changelog/1.1.0.md) | 2026-04-17 | OpenCode support, interactive TUI installer, `update` subcommand, bilingual changelog |
 | [1.0.0](changelog/1.0.0.md) | 2026-03-16 | Stable release: suite tools, capabilities API, stable tool surface, threat-intel semantics |
 | [0.6.4](changelog/0.6.4.md) | 2026-03-14 | CI green-state fix after skill distribution work |
@@ -20,7 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Version Links
 
-[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v1.1.5...HEAD
+[1.1.5]: https://github.com/bx33661/Wireshark-MCP/compare/v1.1.0...v1.1.5
 [1.1.0]: https://github.com/bx33661/Wireshark-MCP/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.4...v1.0.0
 [0.6.4]: https://github.com/bx33661/Wireshark-MCP/compare/v0.6.3...v0.6.4

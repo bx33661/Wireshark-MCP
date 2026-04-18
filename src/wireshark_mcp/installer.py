@@ -39,6 +39,8 @@ _ANSI_RESET = "\x1b[0m"
 
 def _read_key_unix() -> str:
     """Read a single keypress on Unix, handling escape sequences."""
+    import os
+    import select
     import termios
     import tty
 
@@ -46,15 +48,20 @@ def _read_key_unix() -> str:
     old = termios.tcgetattr(fd)
     try:
         tty.setraw(fd)
-        ch = sys.stdin.buffer.read(1)
+        # Use os.read(fd) directly instead of sys.stdin.buffer.read() to avoid
+        # Python's BufferedReader pre-buffering the entire escape sequence
+        # (e.g. \x1b[A) into its internal buffer, which empties the underlying
+        # fd so that the subsequent select.select() always times out and the
+        # arrow key is misread as ESC.
+        ch = os.read(fd, 1)
         if ch == b"\x1b":
-            # Read potential escape sequence with a short timeout
-            import select
-
-            if select.select([sys.stdin], [], [], 0.05)[0]:
-                ch2 = sys.stdin.buffer.read(1)
-                if ch2 == b"[" and select.select([sys.stdin], [], [], 0.05)[0]:
-                    ch3 = sys.stdin.buffer.read(1)
+            # Handle both CSI (\x1b[A/B) and SS3 (\x1bOA/B) sequences.
+            # SS3 is sent by macOS Terminal, iTerm2, and other emulators when
+            # application cursor-key mode is active.
+            if select.select([fd], [], [], 0.1)[0]:
+                ch2 = os.read(fd, 1)
+                if ch2 in (b"[", b"O") and select.select([fd], [], [], 0.1)[0]:
+                    ch3 = os.read(fd, 1)
                     return {b"A": "UP", b"B": "DOWN"}.get(ch3, "ESC")
             return "ESC"
         return {
@@ -487,6 +494,15 @@ def _get_client_configs() -> dict[str, tuple[str, str]]:
                 ),
                 "opencode.json",
             ),
+            "Void": (
+                _join_path(
+                    os.environ.get("XDG_CONFIG_HOME") or _join_path(home, ".config"),
+                    "void",
+                ),
+                "mcp_servers.json",
+            ),
+            "BoltAI": (_join_path(home, ".boltai"), "mcp.json"),
+            "Kiro": (_join_path(home, ".kiro", "settings"), "mcp.json"),
             "VS Code": (
                 _join_path(home, "Library", "Application Support", "Code", "User"),
                 "settings.json",
@@ -545,6 +561,8 @@ def _get_client_configs() -> dict[str, tuple[str, str]]:
             "Copilot CLI": (_join_path(home, ".copilot"), "mcp-config.json"),
             "Amazon Q": (_join_path(home, ".aws", "amazonq"), "mcp_config.json"),
             "OpenCode": (_join_path(config_home, "opencode"), "opencode.json"),
+            "Void": (_join_path(config_home, "void"), "mcp_servers.json"),
+            "Kiro": (_join_path(home, ".kiro", "settings"), "mcp.json"),
             "VS Code": (_join_path(config_home, "Code", "User"), "settings.json"),
             "VS Code Insiders": (_join_path(config_home, "Code - Insiders", "User"), "settings.json"),
         }
@@ -601,6 +619,8 @@ def _get_client_configs() -> dict[str, tuple[str, str]]:
             "Copilot CLI": (_join_path(home, ".copilot", platform="win32"), "mcp-config.json"),
             "Amazon Q": (_join_path(home, ".aws", "amazonq", platform="win32"), "mcp_config.json"),
             "OpenCode": (_join_path(appdata, "opencode", platform="win32"), "opencode.json"),
+            "Void": (_join_path(appdata, "void", platform="win32"), "mcp_servers.json"),
+            "Kiro": (_join_path(home, ".kiro", "settings", platform="win32"), "mcp.json"),
             "VS Code": (_join_path(appdata, "Code", "User", platform="win32"), "settings.json"),
             "VS Code Insiders": (_join_path(appdata, "Code - Insiders", "User", platform="win32"), "settings.json"),
         }
