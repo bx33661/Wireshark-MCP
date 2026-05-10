@@ -1,0 +1,63 @@
+---
+title: Playbooks
+description: Investigation modes for triage, security, incident response, troubleshooting, and CTF work.
+---
+
+import { Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+Every playbook starts with capture context. The difference is what you optimize for after the first broad pass.
+
+<CardGrid>
+  <Card title="Triage" icon="magnifier">Explain the capture quickly and identify the three best next pivots.</Card>
+  <Card title="Security" icon="lock">Determine whether suspicious behavior is present and how strong the evidence is.</Card>
+  <Card title="Incident response" icon="clock">Reconstruct timeline, systems, IOCs, and likely narrative.</Card>
+  <Card title="Troubleshoot" icon="gear">Explain packet-level causes of slowness, failure, or instability.</Card>
+</CardGrid>
+
+## Triage
+
+Explain what the capture mostly contains, identify the main communicators, and point to the three best next leads.
+
+<Steps>
+1. `wireshark_open_file`
+2. `wireshark_quick_analysis`
+3. `wireshark_stats_protocol_hierarchy`
+4. `wireshark_stats_endpoints`
+5. `wireshark_stats_conversations`
+6. `wireshark_plot_traffic` or `wireshark_stats_io_graph` if timing matters
+7. `wireshark_follow_stream` for the strongest lead
+</Steps>
+
+Deliver capture summary, top protocols, top talkers, obvious anomalies, and the three most useful filters, streams, or hosts to inspect next.
+
+## Security
+
+Determine whether the capture shows suspicious behavior and explain why. Treat `wireshark_stats_expert_info` as a lead generator, not proof of compromise.
+
+Recommended confirmation tools:
+
+- `wireshark_check_threats`
+- `wireshark_extract_credentials`
+- `wireshark_detect_port_scan`
+- `wireshark_detect_dns_tunnel`
+- `wireshark_analyze_suspicious_traffic`
+- `wireshark_get_packet_details`
+- `wireshark_get_packet_context`
+
+## Incident response
+
+Reconstruct what happened, when it happened, and which systems were involved. Separate capture boundaries from incident boundaries.
+
+Deliver a timeline, affected hosts and services, IOC list, likely narrative, and containment or follow-up recommendations.
+
+## Troubleshoot
+
+Explain packet-level causes of slowness, failure, or instability. Compare client and server behavior before assigning root cause.
+
+Use `wireshark_analyze_tcp_health`, `wireshark_stats_expert_info`, and `wireshark_stats_service_response_time`, then follow the problematic stream.
+
+## CTF
+
+Recover the flag or hidden payload while documenting the extraction path. Search obvious markers, inspect streams, decode verified payloads, and export objects when needed.
+
+Deliver the recovered artifact, extraction path, exact evidence chain, and every decoding step.

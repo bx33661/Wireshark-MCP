@@ -1,0 +1,96 @@
+---
+title: 工具总览
+description: 按调查任务浏览 Wireshark MCP 工具面。
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Wireshark MCP 按调查阶段组织工具。先建立抓包上下文，用统计结果确定优先级，再进入流、字段、字节和安全检测。
+
+<CardGrid>
+  <LinkCard title="包检查" href="/zh-cn/tools/packet-inspection/" description="帧列表、详情、上下文、原始字节、流跟踪、搜索和字段。" />
+  <LinkCard title="提取和导出" href="/zh-cn/tools/extraction-export/" description="HTTP、DNS、TLS、SMTP、DHCP、凭据、对象导出和 IP 清单。" />
+  <LinkCard title="协议分析" href="/zh-cn/tools/protocol-analysis/" description="TCP 健康、QUIC/HTTP3、WebSocket、MQTT 和 gRPC 深度分析。" />
+  <LinkCard title="安全检测" href="/zh-cn/tools/security-detection/" description="扫描、洪泛、隧道、欺骗、威胁情报和明文凭据暴露。" />
+  <LinkCard title="统计和可视化" href="/zh-cn/tools/statistics-visualization/" description="协议层级、会话、端点、专家信息、I/O 图和响应时间。" />
+</CardGrid>
+
+## 代理工作流
+
+| 工具 | 用途 |
+| --- | --- |
+| `wireshark_quick_analysis` | 文件信息、协议分布、主要通信方、会话、主机名和异常摘要。 |
+| `wireshark_security_audit` | 覆盖威胁情报、凭据、扫描、隧道、明文、专家信息和风险评分的安全审计。 |
+
+## 入口工具
+
+| 工具 | 用途 |
+| --- | --- |
+| `wireshark_open_file` | 打开抓包并激活上下文工具推荐。 |
+| `wireshark_get_capabilities` | 列出可用工具和已探测到的 Wireshark suite 支持。 |
+
+## 统计
+
+| 工具 | 用途 |
+| --- | --- |
+| `wireshark_stats_protocol_hierarchy` | 理解协议组成和嵌套结构。 |
+| `wireshark_stats_conversations` | 按包数、字节数和传输层优先排序主机对。 |
+| `wireshark_stats_endpoints` | 建立主机清单并识别大流量通信方。 |
+| `wireshark_stats_expert_info` | 发现错误、警告、重传、reset 和畸形包线索。 |
+| `wireshark_stats_io_graph` | 查看流量随时间变化。 |
+| `wireshark_stats_service_response_time` | 查看 HTTP、DNS、SMB 等响应时间统计。 |
+| `wireshark_plot_traffic` | 生成 ASCII 流量柱状图。 |
+| `wireshark_plot_protocols` | 生成 ASCII 协议层级树。 |
+
+## 协议分析
+
+| 工具 | 用途 |
+| --- | --- |
+| `wireshark_analyze_tcp_health` | 诊断重传、重复 ACK、零窗口和 RST。 |
+| `wireshark_analyze_quic` | 提取 QUIC 版本、连接 ID、SNI 和 HTTP/3 帧。 |
+| `wireshark_analyze_websocket` | 报告帧类型、载荷长度和掩码。 |
+| `wireshark_analyze_mqtt` | 提取消息类型、主题、QoS 和客户端 ID。 |
+| `wireshark_analyze_grpc` | 检查 HTTP/2 上的方法路径和消息长度。 |
+
+## 提取
+
+| 工具 | 用途 |
+| --- | --- |
+| `wireshark_extract_http_requests` | 提取 HTTP 方法、主机和 URI。 |
+| `wireshark_extract_dns_queries` | 提取查询名和记录类型。 |
+| `wireshark_extract_tls_handshakes` | 提取 TLS 版本、密码套件、SNI 和证书颁发者元数据。 |
+| `wireshark_extract_smtp_emails` | 提取 SMTP 发件人、收件人和主题。 |
+| `wireshark_extract_dhcp_info` | 提取租约、主机名、DNS 服务器和 DHCP 选项。 |
+| `wireshark_extract_credentials` | 识别明文凭据暴露。 |
+| `wireshark_export_objects` | 从支持协议中导出嵌入对象。 |
+| `wireshark_list_ips` | 按方向列出唯一 IP。 |
+
+## 抓包和文件工具
+
+- `wireshark_capture`
+- `wireshark_list_interfaces`
+- `wireshark_filter_save`
+- `wireshark_merge_pcaps`
+- `wireshark_editcap_split`
+- `wireshark_editcap_trim`
+- `wireshark_editcap_deduplicate`
+- `wireshark_editcap_time_shift`
+- `wireshark_text2pcap_import`
+- `wireshark_verify_ssl_decryption`
+
+## 推荐顺序
+
+<CardGrid>
+  <Card title="1. 上下文" icon="open-book">
+    打开文件，建立协议、端点和会话基线。
+  </Card>
+  <Card title="2. 排优先级" icon="list">
+    选择能解释问题的流、主机、协议和时间窗口。
+  </Card>
+  <Card title="3. 确认" icon="check-circle">
+    用包详情、上下文、字节、字段和流确认或排除线索。
+  </Card>
+  <Card title="4. 报告" icon="document">
+    包含过滤器、帧、流、字段、置信标签和剩余缺口。
+  </Card>
+</CardGrid>

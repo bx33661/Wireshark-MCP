@@ -1,0 +1,26 @@
+---
+title: Playbook
+description: triage、security、incident response、troubleshooting 和 CTF 调查模式。
+---
+
+## Triage
+
+解释抓包主要包含什么，识别主要通信方，并指出最值得继续追踪的三个线索。
+
+推荐流程：`wireshark_open_file`、`wireshark_quick_analysis`、协议层级、端点、会话、流量图，然后跟踪相关流。
+
+## Security
+
+判断抓包是否展示可疑行为，并解释原因。把 `wireshark_stats_expert_info` 当作线索生成器，而不是入侵证明。
+
+## Incident response
+
+还原发生了什么、何时发生、涉及哪些系统。区分抓包边界和事件边界。
+
+## Troubleshoot
+
+解释慢、失败或不稳定的包级原因。归因前先比较客户端和服务端行为。
+
+## CTF
+
+恢复 flag 或隐藏载荷，并记录提取路径。搜索明显标记，检查流，验证解码载荷，在需要时导出对象。

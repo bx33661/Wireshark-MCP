@@ -1,0 +1,99 @@
+---
+title: Installation
+description: Install Wireshark MCP and verify the local tshark toolchain.
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Prerequisites
+
+- Python 3.10 or newer.
+- Wireshark installed with `tshark`.
+- An MCP-compatible client.
+
+`tshark` is the only required Wireshark CLI dependency. Extra tools such as `capinfos`, `mergecap`, `editcap`, `dumpcap`, and `text2pcap` are detected automatically and enable additional tools when available.
+
+## Install
+
+```sh
+pip install wireshark-mcp
+```
+
+Then configure supported MCP clients:
+
+```sh
+wireshark-mcp install
+```
+
+Restart your AI client after installation.
+
+## Platform Setup
+
+<Tabs>
+  <TabItem label="macOS">
+    <Steps>
+    1. Install Python 3.10 or newer.
+    2. Install Wireshark from the official package or Homebrew.
+    3. Confirm `tshark --version` works in the shell.
+    4. Run `pip install wireshark-mcp`, `wireshark-mcp install`, and `wireshark-mcp doctor`.
+    </Steps>
+  </TabItem>
+  <TabItem label="Linux">
+    <Steps>
+    1. Install Python 3.10 or newer.
+    2. Install `tshark` from your distribution packages or the Wireshark package.
+    3. Add capture permissions if live capture is required.
+    4. Run the package install and doctor commands.
+    </Steps>
+  </TabItem>
+  <TabItem label="Windows">
+    <Steps>
+    1. Install Python 3.10 or newer.
+    2. Install Wireshark and include command-line tools during setup.
+    3. Open a new terminal so `PATH` updates are visible.
+    4. Run `wireshark-mcp install` and restart the AI client.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## Verify the setup
+
+```sh
+wireshark-mcp doctor
+```
+
+Use `doctor` when a client cannot start the server, when `tshark` is missing, or when live capture needs additional system permissions.
+
+## Inspect generated config
+
+For JSON-based MCP clients:
+
+```sh
+wireshark-mcp config
+```
+
+For Codex TOML:
+
+```sh
+wireshark-mcp config --format codex-toml
+```
+
+The generated config uses the current Python interpreter and includes detected absolute Wireshark tool paths where useful.
+
+## Install from source
+
+Use a source install when testing unreleased changes:
+
+```sh
+pip install git+https://github.com/bx33661/Wireshark-MCP.git
+wireshark-mcp install
+wireshark-mcp doctor
+```
+
+## Uninstall
+
+Remove the MCP server entry from supported clients:
+
+```sh
+wireshark-mcp uninstall
+```

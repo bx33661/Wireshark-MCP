@@ -1,0 +1,104 @@
+---
+title: Wireshark MCP
+description: 给你的 AI 助手一个基于真实 tshark 证据的数据包分析器。
+template: splash
+---
+
+<section class="landing-hero">
+  <div class="landing-copy">
+    <p class="eyebrow">面向数据包分析的 Model Context Protocol Server</p>
+    <h1>给你的 AI 助手一个数据包分析器。</h1>
+    <div class="lede">
+      Wireshark MCP 把 <code>tshark</code> 和 Wireshark 命令行工具集包装成结构化工具，用于抓包初筛、安全审计、事件响应、故障排查和 CTF。
+    </div>
+    <div class="hero-actions">
+      <a class="primary-action" href="/zh-cn/getting-started/installation/">立即开始</a>
+      <a class="secondary-action" href="/zh-cn/tools/overview/">浏览工具</a>
+    </div>
+  </div>
+  <div class="landing-visual" aria-label="数据包分析工作流插图">
+    <img src="/logo.png" alt="Wireshark MCP 数据包分析插图" />
+    <div class="signal-card signal-card-a">
+      <strong>36 个工具</strong>
+      <span>包、流、统计、提取</span>
+    </div>
+    <div class="signal-card signal-card-b">
+      <strong>证据优先</strong>
+      <span>帧、字段、过滤器、置信度</span>
+    </div>
+  </div>
+</section>
+
+<section class="landing-terminal">
+  <div class="terminal-window">
+    <div class="terminal-top">
+      <span></span><span></span><span></span>
+      <strong>security triage</strong>
+    </div>
+    <pre><code>你:     查找这个抓包里的可疑 DNS 查询。
+Agent: wireshark_open_file
+Agent: wireshark_extract_dns_queries
+Agent: wireshark_check_threats
+结果:   3 个域名命中威胁情报，并附带精确查询证据。</code></pre>
+  </div>
+</section>
+
+## 快速开始
+
+```sh
+pip install wireshark-mcp
+wireshark-mcp install
+wireshark-mcp doctor
+```
+
+你需要 Python 3.10 或更新版本、带 `tshark` 的 Wireshark，以及 Claude Desktop、Claude Code、Cursor、VS Code、Codex CLI 等 MCP 客户端。
+
+<section class="feature-grid">
+  <a class="feature-card tall-card" href="/zh-cn/getting-started/installation/">
+    <span class="feature-icon">01</span>
+    <h2>安装一次，从 AI 客户端直接使用。</h2>
+    <p>配置 Claude、Cursor、VS Code、Codex CLI 或其他 MCP 客户端，不需要手写工具包装层。</p>
+  </a>
+  <a class="feature-card" href="/zh-cn/guides/quick-analysis/">
+    <span class="feature-icon">02</span>
+    <h2>先看全局，再深入单包。</h2>
+    <p>打开抓包，建立协议和端点上下文，再选择真正重要的流和过滤器。</p>
+  </a>
+  <a class="feature-card" href="/zh-cn/reference/evidence-standard/">
+    <span class="feature-icon">03</span>
+    <h2>用证据写结论。</h2>
+    <p>使用帧号、流索引、字段、显示过滤器和置信标签，让发现可以复现。</p>
+  </a>
+  <a class="feature-card wide-card" href="/zh-cn/reference/playbooks/">
+    <span class="feature-icon">04</span>
+    <h2>选择正确的调查模式。</h2>
+    <p>Triage、安全审计、事件响应、故障排查和 CTF 工作流让分析保持纪律，而不是随机翻包。</p>
+  </a>
+</section>
+
+## 第一次调查
+
+1. 用 `wireshark_open_file` 打开抓包。
+2. 用 `wireshark_quick_analysis`、协议层级、端点和会话建立上下文。
+3. 选择 playbook：triage、security、incident response、troubleshooting 或 CTF。
+4. 用包详情、流跟踪、上下文包和字段提取确认线索。
+5. 用证据和置信标签写结论。
+
+## 工具族
+
+<div class="tool-family-grid">
+  <a href="/zh-cn/tools/packet-inspection/"><strong>包检查</strong><span>列表、详情、上下文、字节、流、搜索、字段。</span></a>
+  <a href="/zh-cn/tools/extraction-export/"><strong>提取和导出</strong><span>HTTP、DNS、TLS、SMTP、DHCP、凭据、对象。</span></a>
+  <a href="/zh-cn/tools/security-detection/"><strong>安全检测</strong><span>扫描、DoS、DNS 隧道、ARP 欺骗、威胁情报。</span></a>
+  <a href="/zh-cn/tools/statistics-visualization/"><strong>统计和可视化</strong><span>协议层级、端点、会话、I/O 图。</span></a>
+</div>
+
+## 证据优先
+
+Wireshark MCP 面向可复现的数据包分析。重要结论应包含发现信号的工具调用、确认它的帧或流证据，以及清晰的置信标签：`confirmed`、`likely`、`possible` 或 `unresolved`。
+
+## 下一步
+
+- 在[安装](getting-started/installation/)中配置包和客户端。
+- 在[快速分析](guides/quick-analysis/)中学习抓包初筛流程。
+- 在[工具总览](tools/overview/)中浏览 MCP 工具面。

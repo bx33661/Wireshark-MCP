@@ -1,0 +1,105 @@
+---
+title: Wireshark MCP
+description: Give your AI assistant a packet analyzer backed by real tshark evidence.
+template: splash
+---
+
+<section class="landing-hero">
+  <div class="landing-copy">
+    <p class="eyebrow">Model Context Protocol server for packet analysis</p>
+    <h1>Give your AI assistant a packet analyzer.</h1>
+    <div class="lede">
+      Wireshark MCP turns <code>tshark</code> and the Wireshark command-line suite into structured tools for capture triage, security review, incident response, troubleshooting, and CTF work.
+    </div>
+    <div class="hero-actions">
+      <a class="primary-action" href="/getting-started/installation/">Get started</a>
+      <a class="secondary-action" href="/tools/overview/">Explore tools</a>
+    </div>
+  </div>
+  <div class="landing-visual" aria-label="Packet analysis workflow illustration">
+    <img src="/logo.png" alt="Wireshark MCP packet analysis illustration" />
+    <div class="signal-card signal-card-a">
+      <strong>51 tools</strong>
+      <span>packets, streams, stats, extraction</span>
+    </div>
+    <div class="signal-card signal-card-b">
+      <strong>Evidence first</strong>
+      <span>frames, fields, filters, confidence</span>
+    </div>
+  </div>
+</section>
+
+<section class="landing-terminal">
+  <div class="terminal-window">
+    <div class="terminal-top">
+      <span></span><span></span><span></span>
+      <strong>security triage</strong>
+    </div>
+    <pre><code>You:    Find suspicious DNS queries in this capture.
+Agent:  wireshark_open_file
+Agent:  wireshark_extract_dns_queries
+Agent:  wireshark_check_threats
+Result: 3 domains matched threat intelligence with exact query evidence.</code></pre>
+  </div>
+</section>
+
+## Start Fast
+
+```sh
+pip install wireshark-mcp
+wireshark-mcp install
+wireshark-mcp doctor
+```
+
+You need Python 3.10 or newer, Wireshark with `tshark`, and an MCP-compatible client such as Claude Desktop, Claude Code, Cursor, VS Code, or Codex CLI.
+
+<section class="feature-grid">
+  <a class="feature-card tall-card" href="/getting-started/installation/">
+    <span class="feature-icon">01</span>
+    <h2>Install once. Use from your AI client.</h2>
+    <p>Configure Claude, Cursor, VS Code, Codex CLI, or another MCP client without hand-writing tool wrappers.</p>
+  </a>
+  <a class="feature-card" href="/guides/quick-analysis/">
+    <span class="feature-icon">02</span>
+    <h2>Start broad before drilling down.</h2>
+    <p>Open the capture, build protocol and endpoint context, then choose streams and filters that matter.</p>
+  </a>
+  <a class="feature-card" href="/reference/evidence-standard/">
+    <span class="feature-icon">03</span>
+    <h2>Report conclusions with evidence.</h2>
+    <p>Use frames, stream indexes, fields, display filters, and confidence labels for reproducible findings.</p>
+  </a>
+  <a class="feature-card wide-card" href="/reference/playbooks/">
+    <span class="feature-icon">04</span>
+    <h2>Pick the right investigation mode.</h2>
+    <p>Triage, security, incident response, troubleshooting, and CTF workflows keep analysis disciplined instead of random packet browsing.</p>
+  </a>
+</section>
+
+## First Investigation
+
+1. Open the capture with `wireshark_open_file`.
+2. Build context with `wireshark_quick_analysis`, protocol hierarchy, endpoints, and conversations.
+3. Pick a playbook: triage, security, incident response, troubleshooting, or CTF.
+4. Confirm leads with packet details, stream follow-up, context packets, and field extraction.
+5. Write findings with evidence and confidence labels.
+
+## Tool Families
+
+<div class="tool-family-grid">
+  <a href="/tools/packet-inspection/"><strong>Packet inspection</strong><span>Lists, details, context, bytes, streams, search, fields.</span></a>
+  <a href="/tools/extraction-export/"><strong>Extraction and export</strong><span>HTTP, DNS, TLS, SMTP, DHCP, credentials, objects.</span></a>
+  <a href="/tools/protocol-analysis/"><strong>Protocol analysis</strong><span>TCP health, QUIC/HTTP3, WebSocket, MQTT, gRPC.</span></a>
+  <a href="/tools/security-detection/"><strong>Security detection</strong><span>Scans, DoS, DNS tunnels, ARP spoofing, threat intel.</span></a>
+  <a href="/tools/statistics-visualization/"><strong>Statistics and visualization</strong><span>Protocol hierarchy, endpoints, conversations, I/O graphs.</span></a>
+</div>
+
+## Evidence-first analysis
+
+Wireshark MCP is designed for reproducible packet analysis. Important findings should include the tool call that found the signal, the frame or stream evidence that confirms it, and a clear confidence label: `confirmed`, `likely`, `possible`, or `unresolved`.
+
+## Next steps
+
+- Install the package and configure your client in [Installation](getting-started/installation/).
+- Learn the capture triage flow in [Quick Analysis](guides/quick-analysis/).
+- Browse the MCP tool surface in [Tool Overview](tools/overview/).

@@ -1,0 +1,99 @@
+---
+title: 安装
+description: 安装 Wireshark MCP 并验证本机 tshark 工具链。
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## 环境要求
+
+- Python 3.10 或更新版本。
+- 已安装 Wireshark，并包含 `tshark`。
+- 一个 MCP 客户端。
+
+`tshark` 是唯一必需的 Wireshark CLI 依赖。`capinfos`、`mergecap`、`editcap`、`dumpcap`、`text2pcap` 等工具会被自动探测，存在时启用额外功能。
+
+## 从 PyPI 安装
+
+```sh
+pip install wireshark-mcp
+```
+
+然后配置支持的 MCP 客户端：
+
+```sh
+wireshark-mcp install
+```
+
+安装后重启 AI 客户端。
+
+## 平台设置
+
+<Tabs>
+  <TabItem label="macOS">
+    <Steps>
+    1. 安装 Python 3.10 或更新版本。
+    2. 通过官方安装包或 Homebrew 安装 Wireshark。
+    3. 确认 `tshark --version` 在 shell 中可用。
+    4. 运行 `pip install wireshark-mcp`、`wireshark-mcp install` 和 `wireshark-mcp doctor`。
+    </Steps>
+  </TabItem>
+  <TabItem label="Linux">
+    <Steps>
+    1. 安装 Python 3.10 或更新版本。
+    2. 从发行版包或 Wireshark 包安装 `tshark`。
+    3. 如果需要实时抓包，配置对应抓包权限。
+    4. 运行包安装和 doctor 命令。
+    </Steps>
+  </TabItem>
+  <TabItem label="Windows">
+    <Steps>
+    1. 安装 Python 3.10 或更新版本。
+    2. 安装 Wireshark，并在安装过程中包含命令行工具。
+    3. 打开新的终端，让 `PATH` 更新生效。
+    4. 运行 `wireshark-mcp install` 并重启 AI 客户端。
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 验证安装
+
+```sh
+wireshark-mcp doctor
+```
+
+当客户端无法启动服务、`tshark` 缺失，或实时抓包需要额外权限时，优先运行 `doctor`。
+
+## 查看生成配置
+
+JSON 类型 MCP 客户端：
+
+```sh
+wireshark-mcp config
+```
+
+Codex TOML：
+
+```sh
+wireshark-mcp config --format codex-toml
+```
+
+生成配置会使用当前 Python 解释器，并在需要时包含探测到的 Wireshark 工具绝对路径。
+
+## 从源码安装
+
+测试未发布改动时使用源码安装：
+
+```sh
+pip install git+https://github.com/bx33661/Wireshark-MCP.git
+wireshark-mcp install
+wireshark-mcp doctor
+```
+
+## 卸载
+
+从支持的客户端中移除 MCP 服务配置：
+
+```sh
+wireshark-mcp uninstall
+```

@@ -1,0 +1,96 @@
+---
+title: Tool Overview
+description: Browse the Wireshark MCP tool surface by investigation task.
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Wireshark MCP groups tools by investigation stage. Start with capture context, use statistics to prioritize, then drill into streams, fields, bytes, and security-specific detectors.
+
+<CardGrid>
+  <LinkCard title="Packet inspection" href="/tools/packet-inspection/" description="Frame lists, details, context, raw bytes, stream follow-up, search, and fields." />
+  <LinkCard title="Extraction and export" href="/tools/extraction-export/" description="HTTP, DNS, TLS, SMTP, DHCP, credentials, object export, and IP inventory." />
+  <LinkCard title="Protocol analysis" href="/tools/protocol-analysis/" description="TCP health, QUIC/HTTP3, WebSocket, MQTT, and gRPC deep-dive tools." />
+  <LinkCard title="Security detection" href="/tools/security-detection/" description="Scans, floods, tunnels, spoofing, threat intel, and cleartext credential exposure." />
+  <LinkCard title="Statistics and visualization" href="/tools/statistics-visualization/" description="Protocol hierarchy, conversations, endpoints, expert info, I/O graph, and response time." />
+</CardGrid>
+
+## Agentic workflows
+
+| Tool | Use |
+| --- | --- |
+| `wireshark_quick_analysis` | File info, protocol distribution, top talkers, conversations, hostnames, and anomaly summary. |
+| `wireshark_security_audit` | Broad security audit covering threat intel, credentials, scans, tunnels, cleartext, expert info, and risk scoring. |
+
+## Entry points
+
+| Tool | Use |
+| --- | --- |
+| `wireshark_open_file` | Open a capture and activate contextual recommendations. |
+| `wireshark_get_capabilities` | List available tools and detected Wireshark suite support. |
+
+## Statistics
+
+| Tool | Use |
+| --- | --- |
+| `wireshark_stats_protocol_hierarchy` | Understand protocol mix and nested protocol structure. |
+| `wireshark_stats_conversations` | Prioritize host pairs by packets, bytes, and transport. |
+| `wireshark_stats_endpoints` | Build host inventory and identify heavy talkers. |
+| `wireshark_stats_expert_info` | Surface errors, warnings, retransmissions, resets, and malformed traffic leads. |
+| `wireshark_stats_io_graph` | Measure traffic volume over time. |
+| `wireshark_stats_service_response_time` | Review HTTP, DNS, SMB, and other supported response-time statistics. |
+| `wireshark_plot_traffic` | Generate an ASCII traffic volume graph. |
+| `wireshark_plot_protocols` | Generate an ASCII protocol hierarchy tree. |
+
+## Protocol analysis
+
+| Tool | Use |
+| --- | --- |
+| `wireshark_analyze_tcp_health` | Diagnose retransmissions, dup ACKs, zero window, and resets. |
+| `wireshark_analyze_quic` | Extract QUIC version, connection IDs, SNI, and HTTP/3 frames. |
+| `wireshark_analyze_websocket` | Report frame types, payload lengths, and masking. |
+| `wireshark_analyze_mqtt` | Extract message types, topics, QoS, and client IDs. |
+| `wireshark_analyze_grpc` | Inspect method paths and message lengths over HTTP/2. |
+
+## Extraction
+
+| Tool | Use |
+| --- | --- |
+| `wireshark_extract_http_requests` | Extract HTTP method, host, and URI. |
+| `wireshark_extract_dns_queries` | Extract query names and record types. |
+| `wireshark_extract_tls_handshakes` | Extract TLS version, cipher, SNI, and certificate issuer metadata. |
+| `wireshark_extract_smtp_emails` | Extract SMTP sender, recipient, and subject data. |
+| `wireshark_extract_dhcp_info` | Extract leases, hostnames, DNS servers, and DHCP options. |
+| `wireshark_extract_credentials` | Identify cleartext credential exposure. |
+| `wireshark_export_objects` | Export embedded objects from supported protocols. |
+| `wireshark_list_ips` | List unique IP addresses by direction. |
+
+## Capture and file utilities
+
+- `wireshark_capture`
+- `wireshark_list_interfaces`
+- `wireshark_filter_save`
+- `wireshark_merge_pcaps`
+- `wireshark_editcap_split`
+- `wireshark_editcap_trim`
+- `wireshark_editcap_deduplicate`
+- `wireshark_editcap_time_shift`
+- `wireshark_text2pcap_import`
+- `wireshark_verify_ssl_decryption`
+
+## Recommended order
+
+<CardGrid>
+  <Card title="1. Context" icon="open-book">
+    Open the file and build a protocol, endpoint, and conversation baseline.
+  </Card>
+  <Card title="2. Prioritize" icon="list">
+    Pick streams, hosts, protocols, and time windows that explain the question.
+  </Card>
+  <Card title="3. Confirm" icon="check-circle">
+    Use packet details, context, bytes, fields, and streams to confirm or reject leads.
+  </Card>
+  <Card title="4. Report" icon="document">
+    Include filters, frames, streams, fields, confidence labels, and remaining gaps.
+  </Card>
+</CardGrid>
