@@ -42,8 +42,8 @@ class TestSecurityAudit:
         data = json.loads(result)
         assert data["success"]
         output = data["data"]
-        assert "SECURITY AUDIT REPORT" in output
-        assert "RISK LEVEL" in output
+        assert "## Security Audit" in output
+        assert "Risk:" in output
 
     @pytest.mark.asyncio
     async def test_contains_all_sections(self, mock_client: MockTSharkClient) -> None:
@@ -51,14 +51,13 @@ class TestSecurityAudit:
         data = json.loads(result)
         output = data["data"]
         assert "File Summary" in output
-        assert "Protocol Overview" in output
-        assert "Threat Intelligence" in output
-        assert "Credential Exposure" in output
+        assert "Protocols" in output
+        assert "Threat Intel" in output
+        assert "Credentials" in output
         assert "Port Scanning" in output
-        assert "DNS Anomaly" in output
-        assert "Cleartext Protocol" in output
+        assert "DNS Anomalies" in output
+        assert "Cleartext Protocols" in output
         assert "Protocol Anomalies" in output
-        assert "Recommendations" in output
 
     @pytest.mark.asyncio
     async def test_returns_valid_json(self, mock_client: MockTSharkClient) -> None:
@@ -77,20 +76,19 @@ class TestQuickAnalysis:
         data = json.loads(result)
         assert data["success"]
         output = data["data"]
-        assert "QUICK ANALYSIS REPORT" in output
+        assert "## Quick Analysis" in output
 
     @pytest.mark.asyncio
     async def test_contains_all_sections(self, mock_client: MockTSharkClient) -> None:
         result = await _run_quick_analysis(mock_client, "test.pcap")
         data = json.loads(result)
         output = data["data"]
-        assert "Capture File Info" in output
-        assert "Protocol Distribution" in output
+        assert "File Info" in output
+        assert "Protocols" in output
         assert "Top Talkers" in output
-        assert "Top Conversations" in output
-        assert "Key Hostnames" in output
-        assert "Anomaly Summary" in output
-        assert "Suggested Next Steps" in output
+        assert "Conversations" in output
+        assert "Hostnames" in output
+        assert "Anomalies" in output
 
     @pytest.mark.asyncio
     async def test_returns_valid_json(self, mock_client: MockTSharkClient) -> None:

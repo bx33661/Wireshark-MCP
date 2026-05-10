@@ -80,6 +80,28 @@ PROTOCOL_TOOL_MAP: dict[str, list[str]] = {
     "tcp": [
         "wireshark_analyze_tcp_health",
     ],
+    # QUIC/HTTP3
+    "quic": [
+        "wireshark_analyze_quic",
+    ],
+    "http3": [
+        "wireshark_analyze_quic",
+    ],
+    # WebSocket
+    "websocket": [
+        "wireshark_analyze_websocket",
+    ],
+    # MQTT (IoT)
+    "mqtt": [
+        "wireshark_analyze_mqtt",
+    ],
+    # gRPC
+    "grpc": [
+        "wireshark_analyze_grpc",
+    ],
+    "http2": [
+        "wireshark_analyze_grpc",
+    ],
 }
 
 
@@ -210,26 +232,7 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
 
     @mcp.tool()
     async def wireshark_open_file(pcap_file: str) -> str:
-        """
-        [Entry Point] Open a pcap file and recommend the most relevant analysis tools.
-
-        This is the recommended FIRST tool to call. It analyzes the capture file,
-        detects what protocols are present, and points the assistant at the most
-        relevant tools for this specific capture.
-
-        All contextual tools remain available for the full session. This opener
-        provides capture-wide context and recommendations without mutating the
-        MCP tool surface mid-session.
-
-        Args:
-            pcap_file: Path to the capture file (.pcap, .pcapng, etc.)
-
-        Returns:
-            File overview, protocol summary, and recommended next tools.
-
-        Example:
-            wireshark_open_file("/path/to/capture.pcap")
-        """
+        """[Entry Point] Open a pcap and get protocol-aware tool recommendations. Returns file info, detected protocols, and relevant tools."""
         # Step 1: Get protocol hierarchy (required, tshark-backed)
         phs_raw = await client.get_protocol_stats(pcap_file)
         phs_result = parse_tool_result(normalize_tool_result(phs_raw))
@@ -250,7 +253,7 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
         recommended_tools = registry.recommended_tools_for_protocols(detected_protocols)
 
         # Step 4: Build response
-        output_parts = ["=== File Opened Successfully ===\n", "--- File Info ---"]
+        output_parts = ["File Info:"]
         if file_info["success"]:
             output_parts.append(
                 file_info.get("data", "N/A")
@@ -261,24 +264,20 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
             output_parts.append("Detailed file metadata unavailable (capinfos not installed or file summary failed).")
 
         if detected_protocols:
-            output_parts.append(f"\n--- Detected Protocols ({len(detected_protocols)}) ---")
+            output_parts.append(f"\nProtocols ({len(detected_protocols)}):")
             output_parts.append(", ".join(sorted(detected_protocols)))
 
         if recommended_tools:
-            output_parts.append(f"\n--- Recommended Tools ({len(recommended_tools)}) ---")
-            output_parts.append("These tools are already available and are especially relevant for this capture:")
+            output_parts.append(f"\nRecommended Tools ({len(recommended_tools)}):")
             for tool_name in recommended_tools:
                 fn = registry._contextual_catalog.get(tool_name)
                 doc = (fn.__doc__ or "").strip().split("\n")[0] if fn else ""
-                output_parts.append(f"  • {tool_name}: {doc}")
+                output_parts.append(f"  {tool_name}: {doc}")
         else:
-            output_parts.append("\n--- No protocol-specific recommendations ---")
-            output_parts.append(
-                "The core tools should be enough to start, and all contextual tools remain available if needed."
-            )
+            output_parts.append("\nNo protocol-specific recommendations. Core tools are available.")
 
         output_parts.append(
-            "\n💡 Tip: Start broad with wireshark_quick_analysis or wireshark_get_packet_list, then narrow using the recommended tools above."
+            "\nStart with wireshark_quick_analysis or wireshark_get_packet_list, then use recommended tools."
         )
 
         return success_response("\n".join(output_parts))

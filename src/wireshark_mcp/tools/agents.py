@@ -1,30 +1,26 @@
-"""Agentic Workflow — server-side orchestrated analysis tools.
+"""Agentic Workflow — server-side orchestrated analysis tools."""
 
-These "super tools" chain multiple TSharkClient operations internally,
-returning comprehensive structured reports from a single tool call.
-"""
-
+import asyncio
 import logging
 
 from mcp.server.fastmcp import FastMCP
 
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result, parse_tool_result, success_response
+from .formatting import CRIT, INFO, OK, WARN, section, smart_truncate
 
 logger = logging.getLogger("wireshark_mcp")
 
-
-# ── Shared helpers ───────────────────────────────────────────────────────────
+MAX_SECTION_LINES = 15
+MAX_TOTAL_CHARS = 4000
 
 
 def _count_lines(data: str) -> int:
-    """Count non-empty data lines (excluding header)."""
     lines = [line for line in data.strip().splitlines() if line.strip()]
     return max(0, len(lines) - 1)
 
 
 def _extract_data(result: str) -> str | None:
-    """Parse a tool result and return the data string if successful, else None."""
     wrapped = parse_tool_result(normalize_tool_result(result))
     if wrapped["success"]:
         data = wrapped.get("data", "")
@@ -34,12 +30,10 @@ def _extract_data(result: str) -> str | None:
 
 
 def _coerce_int(value: object) -> int:
-    """Best-effort integer coercion for loosely typed tool summaries."""
     return value if isinstance(value, int) else int(value) if isinstance(value, str) and value.isdigit() else 0
 
 
 async def _safe_run(coro, default=None):
-    """Run a coroutine, returning default on any exception."""
     try:
         return await coro
     except Exception as e:
@@ -47,166 +41,169 @@ async def _safe_run(coro, default=None):
         return default
 
 
-# ── Security Audit ───────────────────────────────────────────────────────────
+def _cap_lines(text: str, max_lines: int = MAX_SECTION_LINES) -> str:
+    lines = text.strip().splitlines()
+    if len(lines) <= max_lines:
+        return text.strip()
+    return "\n".join(lines[:max_lines]) + f"\n[... {len(lines) - max_lines} more lines]"
+
+
+# ── Security Audit (concurrent) ──
 
 
 async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
-    """Execute comprehensive security audit pipeline."""
+    """Execute comprehensive security audit pipeline with concurrent phases."""
+    import re
 
     report: list[str] = []
     findings: list[str] = []
-    risk_score = 0  # 0-100, higher = worse
+    risk_score = 0
 
-    report.append("╔══════════════════════════════════════════════════════╗")
-    report.append("║           SECURITY AUDIT REPORT                     ║")
-    report.append("╚══════════════════════════════════════════════════════╝\n")
+    report.append("## Security Audit\n")
 
-    # ── Phase 1: File & Protocol Overview ────────────────────────────────
-    file_info_raw = await _safe_run(client.get_file_info(pcap_file), "")
+    # Phase 1: File & Protocol Overview (must run first — others depend on detected_protocols)
+    file_info_raw, phs_raw = await asyncio.gather(
+        _safe_run(client.get_file_info(pcap_file), ""),
+        _safe_run(client.get_protocol_stats(pcap_file), ""),
+    )
     file_info = _extract_data(file_info_raw) if file_info_raw else None
-
-    phs_raw = await _safe_run(client.get_protocol_stats(pcap_file), "")
     phs_data = _extract_data(phs_raw) if phs_raw else None
 
-    report.append("┌─── 1. File Summary ───────────────────────────────────")
+    report.append(section("1. File Summary"))
     if file_info:
-        # Take first 10 lines of capinfos output
-        for line in file_info.strip().splitlines()[:10]:
-            report.append(f"│  {line}")
+        report.append(_cap_lines(file_info, 8))
     else:
-        report.append("│  ⚠️  Could not read file info")
-    report.append("└───────────────────────────────────────────────────────\n")
+        report.append(f"{WARN} Could not read file info")
 
-    # Detect protocols present
     detected_protocols: set[str] = set()
     if phs_data:
-        import re
-
         for line in phs_data.splitlines():
             match = re.match(r"^\s*(\w[\w.-]*)\s+frames:", line)
             if match:
                 detected_protocols.add(match.group(1).lower())
 
-    report.append("┌─── 2. Protocol Overview ──────────────────────────────")
+    report.append(f"\n{section('2. Protocols')}")
     if detected_protocols:
-        report.append(f"│  Detected: {', '.join(sorted(detected_protocols))}")
+        report.append(", ".join(sorted(detected_protocols)))
     else:
-        report.append("│  No protocol hierarchy available")
-    report.append("└───────────────────────────────────────────────────────\n")
+        report.append("No protocol hierarchy available")
 
-    # ── Phase 2: Threat Intelligence ─────────────────────────────────────
-    report.append("┌─── 3. Threat Intelligence ────────────────────────────")
+    # Phase 2-7: Run independent analyses concurrently
+    async def _phase_threat_intel() -> tuple[list[str], list[str], int]:
+        """Threat intelligence check."""
+        phase_report: list[str] = []
+        phase_findings: list[str] = []
+        phase_risk = 0
+        try:
+            from .security import _analyze_urlhaus_matches
 
-    urlhaus_summary: dict[str, object] | None = None
-    try:
-        from .security import _analyze_urlhaus_matches
+            urlhaus_summary = await _analyze_urlhaus_matches(client, pcap_file)
+            urls_checked = _coerce_int(urlhaus_summary.get("urls_checked", 0))
+            domains_checked = _coerce_int(urlhaus_summary.get("domains_checked", 0))
+            malicious_urls = urlhaus_summary.get("malicious_urls", [])
+            malicious_domains = urlhaus_summary.get("malicious_domains", [])
 
-        urlhaus_summary = await _analyze_urlhaus_matches(client, pcap_file)
-        urls_checked = _coerce_int(urlhaus_summary.get("urls_checked", 0))
-        domains_checked = _coerce_int(urlhaus_summary.get("domains_checked", 0))
-        malicious_urls = urlhaus_summary.get("malicious_urls", [])
-        malicious_domains = urlhaus_summary.get("malicious_domains", [])
+            phase_report.append(f"URLs checked: {urls_checked}, Domains checked: {domains_checked}")
+            if malicious_urls or malicious_domains:
+                phase_risk += 40
+                phase_findings.append(f"{CRIT} URL/domain matched URLhaus feed")
+                if isinstance(malicious_urls, list) and malicious_urls:
+                    phase_report.append(f"{CRIT} Malicious URLs: {len(malicious_urls)}")
+                    for url in malicious_urls[:5]:
+                        phase_report.append(f"  {url}")
+                if isinstance(malicious_domains, list) and malicious_domains:
+                    phase_report.append(f"{CRIT} Malicious domains: {len(malicious_domains)}")
+                    for domain in malicious_domains[:5]:
+                        phase_report.append(f"  {domain}")
+            else:
+                phase_report.append(f"{OK} No matches against threat feeds")
+        except Exception as exc:
+            phase_report.append(f"{WARN} Threat feed unavailable: {exc}")
+        return phase_report, phase_findings, phase_risk
 
-        report.append(f"│  URLs checked: {urls_checked}")
-        report.append(f"│  Domains checked: {domains_checked}")
+    async def _phase_credentials() -> tuple[list[str], list[str], int]:
+        """Credential exposure check."""
+        phase_report: list[str] = []
+        phase_findings: list[str] = []
+        phase_risk = 0
+        cred_found = False
 
-        if malicious_urls or malicious_domains:
-            risk_score += 40
-            findings.append("🔴 Captured URL or domain matched URLhaus threat intelligence")
-            if isinstance(malicious_urls, list) and malicious_urls:
-                report.append(f"│  🔴 Malicious URLs: {len(malicious_urls)}")
-                for url in malicious_urls[:5]:
-                    report.append(f"│     • {url}")
-                if len(malicious_urls) > 5:
-                    report.append(f"│     ... and {len(malicious_urls) - 5} more")
-            if isinstance(malicious_domains, list) and malicious_domains:
-                report.append(f"│  🔴 Malicious domains: {len(malicious_domains)}")
-                for domain in malicious_domains[:5]:
-                    report.append(f"│     • {domain}")
-                if len(malicious_domains) > 5:
-                    report.append(f"│     ... and {len(malicious_domains) - 5} more")
+        http_auth_raw, ftp_raw = await asyncio.gather(
+            _safe_run(client.extract_fields(pcap_file, ["http.authbasic"], "http.authbasic", limit=50), ""),
+            _safe_run(
+                client.extract_fields(pcap_file, ["ftp.request.arg"], "ftp.request.command == PASS", limit=50), ""
+            ),
+        )
+
+        http_auth = _extract_data(http_auth_raw) if http_auth_raw else None
+        if http_auth and len(http_auth.strip()) > 20:
+            cred_found = True
+            phase_risk += 25
+            lines = http_auth.strip().splitlines()
+            phase_findings.append(f"{CRIT} HTTP Basic Auth in cleartext")
+            phase_report.append(f"{CRIT} HTTP Basic Auth: {len(lines) - 1} instance(s)")
+
+        ftp_data = _extract_data(ftp_raw) if ftp_raw else None
+        if ftp_data and len(ftp_data.strip()) > 20:
+            cred_found = True
+            phase_risk += 25
+            lines = ftp_data.strip().splitlines()
+            phase_findings.append(f"{CRIT} FTP passwords in cleartext")
+            phase_report.append(f"{CRIT} FTP Passwords: {len(lines) - 1} instance(s)")
+
+        if not cred_found:
+            phase_report.append(f"{OK} No plaintext credentials detected")
+        return phase_report, phase_findings, phase_risk
+
+    async def _phase_port_scan() -> tuple[list[str], list[str], int]:
+        """Port scan detection."""
+        phase_report: list[str] = []
+        phase_findings: list[str] = []
+        phase_risk = 0
+
+        syn_raw = await _safe_run(
+            client.extract_fields(
+                pcap_file,
+                ["ip.src", "tcp.dstport"],
+                display_filter="tcp.flags.syn == 1 and tcp.flags.ack == 0",
+                limit=10000,
+            ),
+            "",
+        )
+        syn_data = _extract_data(syn_raw) if syn_raw else None
+
+        if syn_data:
+            src_to_ports: dict[str, set[str]] = {}
+            for line in syn_data.splitlines()[1:]:
+                parts = line.split("\t")
+                if len(parts) >= 2:
+                    src = parts[0].strip().strip('"')
+                    port = parts[1].strip().strip('"')
+                    if src and port:
+                        src_to_ports.setdefault(src, set()).add(port)
+
+            scanners = {s: p for s, p in src_to_ports.items() if len(p) >= 15}
+            if scanners:
+                phase_risk += 20
+                phase_findings.append(f"{CRIT} {len(scanners)} port scanner(s) detected")
+                for src, ports in sorted(scanners.items(), key=lambda x: len(x[1]), reverse=True)[:5]:
+                    phase_report.append(f"{CRIT} {src} -> {len(ports)} unique ports")
+            else:
+                phase_report.append(f"{OK} No port scanning detected (SYN sources: {len(src_to_ports)})")
         else:
-            report.append("│  🟢 No URLs or domains matched known threat feeds")
-    except Exception as exc:
-        report.append(f"│  ⚠️  Threat feed unavailable: {exc}")
+            phase_report.append(f"{OK} No SYN-only packets found")
+        return phase_report, phase_findings, phase_risk
 
-    report.append("└───────────────────────────────────────────────────────\n")
+    async def _phase_dns(protocols: set[str]) -> tuple[list[str], list[str], int]:
+        """DNS anomaly detection."""
+        phase_report: list[str] = []
+        phase_findings: list[str] = []
+        phase_risk = 0
 
-    # ── Phase 3: Credential Exposure ─────────────────────────────────────
-    report.append("┌─── 4. Credential Exposure ────────────────────────────")
+        if "dns" not in protocols:
+            phase_report.append(f"{INFO} No DNS traffic in capture")
+            return phase_report, phase_findings, phase_risk
 
-    cred_found = False
-
-    # HTTP Basic Auth
-    http_auth_raw = await _safe_run(
-        client.extract_fields(pcap_file, ["http.authbasic"], "http.authbasic", limit=50), ""
-    )
-    http_auth = _extract_data(http_auth_raw) if http_auth_raw else None
-    if http_auth and len(http_auth.strip()) > 20:
-        cred_found = True
-        risk_score += 25
-        findings.append("🔴 HTTP Basic Auth credentials found in cleartext")
-        lines = http_auth.strip().splitlines()
-        report.append(f"│  🔴 HTTP Basic Auth: {len(lines) - 1} instance(s)")
-
-    # FTP passwords
-    ftp_raw = await _safe_run(
-        client.extract_fields(pcap_file, ["ftp.request.arg"], "ftp.request.command == PASS", limit=50), ""
-    )
-    ftp_data = _extract_data(ftp_raw) if ftp_raw else None
-    if ftp_data and len(ftp_data.strip()) > 20:
-        cred_found = True
-        risk_score += 25
-        findings.append("🔴 FTP passwords found in cleartext")
-        lines = ftp_data.strip().splitlines()
-        report.append(f"│  🔴 FTP Passwords: {len(lines) - 1} instance(s)")
-
-    if not cred_found:
-        report.append("│  🟢 No plaintext credentials detected")
-
-    report.append("└───────────────────────────────────────────────────────\n")
-
-    # ── Phase 4: Port Scanning Detection ─────────────────────────────────
-    report.append("┌─── 5. Port Scanning Activity ─────────────────────────")
-
-    syn_raw = await _safe_run(
-        client.extract_fields(
-            pcap_file,
-            ["ip.src", "tcp.dstport"],
-            display_filter="tcp.flags.syn == 1 and tcp.flags.ack == 0",
-            limit=10000,
-        ),
-        "",
-    )
-    syn_data = _extract_data(syn_raw) if syn_raw else None
-
-    if syn_data:
-        src_to_ports: dict[str, set[str]] = {}
-        for line in syn_data.splitlines()[1:]:
-            parts = line.split("\t")
-            if len(parts) >= 2:
-                src = parts[0].strip().strip('"')
-                port = parts[1].strip().strip('"')
-                if src and port:
-                    src_to_ports.setdefault(src, set()).add(port)
-
-        scanners = {s: p for s, p in src_to_ports.items() if len(p) >= 15}
-        if scanners:
-            risk_score += 20
-            findings.append(f"🔴 {len(scanners)} port scanner(s) detected")
-            for src, ports in sorted(scanners.items(), key=lambda x: len(x[1]), reverse=True)[:5]:
-                report.append(f"│  🔴 {src} → {len(ports)} unique ports")
-        else:
-            report.append(f"│  🟢 No port scanning detected (SYN sources: {len(src_to_ports)})")
-    else:
-        report.append("│  🟢 No SYN-only packets found")
-
-    report.append("└───────────────────────────────────────────────────────\n")
-
-    # ── Phase 5: DNS Anomalies ───────────────────────────────────────────
-    report.append("┌─── 6. DNS Anomaly Detection ──────────────────────────")
-
-    if "dns" in detected_protocols:
         dns_raw = await _safe_run(
             client.extract_fields(pcap_file, ["dns.qry.name", "dns.qry.type"], display_filter="dns", limit=5000), ""
         )
@@ -236,189 +233,225 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
                         sub = ".".join(domain_parts[:-2])
                         subdomains_per_base.setdefault(base, set()).add(sub)
 
-            report.append(f"│  Total DNS queries: {total_dns}")
-
+            phase_report.append(f"Total DNS queries: {total_dns}")
             dns_indicators = 0
             if long_queries > 5:
                 dns_indicators += 1
-                report.append(f"│  🔴 Long queries (>50 chars): {long_queries}")
+                phase_report.append(f"{CRIT} Long queries (>50 chars): {long_queries}")
             if txt_queries > 10:
                 dns_indicators += 1
-                report.append(f"│  🟠 TXT record queries: {txt_queries}")
+                phase_report.append(f"{WARN} TXT record queries: {txt_queries}")
             suspicious_bases = {b: s for b, s in subdomains_per_base.items() if len(s) > 20}
             if suspicious_bases:
                 dns_indicators += 1
                 for base, subs in sorted(suspicious_bases.items(), key=lambda x: len(x[1]), reverse=True)[:3]:
-                    report.append(f"│  🔴 {base}: {len(subs)} unique subdomains")
+                    phase_report.append(f"{CRIT} {base}: {len(subs)} unique subdomains")
 
             if dns_indicators >= 2:
-                risk_score += 25
-                findings.append("🔴 DNS tunneling indicators detected")
+                phase_risk += 25
+                phase_findings.append(f"{CRIT} DNS tunneling indicators detected")
             elif dns_indicators == 1:
-                findings.append("🟡 Minor DNS anomalies detected")
+                phase_findings.append(f"{WARN} Minor DNS anomalies")
             else:
-                report.append("│  🟢 No DNS tunneling indicators")
+                phase_report.append(f"{OK} No DNS tunneling indicators")
         else:
-            report.append("│  No DNS data to analyze")
-    else:
-        report.append("│  ℹ️  No DNS traffic in capture")
+            phase_report.append("No DNS data to analyze")
+        return phase_report, phase_findings, phase_risk
 
-    report.append("└───────────────────────────────────────────────────────\n")
+    async def _phase_cleartext(protocols: set[str]) -> tuple[list[str], list[str], int]:
+        """Cleartext protocol detection."""
+        phase_report: list[str] = []
+        phase_findings: list[str] = []
+        phase_risk = 0
 
-    # ── Phase 6: Cleartext Protocol Usage ────────────────────────────────
-    report.append("┌─── 7. Cleartext Protocol Usage ───────────────────────")
+        cleartext_checks = [
+            ("FTP", "ftp"),
+            ("Telnet", "telnet"),
+            ("HTTP", "http"),
+            ("SMTP", "smtp"),
+            ("POP3", "pop"),
+            ("IMAP", "imap"),
+        ]
+        checks_to_run = [
+            (name, dfilter) for name, dfilter in cleartext_checks if dfilter in protocols or dfilter == "http"
+        ]
 
-    cleartext_checks = [
-        ("FTP", "ftp"),
-        ("Telnet", "telnet"),
-        ("HTTP (unencrypted)", "http"),
-        ("SMTP", "smtp"),
-        ("POP3", "pop"),
-        ("IMAP", "imap"),
-    ]
+        if checks_to_run:
+            results = await asyncio.gather(
+                *[
+                    _safe_run(client.get_packet_list(pcap_file, limit=1, display_filter=dfilter), "")
+                    for _, dfilter in checks_to_run
+                ]
+            )
+            cleartext_found = []
+            for (name, _), raw in zip(checks_to_run, results, strict=True):
+                check_data = _extract_data(raw) if raw else None
+                if check_data and _count_lines(check_data) > 0:
+                    cleartext_found.append(name)
 
-    cleartext_found = []
-    for name, dfilter in cleartext_checks:
-        if dfilter in detected_protocols or dfilter == "http":
-            check_raw = await _safe_run(client.get_packet_list(pcap_file, limit=1, display_filter=dfilter), "")
-            check_data = _extract_data(check_raw) if check_raw else None
-            if check_data and _count_lines(check_data) > 0:
-                cleartext_found.append(name)
-                report.append(f"│  🟠 {name}: DETECTED")
+            if cleartext_found:
+                phase_risk += 10
+                phase_findings.append(f"{WARN} Cleartext protocols: {', '.join(cleartext_found)}")
+                phase_report.append(f"{WARN} Detected: {', '.join(cleartext_found)}")
+            else:
+                phase_report.append(f"{OK} No cleartext protocols detected")
+        else:
+            phase_report.append(f"{OK} No cleartext protocols detected")
+        return phase_report, phase_findings, phase_risk
 
-    if cleartext_found:
-        risk_score += 10
-        findings.append(f"🟠 Cleartext protocols in use: {', '.join(cleartext_found)}")
+    async def _phase_expert_info() -> tuple[list[str], list[str], int]:
+        """Expert info / protocol anomalies."""
+        phase_report: list[str] = []
+        phase_findings: list[str] = []
+        phase_risk = 0
 
-    if not cleartext_found:
-        report.append("│  🟢 No cleartext protocols detected")
+        expert_raw = await _safe_run(client.get_expert_info(pcap_file), "")
+        expert_data = _extract_data(expert_raw) if expert_raw else None
+        if expert_data:
+            if "Malformed" in expert_data:
+                phase_risk += 10
+                phase_findings.append(f"{WARN} Malformed packets detected")
+                phase_report.append(f"{CRIT} Malformed packets")
+            if "Reassembly error" in expert_data:
+                phase_findings.append(f"{INFO} Reassembly errors")
+                phase_report.append(f"{WARN} Reassembly errors")
+            if "Retransmission" in expert_data:
+                phase_report.append(f"{INFO} TCP retransmissions present")
+            if not any(w in expert_data for w in ["Malformed", "Reassembly", "Retransmission"]):
+                phase_report.append(f"{OK} No notable anomalies")
+        else:
+            phase_report.append("No expert info available")
+        return phase_report, phase_findings, phase_risk
 
-    report.append("└───────────────────────────────────────────────────────\n")
+    # Run all independent phases concurrently
+    (
+        (threat_report, threat_findings, threat_risk),
+        (cred_report, cred_findings, cred_risk),
+        (scan_report, scan_findings, scan_risk),
+        (dns_report, dns_findings, dns_risk),
+        (cleartext_report, cleartext_findings, cleartext_risk),
+        (expert_report, expert_findings, expert_risk),
+    ) = await asyncio.gather(
+        _phase_threat_intel(),
+        _phase_credentials(),
+        _phase_port_scan(),
+        _phase_dns(detected_protocols),
+        _phase_cleartext(detected_protocols),
+        _phase_expert_info(),
+    )
 
-    # ── Phase 7: Expert Info (Protocol Anomalies) ────────────────────────
-    report.append("┌─── 8. Protocol Anomalies (Expert Info) ───────────────")
+    # Assemble report in order
+    report.append(f"\n{section('3. Threat Intel')}")
+    report.extend(threat_report)
+    findings.extend(threat_findings)
+    risk_score += threat_risk
 
-    expert_raw = await _safe_run(client.get_expert_info(pcap_file), "")
-    expert_data = _extract_data(expert_raw) if expert_raw else None
-    if expert_data:
-        if "Malformed" in expert_data:
-            risk_score += 10
-            findings.append("🟠 Malformed packets detected")
-            report.append("│  🔴 Malformed packets detected")
-        if "Reassembly error" in expert_data:
-            findings.append("🟡 Reassembly errors found")
-            report.append("│  🟠 Reassembly errors found")
-        if "Retransmission" in expert_data:
-            report.append("│  🟡 TCP retransmissions present")
-        if not any(w in expert_data for w in ["Malformed", "Reassembly", "Retransmission"]):
-            report.append("│  🟢 No notable protocol anomalies")
-    else:
-        report.append("│  No expert info available")
+    report.append(f"\n{section('4. Credentials')}")
+    report.extend(cred_report)
+    findings.extend(cred_findings)
+    risk_score += cred_risk
 
-    report.append("└───────────────────────────────────────────────────────\n")
+    report.append(f"\n{section('5. Port Scanning')}")
+    report.extend(scan_report)
+    findings.extend(scan_findings)
+    risk_score += scan_risk
 
-    # ── Final Summary ────────────────────────────────────────────────────
+    report.append(f"\n{section('6. DNS Anomalies')}")
+    report.extend(dns_report)
+    findings.extend(dns_findings)
+    risk_score += dns_risk
+
+    report.append(f"\n{section('7. Cleartext Protocols')}")
+    report.extend(cleartext_report)
+    findings.extend(cleartext_findings)
+    risk_score += cleartext_risk
+
+    report.append(f"\n{section('8. Protocol Anomalies')}")
+    report.extend(expert_report)
+    findings.extend(expert_findings)
+    risk_score += expert_risk
+
+    # Final Summary
     risk_score = min(risk_score, 100)
     if risk_score >= 60:
-        risk_level = "🔴 CRITICAL"
+        risk_level = "CRITICAL"
     elif risk_score >= 40:
-        risk_level = "🟠 HIGH"
+        risk_level = "HIGH"
     elif risk_score >= 20:
-        risk_level = "🟡 MEDIUM"
+        risk_level = "MEDIUM"
     else:
-        risk_level = "🟢 LOW"
+        risk_level = "LOW"
 
-    report.append("╔══════════════════════════════════════════════════════╗")
-    report.append(f"║  RISK LEVEL: {risk_level:<40}║")
-    report.append(f"║  RISK SCORE: {risk_score}/100{' ' * 36}║")
-    report.append(f"║  FINDINGS:   {len(findings)} issue(s){' ' * 33}║")
-    report.append("╚══════════════════════════════════════════════════════╝\n")
+    report.append(f"\n{section(f'Risk: {risk_level} ({risk_score}/100), {len(findings)} finding(s)')}")
+    for i, f in enumerate(findings, 1):
+        report.append(f"{i}. {f}")
 
-    if findings:
-        report.append("── Findings Summary ──")
-        for i, f in enumerate(findings, 1):
-            report.append(f"  {i}. {f}")
-
-    report.append("\n── Recommendations ──")
-    if risk_score >= 40:
-        report.append("  • Investigate flagged malicious URLs/domains and credential exposure immediately")
-        report.append("  • Use wireshark_follow_stream to examine suspicious connections")
-        report.append("  • Consider blocking identified scanner/attacker IPs")
-    if cleartext_found:
-        report.append("  • Migrate cleartext protocols to encrypted alternatives (HTTPS, SFTP, etc.)")
-    if risk_score < 20:
-        report.append("  • No critical issues found — routine monitoring recommended")
-
-    return success_response("\n".join(report))
+    output = "\n".join(report)
+    return success_response(smart_truncate(output, MAX_TOTAL_CHARS))
 
 
-# ── Quick Analysis ───────────────────────────────────────────────────────────
+# ── Quick Analysis (concurrent) ──
 
 
 async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
-    """Execute quick traffic analysis pipeline."""
-
+    """Execute quick traffic analysis pipeline with concurrent data gathering."""
     report: list[str] = []
+    report.append("## Quick Analysis\n")
 
-    report.append("╔══════════════════════════════════════════════════════╗")
-    report.append("║           QUICK ANALYSIS REPORT                     ║")
-    report.append("╚══════════════════════════════════════════════════════╝\n")
+    # All phases are independent — run concurrently
+    (
+        file_info_raw,
+        phs_raw,
+        endpoints_raw,
+        conv_raw,
+        http_hosts_raw,
+        dns_raw,
+        expert_raw,
+    ) = await asyncio.gather(
+        _safe_run(client.get_file_info(pcap_file), ""),
+        _safe_run(client.get_protocol_stats(pcap_file), ""),
+        _safe_run(client.get_endpoints(pcap_file, "ip"), ""),
+        _safe_run(client.get_conversations(pcap_file, "tcp"), ""),
+        _safe_run(client.extract_fields(pcap_file, ["http.host"], "http.request", limit=500), ""),
+        _safe_run(client.extract_fields(pcap_file, ["dns.qry.name"], "dns.flags.response == 0", limit=500), ""),
+        _safe_run(client.get_expert_info(pcap_file), ""),
+    )
 
-    # ── Phase 1: File Info ───────────────────────────────────────────────
-    file_info_raw = await _safe_run(client.get_file_info(pcap_file), "")
+    # Phase 1: File Info
     file_info = _extract_data(file_info_raw) if file_info_raw else None
-
-    report.append("┌─── 1. Capture File Info ──────────────────────────────")
+    report.append(section("1. File Info"))
     if file_info:
-        for line in file_info.strip().splitlines()[:12]:
-            report.append(f"│  {line}")
+        report.append(_cap_lines(file_info, 10))
     else:
-        report.append("│  ⚠️  Could not read file info")
-    report.append("└───────────────────────────────────────────────────────\n")
+        report.append(f"{WARN} Could not read file info")
 
-    # ── Phase 2: Protocol Distribution ───────────────────────────────────
-    phs_raw = await _safe_run(client.get_protocol_stats(pcap_file), "")
+    # Phase 2: Protocol Distribution
     phs_data = _extract_data(phs_raw) if phs_raw else None
-
-    report.append("┌─── 2. Protocol Distribution ──────────────────────────")
+    report.append(f"\n{section('2. Protocols')}")
     if phs_data:
-        for line in phs_data.strip().splitlines()[:20]:
-            report.append(f"│  {line}")
+        report.append(_cap_lines(phs_data, MAX_SECTION_LINES))
     else:
-        report.append("│  No protocol data available")
-    report.append("└───────────────────────────────────────────────────────\n")
+        report.append("No protocol data available")
 
-    # ── Phase 3: Top Talkers (Endpoints) ─────────────────────────────────
-    endpoints_raw = await _safe_run(client.get_endpoints(pcap_file, "ip"), "")
+    # Phase 3: Top Talkers
     endpoints_data = _extract_data(endpoints_raw) if endpoints_raw else None
-
-    report.append("┌─── 3. Top Talkers (IP Endpoints) ─────────────────────")
+    report.append(f"\n{section('3. Top Talkers')}")
     if endpoints_data:
-        for line in endpoints_data.strip().splitlines()[:15]:
-            report.append(f"│  {line}")
+        report.append(_cap_lines(endpoints_data, 12))
     else:
-        report.append("│  No endpoint data available")
-    report.append("└───────────────────────────────────────────────────────\n")
+        report.append("No endpoint data available")
 
-    # ── Phase 4: Top Conversations ───────────────────────────────────────
-    conv_raw = await _safe_run(client.get_conversations(pcap_file, "tcp"), "")
+    # Phase 4: Top Conversations
     conv_data = _extract_data(conv_raw) if conv_raw else None
-
-    report.append("┌─── 4. Top Conversations (TCP) ────────────────────────")
+    report.append(f"\n{section('4. Conversations (TCP)')}")
     if conv_data:
-        for line in conv_data.strip().splitlines()[:15]:
-            report.append(f"│  {line}")
+        report.append(_cap_lines(conv_data, 12))
     else:
-        report.append("│  No conversation data available")
-    report.append("└───────────────────────────────────────────────────────\n")
+        report.append("No conversation data available")
 
-    # ── Phase 5: Key Hostnames ───────────────────────────────────────────
-    report.append("┌─── 5. Key Hostnames ──────────────────────────────────")
-
-    # HTTP hosts
-    http_hosts_raw = await _safe_run(client.extract_fields(pcap_file, ["http.host"], "http.request", limit=500), "")
+    # Phase 5: Key Hostnames
+    report.append(f"\n{section('5. Hostnames')}")
     http_hosts_data = _extract_data(http_hosts_raw) if http_hosts_raw else None
-
     http_hosts: dict[str, int] = {}
     if http_hosts_data:
         for line in http_hosts_data.splitlines()[1:]:
@@ -426,17 +459,7 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
             if host:
                 http_hosts[host] = http_hosts.get(host, 0) + 1
 
-    if http_hosts:
-        report.append("│  HTTP Hosts:")
-        for host, count in sorted(http_hosts.items(), key=lambda x: x[1], reverse=True)[:10]:
-            report.append(f"│    {host} ({count} requests)")
-
-    # DNS top domains
-    dns_raw = await _safe_run(
-        client.extract_fields(pcap_file, ["dns.qry.name"], "dns.flags.response == 0", limit=500), ""
-    )
     dns_data = _extract_data(dns_raw) if dns_raw else None
-
     dns_domains: dict[str, int] = {}
     if dns_data:
         for line in dns_data.splitlines()[1:]:
@@ -444,101 +467,55 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
             if domain:
                 dns_domains[domain] = dns_domains.get(domain, 0) + 1
 
+    if http_hosts:
+        report.append("HTTP:")
+        for host, count in sorted(http_hosts.items(), key=lambda x: x[1], reverse=True)[:8]:
+            report.append(f"  {host} ({count})")
     if dns_domains:
-        report.append("│  DNS Queries (top domains):")
-        for domain, count in sorted(dns_domains.items(), key=lambda x: x[1], reverse=True)[:10]:
-            report.append(f"│    {domain} ({count} queries)")
-
+        report.append("DNS:")
+        for domain, count in sorted(dns_domains.items(), key=lambda x: x[1], reverse=True)[:8]:
+            report.append(f"  {domain} ({count})")
     if not http_hosts and not dns_domains:
-        report.append("│  No HTTP/DNS hostname data found")
+        report.append("No HTTP/DNS hostname data found")
 
-    report.append("└───────────────────────────────────────────────────────\n")
-
-    # ── Phase 6: Anomaly Summary ─────────────────────────────────────────
-    expert_raw = await _safe_run(client.get_expert_info(pcap_file), "")
+    # Phase 6: Anomaly Summary
     expert_data = _extract_data(expert_raw) if expert_raw else None
-
-    report.append("┌─── 6. Anomaly Summary (Expert Info) ──────────────────")
+    report.append(f"\n{section('6. Anomalies')}")
     if expert_data:
         anomaly_keywords = {
-            "Retransmission": "🟡",
-            "Duplicate ACK": "🟡",
-            "Out-of-Order": "🟠",
-            "Malformed": "🔴",
-            "Reassembly error": "🟠",
-            "Zero window": "🟡",
+            "Retransmission": INFO,
+            "Duplicate ACK": INFO,
+            "Out-of-Order": WARN,
+            "Malformed": CRIT,
+            "Reassembly error": WARN,
+            "Zero window": INFO,
         }
         found_any = False
         for keyword, icon in anomaly_keywords.items():
             if keyword in expert_data:
-                report.append(f"│  {icon} {keyword} detected")
+                report.append(f"{icon} {keyword}")
                 found_any = True
         if not found_any:
-            report.append("│  🟢 No notable anomalies")
+            report.append(f"{OK} No notable anomalies")
     else:
-        report.append("│  No expert info available")
-    report.append("└───────────────────────────────────────────────────────\n")
+        report.append("No expert info available")
 
-    # ── Suggested Next Steps ─────────────────────────────────────────────
-    report.append("── Suggested Next Steps ──")
-    report.append("  • wireshark_get_packet_list — browse specific traffic with display filters")
-    report.append("  • wireshark_follow_stream — reconstruct TCP/HTTP conversations")
-    report.append("  • wireshark_security_audit — run full security audit on this file")
-    if http_hosts:
-        report.append("  • wireshark_extract_http_requests — detailed HTTP request analysis")
-    if dns_domains:
-        report.append("  • wireshark_extract_dns_queries — detailed DNS query analysis")
-
-    return success_response("\n".join(report))
+    output = "\n".join(report)
+    return success_response(smart_truncate(output, MAX_TOTAL_CHARS))
 
 
-# ── Registration ─────────────────────────────────────────────────────────────
+# ── Registration ──
 
 
 def register_agent_tools(mcp: FastMCP, client: TSharkClient) -> None:
-    """Register agentic workflow super tools."""
+    """Register agentic workflow tools."""
 
     @mcp.tool()
     async def wireshark_security_audit(pcap_file: str) -> str:
-        """
-        [Agent] One-call comprehensive security audit.
-
-        Automatically runs 8 analysis phases internally and returns a structured
-        security report with risk scoring. No manual tool-chaining needed.
-
-        Phases: File summary → Protocol overview → Threat intelligence (URLhaus) →
-        Credential exposure → Port scan detection → DNS anomaly detection →
-        Cleartext protocol usage → Protocol anomalies (Expert Info)
-
-        Args:
-            pcap_file: Path to capture file
-
-        Returns:
-            Complete security audit report with risk level, findings, and recommendations.
-
-        Example:
-            wireshark_security_audit("suspicious_traffic.pcap")
-        """
+        """[Agent] Comprehensive security audit (8 phases). Returns risk score 0-100 with findings."""
         return await _run_security_audit(client, pcap_file)
 
     @mcp.tool()
     async def wireshark_quick_analysis(pcap_file: str) -> str:
-        """
-        [Agent] One-call traffic overview and analysis.
-
-        Automatically gathers file info, protocol distribution, top talkers,
-        conversations, hostnames, and anomalies into a single comprehensive report.
-
-        Phases: File info → Protocol distribution → Top talkers → Top conversations →
-        Key hostnames (HTTP + DNS) → Anomaly summary (Expert Info)
-
-        Args:
-            pcap_file: Path to capture file
-
-        Returns:
-            Complete traffic analysis report with suggested next steps.
-
-        Example:
-            wireshark_quick_analysis("capture.pcap")
-        """
+        """[Agent] One-call traffic overview: file info, protocols, top talkers, conversations, hostnames, anomalies."""
         return await _run_quick_analysis(client, pcap_file)

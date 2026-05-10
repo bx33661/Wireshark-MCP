@@ -92,19 +92,7 @@ def register_decode_tools(mcp: FastMCP):
 
     @mcp.tool()
     def wireshark_decode_payload(data: str, encoding: str = "auto") -> str:
-        """
-        [Utils] Decode common encodings (Base64, Hex, URL, Gzip, etc.).
-
-        Args:
-            data: The string to decode.
-            encoding: Target encoding. Supported:
-                'base64', 'hex', 'url', 'rot13', 'gzip', 'deflate',
-                'html', 'unicode', 'quopri', 'ascii85'.
-                Use 'auto' to try all and sort by readability.
-
-        Returns:
-            Decoded string (or JSON in 'auto' mode).
-        """
+        """[Utils] Decode encodings. encoding: 'base64'|'hex'|'url'|'rot13'|'gzip'|'deflate'|'html'|'unicode'|'quopri'|'ascii85'|'auto' (tries all, ranks by readability)."""
         encodings = ["base64", "hex", "url", "rot13", "html", "unicode", "quopri", "ascii85"]
         # Exclude gzip/deflate from simple auto list, handled in chaining
 

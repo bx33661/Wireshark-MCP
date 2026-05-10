@@ -243,17 +243,7 @@ def make_contextual_security_tools(client: TSharkClient) -> list[tuple[str, Any]
     """Create contextual security tools for the stable contextual catalog."""
 
     async def wireshark_check_threats(pcap_file: str) -> str:
-        """[Security] Match captured URLs and hostnames against cached URLhaus threat intelligence.
-
-        Args:
-            pcap_file: Path to capture file
-
-        Returns:
-            Threat analysis summary or JSON error
-
-        Example:
-            wireshark_check_threats("suspicious.pcap")
-        """
+        """[Security] Match captured URLs and hostnames against cached URLhaus threat intelligence."""
         try:
             return success_response(await _analyze_urlhaus_matches(client, pcap_file))
         except Exception as exc:
@@ -265,17 +255,7 @@ def make_contextual_security_tools(client: TSharkClient) -> list[tuple[str, Any]
             )
 
     async def wireshark_extract_credentials(pcap_file: str) -> str:
-        """[Security] Scan for plaintext credentials (HTTP Basic Auth, FTP passwords, Telnet).
-
-        Args:
-            pcap_file: Path to capture file
-
-        Returns:
-            Credential findings summary or JSON error
-
-        Example:
-            wireshark_extract_credentials("insecure.pcap")
-        """
+        """[Security] Scan for plaintext credentials (HTTP Basic Auth, FTP passwords, Telnet)."""
         findings: list[str] = []
 
         http_auth = await client.extract_fields(pcap_file, ["http.authbasic"], "http.authbasic", limit=50)

@@ -14,19 +14,7 @@ def register_import_tools(mcp: FastMCP, client: TSharkClient) -> None:
         timestamp_format: str = "",
         ascii_mode: bool = False,
     ) -> str:
-        """
-        Convert an ASCII or hex dump into a capture file using text2pcap.
-
-        Args:
-            input_text_file: Source text or hexdump file
-            output_file: Destination capture file
-            encapsulation: Output link-layer encapsulation, default is ether
-            timestamp_format: Optional strptime-compatible timestamp format
-            ascii_mode: Enable ASCII dump detection when the input includes an ASCII column
-
-        Returns:
-            Success message or JSON error
-        """
+        """Convert ASCII or hex dump into a capture file using text2pcap. encapsulation: link-layer type (default: ether)."""
         return normalize_tool_result(
             await client.text2pcap_import(input_text_file, output_file, encapsulation, timestamp_format, ascii_mode)
         )

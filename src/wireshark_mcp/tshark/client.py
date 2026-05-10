@@ -15,6 +15,7 @@ from ..toolchain import (
     WIRESHARK_TOOL_PURPOSES,
     WIRESHARK_TOOL_REQUIREMENTS,
 )
+from .cache import ResultCache
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -51,6 +52,7 @@ class WiresharkSuiteClient:
         self.dumpcap_path = self._tool_paths["dumpcap"]
         self.text2pcap_path = self._tool_paths["text2pcap"]
         self._version: str | None = None
+        self._cache = ResultCache()
 
         # Path sandbox: if set, only files within these directories are accessible
         self._allowed_dirs: list[Path] | None = None
@@ -867,7 +869,21 @@ class WiresharkSuiteClient:
         offset_lines: int = 0,
         timeout: int = 30,
     ) -> str:
-        """Run command with error handling, validation, and timeout."""
+        """Run command with error handling, validation, timeout, and caching."""
+        # Determine if this is a cacheable read-only command
+        pcap_file = None
+        if "-r" in cmd:
+            r_idx = cmd.index("-r")
+            if r_idx + 1 < len(cmd):
+                pcap_file = cmd[r_idx + 1]
+
+        # Check cache for read-only commands
+        if pcap_file:
+            cached = self._cache.get(pcap_file, cmd)
+            if cached is not None:
+                logger.debug("Cache hit for: %s", " ".join(cmd[:4]))
+                return cached
+
         # Validate the binary being executed
         binary = self._get_binary_name(cmd[0]) if cmd else ""
         if binary not in self._ALLOWED_BINARIES:
@@ -939,10 +955,16 @@ class WiresharkSuiteClient:
             final_output = "\n".join(lines)
 
             if truncated:
-                final_output += f"\n\n[Truncated: showing {limit_lines} of {total_lines} lines]"
+                final_output += (
+                    f"\n\n[Showing {limit_lines}/{total_lines} lines. Next: offset={offset_lines + limit_lines}]"
+                )
 
             if error and not truncated:
                 final_output += f"\n[Stderr]: {error}"
+
+            # Cache successful read-only results
+            if pcap_file and not truncated:
+                self._cache.put(pcap_file, cmd, final_output)
 
             return final_output
 

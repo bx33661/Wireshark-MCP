@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result, parse_tool_result, success_response
+from .formatting import CRIT, INFO, OK, WARN
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -22,18 +23,7 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
     """Create contextual protocol tools for the stable contextual catalog."""
 
     async def wireshark_extract_tls_handshakes(pcap_file: str, limit: int = 50) -> str:
-        """[TLS] Extract TLS/SSL handshake information (version, cipher, SNI, cert issuer).
-
-        Args:
-            pcap_file: Path to capture file
-            limit: Maximum handshakes to return (default: 50)
-
-        Returns:
-            Tabular TLS handshake data or JSON error
-
-        Example:
-            wireshark_extract_tls_handshakes("https_traffic.pcap")
-        """
+        """[TLS] Extract TLS/SSL handshake info (version, cipher, SNI, cert issuer) as TSV."""
         fields = [
             "ip.src",
             "ip.dst",
@@ -67,28 +57,19 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
         )
         server_wrapped = parse_tool_result(server_result)
 
-        output_parts = ["=== Client Hello (TLS Handshakes) ==="]
+        output_parts = ["Client Hello (TLS Handshakes)"]
         output_parts.append(wrapped.get("data", "No data"))
 
         if server_wrapped["success"]:
-            output_parts.append("\n=== Server Hello (Negotiated Parameters) ===")
+            output_parts.append("\nServer Hello (Negotiated Parameters)")
             output_parts.append(server_wrapped.get("data", "No data"))
 
         return success_response("\n".join(output_parts))
 
     async def wireshark_analyze_tcp_health(pcap_file: str) -> str:
-        """[TCP] Analyze TCP connection health (retransmissions, dup ACKs, zero window, resets).
+        """[TCP] Analyze TCP connection health (retransmissions, dup ACKs, zero window, resets)."""
+        import asyncio
 
-        Args:
-            pcap_file: Path to capture file
-
-        Returns:
-            TCP health statistics summary or JSON error
-
-        Example:
-            wireshark_analyze_tcp_health("slow_connection.pcap")
-        """
-        # Define the anomaly categories and their filters
         checks = [
             ("Retransmissions", "tcp.analysis.retransmission"),
             ("Fast Retransmissions", "tcp.analysis.fast_retransmission"),
@@ -100,46 +81,41 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
             ("Keep-Alive", "tcp.analysis.keep_alive"),
         ]
 
-        results: list[str] = []
-        results.append("=== TCP Health Analysis ===\n")
+        async def _count_check(display_filter: str) -> int:
+            raw = await client.get_packet_list(pcap_file, limit=10000, display_filter=display_filter)
+            wrapped = parse_tool_result(raw)
+            if not wrapped["success"]:
+                return -1
+            data = wrapped.get("data", "")
+            if isinstance(data, str):
+                lines = [ln for ln in data.strip().splitlines() if ln.strip()]
+                return max(0, len(lines) - 1)
+            return 0
 
-        # Get total TCP packet count
-        await client.extract_fields(pcap_file, ["frame.number"], display_filter="tcp", limit=1)
-        total_list = await client.get_packet_list(pcap_file, limit=1, display_filter="tcp")
-        parse_tool_result(total_list)
+        counts = await asyncio.gather(*[_count_check(f) for _, f in checks])
 
-        for name, display_filter in checks:
-            count_result = await client.get_packet_list(pcap_file, limit=10000, display_filter=display_filter)
-            count_wrapped = parse_tool_result(count_result)
-
-            if count_wrapped["success"]:
-                data = count_wrapped.get("data", "")
-                if isinstance(data, str):
-                    lines = [line for line in data.strip().splitlines() if line.strip()]
-                    count = max(0, len(lines) - 1)
-                else:
-                    count = 0
-
-                severity = "🟢"
-                if count > 0:
-                    severity = "🟡"
-                if count > 50:
-                    severity = "🟠"
-                if count > 200:
-                    severity = "🔴"
-
-                results.append(f"  {severity} {name}: {count} packets")
-            else:
-                results.append(f"  ⚪ {name}: N/A (filter not applicable)")
-
-        # Get top conversations by retransmissions
-        results.append("\n--- Top Conversations with Issues ---")
         retrans_conv = await client.extract_fields(
             pcap_file,
             ["ip.src", "ip.dst", "tcp.srcport", "tcp.dstport"],
             display_filter="tcp.analysis.retransmission",
             limit=20,
         )
+
+        results: list[str] = []
+        for (name, _), count in zip(checks, counts, strict=True):
+            if count < 0:
+                results.append(f"  [-] {name}: N/A (filter not applicable)")
+                continue
+            severity = OK
+            if count > 0:
+                severity = INFO
+            if count > 50:
+                severity = WARN
+            if count > 200:
+                severity = CRIT
+            results.append(f"  {severity} {name}: {count} packets")
+
+        results.append("\n--- Top Conversations with Issues ---")
         retrans_wrapped = parse_tool_result(retrans_conv)
         if retrans_wrapped["success"]:
             results.append(retrans_wrapped.get("data", "No retransmission data"))
@@ -147,17 +123,7 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
         return success_response("\n".join(results))
 
     async def wireshark_detect_arp_spoofing(pcap_file: str) -> str:
-        """[ARP] Detect potential ARP spoofing (duplicate IP-MAC, gratuitous floods, reply storms).
-
-        Args:
-            pcap_file: Path to capture file
-
-        Returns:
-            ARP analysis results or JSON error
-
-        Example:
-            wireshark_detect_arp_spoofing("lan_traffic.pcap")
-        """
+        """[ARP] Detect potential ARP spoofing (duplicate IP-MAC, gratuitous floods, reply storms)."""
         arp_result = await client.extract_fields(
             pcap_file,
             ["arp.src.hw_mac", "arp.src.proto_ipv4", "arp.dst.proto_ipv4", "arp.opcode"],
@@ -197,46 +163,34 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
                     gratuitous_count += 1
 
         results: list[str] = []
-        results.append("=== ARP Spoofing Analysis ===\n")
         results.append(f"Total ARP packets: {len(lines) - 1}")
         results.append(f"ARP replies: {arp_reply_count}")
         results.append(f"Gratuitous ARP: {gratuitous_count}")
 
         suspicious_ips = {ip: macs for ip, macs in ip_to_macs.items() if len(macs) > 1}
         if suspicious_ips:
-            results.append(f"\n🔴 ALERT: {len(suspicious_ips)} IP(s) have multiple MAC addresses!")
+            results.append(f"\n{CRIT} {len(suspicious_ips)} IP(s) have multiple MAC addresses!")
             for ip, macs in suspicious_ips.items():
-                results.append(f"  IP {ip} → MACs: {', '.join(sorted(macs))}")
+                results.append(f"  IP {ip} -> MACs: {', '.join(sorted(macs))}")
         else:
-            results.append("\n🟢 No IP-to-MAC conflicts detected.")
+            results.append(f"\n{OK} No IP-to-MAC conflicts detected.")
 
         multi_ip_macs = {mac: ips for mac, ips in mac_to_ips.items() if len(ips) > 3}
         if multi_ip_macs:
-            results.append(f"\n🟡 {len(multi_ip_macs)} MAC(s) claim many IPs (possible router or scanner):")
+            results.append(f"\n{INFO} {len(multi_ip_macs)} MAC(s) claim many IPs (possible router or scanner):")
             for mac, ips in multi_ip_macs.items():
-                results.append(f"  MAC {mac} → {len(ips)} IPs")
+                results.append(f"  MAC {mac} -> {len(ips)} IPs")
 
         if arp_reply_count > 100:
-            results.append(f"\n🟠 High ARP reply count ({arp_reply_count}), possible ARP storm.")
+            results.append(f"\n{WARN} High ARP reply count ({arp_reply_count}), possible ARP storm.")
 
         if gratuitous_count > 10:
-            results.append(f"\n🟡 Gratuitous ARP count is elevated ({gratuitous_count}).")
+            results.append(f"\n{INFO} Gratuitous ARP count is elevated ({gratuitous_count}).")
 
         return success_response("\n".join(results))
 
     async def wireshark_extract_smtp_emails(pcap_file: str, limit: int = 50) -> str:
-        """[SMTP] Extract SMTP email metadata (sender, recipient, subject, mail server info).
-
-        Args:
-            pcap_file: Path to capture file
-            limit: Maximum emails to extract (default: 50)
-
-        Returns:
-            SMTP email metadata or JSON error
-
-        Example:
-            wireshark_extract_smtp_emails("email_traffic.pcap")
-        """
+        """[SMTP] Extract SMTP email metadata (sender, recipient, subject, mail server info)."""
         smtp_result = await client.extract_fields(
             pcap_file,
             ["ip.src", "ip.dst", "smtp.req.parameter", "smtp.rsp.parameter"],
@@ -251,8 +205,7 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
         if not isinstance(data, str) or len(data.strip()) < 20:
             return success_response("No SMTP traffic found in this capture.")
 
-        output_parts = ["=== SMTP Email Analysis ===\n"]
-        output_parts.append(data)
+        output_parts = [data]
 
         mail_from = await client.extract_fields(
             pcap_file,
@@ -283,17 +236,7 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
         return success_response("\n".join(output_parts))
 
     async def wireshark_extract_dhcp_info(pcap_file: str) -> str:
-        """[DHCP] Extract DHCP lease information (IPs, hostnames, DNS servers, lease times).
-
-        Args:
-            pcap_file: Path to capture file
-
-        Returns:
-            DHCP lease information or JSON error
-
-        Example:
-            wireshark_extract_dhcp_info("network_boot.pcap")
-        """
+        """[DHCP] Extract DHCP lease information (IPs, hostnames, DNS servers, lease times)."""
         dhcp_result = await client.extract_fields(
             pcap_file,
             [
@@ -336,7 +279,165 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
         if not isinstance(data, str) or len(data.strip()) < 20:
             return success_response("No DHCP traffic found in this capture.")
 
-        return success_response(f"=== DHCP Lease Information ===\n\n{data}")
+        return success_response(data)
+
+    async def wireshark_analyze_quic(pcap_file: str, limit: int = 100) -> str:
+        """[QUIC] Analyze QUIC/HTTP3 connections (version, SNI, stream info, connection IDs)."""
+        fields = [
+            "ip.src",
+            "ip.dst",
+            "udp.dstport",
+            "quic.version",
+            "quic.connection.number",
+            "tls.handshake.extensions.server_name",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="quic",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No QUIC traffic found in this capture.")
+
+        output_parts = [f"QUIC connections (up to {limit}):"]
+        output_parts.append(data)
+
+        h3_result = await client.extract_fields(
+            pcap_file,
+            ["ip.src", "ip.dst", "http3.frame_type"],
+            display_filter="http3",
+            limit=50,
+        )
+        h3_wrapped = parse_tool_result(h3_result)
+        if h3_wrapped["success"]:
+            h3_data = h3_wrapped.get("data", "")
+            if isinstance(h3_data, str) and len(h3_data.strip()) > 20:
+                output_parts.append("\nHTTP/3 frames:")
+                output_parts.append(h3_data)
+
+        return success_response("\n".join(output_parts))
+
+    async def wireshark_analyze_websocket(pcap_file: str, limit: int = 100) -> str:
+        """[WebSocket] Analyze WebSocket connections (opcode, payload length, masking)."""
+        fields = [
+            "ip.src",
+            "ip.dst",
+            "tcp.dstport",
+            "websocket.opcode",
+            "websocket.payload_length",
+            "websocket.masked",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="websocket",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No WebSocket traffic found in this capture.")
+
+        lines = data.strip().splitlines()
+        text_frames = sum(1 for row in lines[1:] if "\t1\t" in row or "\t0x1\t" in row)
+        binary_frames = sum(1 for row in lines[1:] if "\t2\t" in row or "\t0x2\t" in row)
+        close_frames = sum(1 for row in lines[1:] if "\t8\t" in row or "\t0x8\t" in row)
+
+        output_parts = [
+            f"Total WebSocket frames: {len(lines) - 1}",
+            f"  Text: {text_frames}, Binary: {binary_frames}, Close: {close_frames}",
+            "",
+            data,
+        ]
+        return success_response("\n".join(output_parts))
+
+    async def wireshark_analyze_mqtt(pcap_file: str, limit: int = 200) -> str:
+        """[MQTT] Analyze MQTT messages (msg type, topic, QoS, client ID)."""
+        fields = [
+            "ip.src",
+            "ip.dst",
+            "mqtt.msgtype",
+            "mqtt.topic",
+            "mqtt.qos",
+            "mqtt.clientid",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="mqtt",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No MQTT traffic found in this capture.")
+
+        lines = data.strip().splitlines()
+        topics: dict[str, int] = {}
+        for line in lines[1:]:
+            parts = line.split("\t")
+            if len(parts) >= 4:
+                topic = parts[3].strip().strip('"')
+                if topic:
+                    topics[topic] = topics.get(topic, 0) + 1
+
+        output_parts = [f"Total MQTT messages: {len(lines) - 1}"]
+        if topics:
+            output_parts.append(f"Unique topics: {len(topics)}")
+            output_parts.append("Top topics:")
+            for topic, count in sorted(topics.items(), key=lambda x: x[1], reverse=True)[:10]:
+                output_parts.append(f"  {topic} ({count})")
+        output_parts.append("")
+        output_parts.append(data)
+        return success_response("\n".join(output_parts))
+
+    async def wireshark_analyze_grpc(pcap_file: str, limit: int = 100) -> str:
+        """[gRPC] Analyze gRPC calls (method path, message type, content-type)."""
+        fields = [
+            "ip.src",
+            "ip.dst",
+            "http2.header.value",
+            "grpc.message_length",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="grpc",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            h2_result = await client.extract_fields(
+                pcap_file,
+                ["ip.src", "ip.dst", "http2.headers.path", "http2.headers.content_type"],
+                display_filter='http2 and http2.headers.content_type contains "grpc"',
+                limit=limit,
+            )
+            h2_wrapped = parse_tool_result(h2_result)
+            if not h2_wrapped["success"]:
+                return normalize_tool_result(wrapped)
+            data = h2_wrapped.get("data", "")
+            if not isinstance(data, str) or len(data.strip()) < 20:
+                return success_response("No gRPC traffic found in this capture.")
+            return success_response(f"gRPC over HTTP/2:\n{data}")
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No gRPC traffic found in this capture.")
+
+        return success_response(f"gRPC messages (up to {limit}):\n{data}")
 
     return [
         ("wireshark_extract_tls_handshakes", wireshark_extract_tls_handshakes),
@@ -344,4 +445,8 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
         ("wireshark_detect_arp_spoofing", wireshark_detect_arp_spoofing),
         ("wireshark_extract_smtp_emails", wireshark_extract_smtp_emails),
         ("wireshark_extract_dhcp_info", wireshark_extract_dhcp_info),
+        ("wireshark_analyze_quic", wireshark_analyze_quic),
+        ("wireshark_analyze_websocket", wireshark_analyze_websocket),
+        ("wireshark_analyze_mqtt", wireshark_analyze_mqtt),
+        ("wireshark_analyze_grpc", wireshark_analyze_grpc),
     ]

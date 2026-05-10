@@ -20,6 +20,13 @@ htmlcov/
 # Runtime caches
 urlhaus_cache.txt
 .mcpregistry_*
+.claude/worktrees/
+
+# Documentation site
+docs-site/node_modules/
+docs-site/.astro/
+docs-site/dist/
 
 # Spec (internal)
 spec/
+.omx/

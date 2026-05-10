@@ -64,7 +64,7 @@ def test_contextual_threat_tool_smoke(mock_client: MockTSharkClient) -> None:
     )
 
     assert result["success"] is True
-    assert "Port Scan Detection" in result["data"]
+    assert "port scanning" in result["data"].lower()
 
 
 def test_contextual_extract_tool_smoke(mock_client: MockTSharkClient) -> None:

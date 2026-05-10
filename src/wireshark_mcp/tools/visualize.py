@@ -160,17 +160,7 @@ def register_visualize_tools(mcp: FastMCP, client: TSharkClient):
 
     @mcp.tool()
     async def wireshark_plot_traffic(pcap_file: str, interval: int = 1) -> str:
-        """
-        [Visualization] Generate an ASCII bar chart of traffic volume (I/O Graph).
-        Useful for identifying traffic spikes, DDoS start times, or silence patterns.
-
-        Args:
-            pcap_file: Path to pcap file
-            interval: Time interval bucket in seconds (default: 1)
-
-        Returns:
-            String containing the ASCII chart
-        """
+        """[Visualization] ASCII bar chart of traffic volume over time (I/O Graph). Useful for spotting spikes or silence."""
         raw_output_result = parse_tool_result(await client.get_io_graph_data(pcap_file, interval))
         if not raw_output_result["success"]:
             return normalize_tool_result(raw_output_result)
@@ -188,16 +178,7 @@ def register_visualize_tools(mcp: FastMCP, client: TSharkClient):
 
     @mcp.tool()
     async def wireshark_plot_protocols(pcap_file: str) -> str:
-        """
-        [Visualization] Generate an ASCII tree of protocol hierarchy.
-        Shows the distribution of protocols (e.g., how much is HTTP vs DNS).
-
-        Args:
-            pcap_file: Path to pcap file
-
-        Returns:
-            String containing the ASCII tree
-        """
+        """[Visualization] ASCII tree of protocol hierarchy showing distribution (e.g. HTTP vs DNS percentage)."""
         raw_output_result = parse_tool_result(await client.get_protocol_stats_data(pcap_file))
         if not raw_output_result["success"]:
             return normalize_tool_result(raw_output_result)

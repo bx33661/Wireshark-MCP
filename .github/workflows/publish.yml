@@ -9,6 +9,7 @@ jobs:
     name: Build and publish to PyPI
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
 
     steps:
@@ -52,3 +53,17 @@ jobs:
       # If using legacy token, uncomment below:
       # with:
       #   password: ${{ secrets.PYPI_API_TOKEN }}
+
+    - name: Notify Homebrew tap to bump formula
+      env:
+        TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      # Only fire when the secret is present (forks / PRs won't have it)
+      if: env.TAP_TOKEN != ''
+      run: |
+        VERSION="${{ github.event.release.tag_name }}"
+        VERSION="${VERSION#v}"   # strip leading 'v' if present
+        curl --fail-with-body -sS -X POST \
+          -H "Authorization: Bearer $TAP_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          https://api.github.com/repos/bx33661/homebrew-wireshark-mcp/dispatches \
+          -d "{\"event_type\":\"new-release\",\"client_payload\":{\"version\":\"$VERSION\"}}"

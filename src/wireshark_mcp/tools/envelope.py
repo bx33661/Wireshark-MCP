@@ -24,7 +24,9 @@ def _error_object(error: Any) -> dict[str, Any]:
     return {"type": "ToolError", "message": "Tool failed"}
 
 
-def success_response(data: Any) -> str:
+def success_response(data: Any, compact: bool = False) -> str:
+    if compact and isinstance(data, str):
+        return data
     return json.dumps({"success": True, "data": data})
 
 
