@@ -191,3 +191,111 @@ Provide a concise overview of the network traffic in the capture file.
 
 Summarize: what type of traffic is this? What are the main hosts communicating? Any anomalies visible at a glance?
 """
+
+    @mcp.prompt()
+    def analyze_with_hypothesis(pcap_file: str, hypothesis: str = "") -> str:
+        """Hypothesis-driven traffic analysis — form, test, and refine hypotheses systematically."""
+        hypothesis_seed = (
+            f'\n**Initial hypothesis**: "{hypothesis}"\n\nStart by evaluating this hypothesis.\n'
+            if hypothesis
+            else "\nNo initial hypothesis provided — form one after the reconnaissance phase.\n"
+        )
+        return f"""\
+You are a senior network analyst using the scientific method to investigate traffic.
+
+**Target file**: `{pcap_file}`
+{hypothesis_seed}
+## Methodology: Hypothesis-Driven Analysis
+
+### Phase 1: Reconnaissance (gather baseline facts)
+- Use `wireshark_open_file("{pcap_file}")` for capture-wide context and tool recommendations.
+- Use `wireshark_get_file_info("{pcap_file}")` for capture metadata.
+- Use `wireshark_stats_protocol_hierarchy("{pcap_file}")` for protocol distribution.
+- Use `wireshark_stats_endpoints("{pcap_file}")` to identify communicating hosts.
+
+### Phase 2: Form Hypothesis
+Based on the reconnaissance data, state a clear, falsifiable hypothesis about what is happening in this traffic. Examples:
+- "Host X is exfiltrating data to external server Y via DNS tunneling."
+- "The spike at T+30s is caused by a SYN flood from source Z."
+- "The HTTP 500 errors correlate with database connection exhaustion."
+
+### Phase 3: Identify Evidence Needed
+For your hypothesis, list:
+1. What evidence would **confirm** it?
+2. What evidence would **refute** it?
+3. Which specific tools and filters will gather that evidence?
+
+### Phase 4: Execute and Evaluate
+Run the tools you identified. For each result, explicitly state whether it supports or contradicts your hypothesis. Use tools such as:
+- `wireshark_search_packets` — find specific patterns
+- `wireshark_follow_stream` — inspect conversation content
+- `wireshark_extract_fields` — pull targeted protocol fields
+- `wireshark_get_packet_details` — deep-dive individual packets
+- `wireshark_stats_conversations` — quantify communication pairs
+
+### Phase 5: Update and Iterate
+- If evidence **supports** the hypothesis: strengthen it with additional confirming data.
+- If evidence **contradicts** the hypothesis: revise or discard it and form a new one.
+- Repeat Phases 2–5 until you reach high confidence.
+
+## Output
+Present your final analysis as:
+- **Final Hypothesis** (confirmed/revised)
+- **Evidence Chain** (tool → result → interpretation for each step)
+- **Confidence Level** (High/Medium/Low with justification)
+- **Alternative Explanations Considered** (and why they were ruled out)
+"""
+
+    @mcp.prompt()
+    def investigate_alert(pcap_file: str, ioc: str, ioc_type: str = "") -> str:
+        """Investigate a single IOC/alert and expand the analysis outward."""
+        type_hint = (
+            f" (type: **{ioc_type}**)"
+            if ioc_type
+            else " (type not specified — infer from format)"
+        )
+        return f"""\
+You are a threat analyst investigating a specific indicator of compromise (IOC) within captured traffic.
+
+**Target file**: `{pcap_file}`
+**IOC**: `{ioc}`{type_hint}
+
+## Phase 1: Locate the IOC
+Search for the indicator in the capture using the most appropriate method:
+- For IP addresses: `wireshark_search_packets("{pcap_file}", "ip.addr == {ioc}", scope="filter")`
+- For domains: `wireshark_extract_dns_queries("{pcap_file}")` and `wireshark_search_packets("{pcap_file}", "{ioc}", scope="bytes")`
+- For ports: `wireshark_search_packets("{pcap_file}", "tcp.port == {ioc} || udp.port == {ioc}", scope="filter")`
+- For hashes/strings: `wireshark_search_packets("{pcap_file}", "{ioc}", scope="bytes")`
+
+Confirm the IOC is present and note the first frame number where it appears.
+
+## Phase 2: Identify Communicating Hosts
+Determine every host that interacted with the IOC:
+- Use `wireshark_stats_conversations("{pcap_file}", type="ip")` filtered to the IOC.
+- Use `wireshark_extract_fields("{pcap_file}", "ip.src,ip.dst,frame.time", display_filter="<ioc_filter>")` to list all source/destination pairs.
+- Record each unique internal host that communicated with the IOC.
+
+## Phase 3: Build Timeline
+Construct a chronological timeline of all interactions:
+- Use `wireshark_extract_fields("{pcap_file}", "frame.number,frame.time,ip.src,ip.dst,tcp.dstport,frame.len", display_filter="<ioc_filter>")`.
+- Identify: first contact, peak activity, last contact, total duration.
+- Note any patterns (beaconing intervals, burst transfers, protocol changes).
+
+## Phase 4: Expand — Related Indicators
+Look for additional IOCs connected to the original:
+- Use `wireshark_extract_dns_queries("{pcap_file}")` — did the IOC resolve from a suspicious domain?
+- Use `wireshark_extract_tls_handshakes("{pcap_file}")` — any unusual certificates or SNI values?
+- Use `wireshark_follow_stream("{pcap_file}", stream_index=<N>)` on key conversations for payload inspection.
+- Use `wireshark_check_threats("{pcap_file}")` — are related URLs/domains in threat feeds?
+- Check if compromised hosts communicated with other suspicious destinations.
+
+## Phase 5: Generate Evidence Chain
+Produce a structured report:
+- **IOC Confirmed**: Yes/No — with frame numbers and timestamps
+- **Affected Hosts**: List of internal IPs/hostnames that interacted with the IOC
+- **Timeline**: First seen → Last seen, with key events annotated
+- **Related IOCs Discovered**: Additional indicators found during expansion
+- **Lateral Movement**: Evidence of the IOC spreading to other internal hosts
+- **Data Exfiltration**: Volume and direction of data transfer
+- **Recommended Actions**: Block rules, hosts to isolate, further investigation steps
+"""

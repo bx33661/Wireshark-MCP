@@ -25,6 +25,8 @@ def test_register_prompts_exposes_expected_prompt_names() -> None:
         "ctf_solve",
         "incident_response",
         "traffic_overview",
+        "analyze_with_hypothesis",
+        "investigate_alert",
     }
 
 
