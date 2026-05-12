@@ -102,6 +102,18 @@ class TestExfiltrationDetection:
         assert "dns.qry.name.len > 50" in result
 
 
+class TestAggregateAnomalies:
+    @pytest.mark.asyncio
+    async def test_aggregate_tool_exists(self, mock_client: MockTSharkClient) -> None:
+        from wireshark_mcp.tools.anomaly import make_contextual_anomaly_tools
+        tools = make_contextual_anomaly_tools(mock_client)
+        tool_names = [name for name, _ in tools]
+        assert "wireshark_detect_anomalies" in tool_names
+        assert "wireshark_detect_beaconing" in tool_names
+        assert "wireshark_detect_exfiltration" in tool_names
+        assert "wireshark_detect_protocol_anomalies" in tool_names
+
+
 class TestProtocolAnomaly:
     """Tests for wireshark_detect_protocol_anomalies."""
 

@@ -42,6 +42,7 @@ PROTOCOL_TOOL_MAP: dict[str, list[str]] = {
     "tls": [
         "wireshark_extract_tls_handshakes",
         "wireshark_verify_ssl_decryption",
+        "wireshark_extract_fingerprints",
     ],
     "ssl": [
         "wireshark_extract_tls_handshakes",
@@ -102,6 +103,43 @@ PROTOCOL_TOOL_MAP: dict[str, list[str]] = {
     "http2": [
         "wireshark_analyze_grpc",
     ],
+    # ICS/SCADA
+    "modbus": [
+        "wireshark_analyze_modbus",
+    ],
+    "mbtcp": [
+        "wireshark_analyze_modbus",
+    ],
+    "s7comm": [
+        "wireshark_analyze_s7comm",
+    ],
+    "dnp3": [
+        "wireshark_analyze_dnp3",
+    ],
+    # IoT
+    "coap": [
+        "wireshark_analyze_coap",
+    ],
+    "zbee_nwk": [
+        "wireshark_analyze_zigbee",
+    ],
+    "zbee_aps": [
+        "wireshark_analyze_zigbee",
+    ],
+    # Wireless
+    "btle": [
+        "wireshark_analyze_ble",
+    ],
+    "wlan": [
+        "wireshark_analyze_wifi",
+    ],
+    # Tunneling
+    "wg": [
+        "wireshark_analyze_wireguard",
+    ],
+    "icmp": [
+        "wireshark_detect_icmp_tunnel",
+    ],
 }
 
 
@@ -122,7 +160,11 @@ class ToolRegistry:
         This collects tool functions from all contextual modules without
         registering them on the MCP server yet.
         """
+        from .anomaly import make_contextual_anomaly_tools
         from .extract import make_contextual_extract_tools
+        from .forensics import make_contextual_forensics_tools
+        from .ics import make_contextual_ics_tools
+        from .iot import make_contextual_iot_tools
         from .protocol import make_contextual_protocol_tools
         from .security import make_contextual_security_tools
         from .threat import make_contextual_threat_tools
@@ -132,6 +174,10 @@ class ToolRegistry:
             make_contextual_protocol_tools,
             make_contextual_security_tools,
             make_contextual_threat_tools,
+            make_contextual_ics_tools,
+            make_contextual_iot_tools,
+            make_contextual_forensics_tools,
+            make_contextual_anomaly_tools,
         ]:
             for name, fn in factory(self._client):
                 self._contextual_catalog[name] = fn
