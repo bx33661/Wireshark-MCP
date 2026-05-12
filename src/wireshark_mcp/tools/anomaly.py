@@ -234,7 +234,89 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
 
         return success_response("\n".join(output_parts))
 
+    async def wireshark_detect_protocol_anomalies(
+        pcap_file: str, limit: int = 5000
+    ) -> str:
+        """[Anomaly] Detect protocol anomalies (known protocols on non-standard ports, unusual protocol distributions)."""
+        fields = ["ip.src", "ip.dst", "tcp.dstport", "_ws.col.Protocol"]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="tcp && !tcp.dstport in {80 443 8080 8443}",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response(
+                f"{OK} No protocol anomalies detected (no traffic on non-standard ports)."
+            )
+
+        rows = _parse_tsv_rows(data)
+        if len(rows) < 2:
+            return success_response(
+                f"{OK} No protocol anomalies detected (insufficient data)."
+            )
+
+        data_rows = rows[1:]
+
+        # Known protocols that are suspicious on non-standard ports
+        known_protocols = {"HTTP", "TLS", "SSL"}
+
+        # Deduplicate by (dst, port, protocol)
+        seen: set[tuple[str, str, str]] = set()
+        anomalies: list[dict[str, str]] = []
+
+        for row in data_rows:
+            if len(row) < 4:
+                continue
+            src = row[0].strip().strip('"')
+            dst = row[1].strip().strip('"')
+            port = row[2].strip().strip('"')
+            protocol = row[3].strip().strip('"')
+
+            if protocol.upper() not in known_protocols:
+                continue
+
+            dedup_key = (dst, port, protocol.upper())
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+
+            anomalies.append(
+                {"src": src, "dst": dst, "port": port, "protocol": protocol}
+            )
+
+        # Build output
+        output_parts = ["Protocol Anomaly Detection Analysis"]
+        output_parts.append(f"Rows analyzed: {len(data_rows)}")
+
+        if not anomalies:
+            output_parts.append(
+                f"\n{OK} No known protocols detected on non-standard ports."
+            )
+        else:
+            output_parts.append(
+                f"\n{WARN} {len(anomalies)} protocol anomalie(s) found:\n"
+            )
+            for entry in anomalies[:20]:
+                output_parts.append(
+                    f"  {WARN} {entry['src']} -> {entry['dst']}:{entry['port']} "
+                    f"| protocol={entry['protocol']}"
+                )
+            if len(anomalies) > 20:
+                output_parts.append(f"  ... and {len(anomalies) - 20} more")
+
+        output_parts.append(f"\n{INFO} Structured findings:")
+        output_parts.append(json.dumps(anomalies[:20], indent=2))
+
+        return success_response("\n".join(output_parts))
+
     return [
         ("wireshark_detect_beaconing", wireshark_detect_beaconing),
         ("wireshark_detect_exfiltration", wireshark_detect_exfiltration),
+        ("wireshark_detect_protocol_anomalies", wireshark_detect_protocol_anomalies),
     ]

@@ -100,3 +100,18 @@ class TestExfiltrationDetection:
             limit=1000,
         )
         assert "dns.qry.name.len > 50" in result
+
+
+class TestProtocolAnomaly:
+    """Tests for wireshark_detect_protocol_anomalies."""
+
+    @pytest.mark.asyncio
+    async def test_detects_known_protocols_on_nonstandard_ports(self, mock_client: MockTSharkClient) -> None:
+        result = await mock_client.extract_fields(
+            "test.pcap",
+            ["ip.src", "ip.dst", "tcp.dstport", "_ws.col.Protocol"],
+            display_filter="tcp && !tcp.dstport in {80 443 8080 8443}",
+            limit=5000,
+        )
+        assert "_ws.col.Protocol" in result
+        assert "!tcp.dstport in {80 443 8080 8443}" in result
