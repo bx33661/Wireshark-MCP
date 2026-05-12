@@ -164,9 +164,12 @@ class ToolRegistry:
         from .extract import make_contextual_extract_tools
         from .forensics import make_contextual_forensics_tools
         from .ics import make_contextual_ics_tools
+        from .investigator import make_contextual_investigator_tools
         from .iot import make_contextual_iot_tools
         from .nl_query import make_contextual_nl_tools
+        from .playbooks import make_contextual_playbook_tools
         from .protocol import make_contextual_protocol_tools
+        from .reporter import make_contextual_reporter_tools
         from .security import make_contextual_security_tools
         from .threat import make_contextual_threat_tools
 
@@ -180,6 +183,9 @@ class ToolRegistry:
             make_contextual_forensics_tools,
             make_contextual_anomaly_tools,
             make_contextual_nl_tools,
+            make_contextual_investigator_tools,
+            make_contextual_playbook_tools,
+            make_contextual_reporter_tools,
         ]:
             for name, fn in factory(self._client):
                 self._contextual_catalog[name] = fn
