@@ -1,0 +1,58 @@
+version: "1.0"
+templates:
+  - intent: "c2_detection"
+    keywords: ["c2", "command and control", "beacon", "callback"]
+    keywords_zh: ["C2", "命令控制", "信标", "回连"]
+    operations:
+      - tool: "wireshark_detect_beaconing"
+      - tool: "wireshark_check_threats"
+      - tool: "wireshark_extract_fingerprints"
+    description: "Detect C2 communication patterns"
+
+  - intent: "lateral_movement"
+    keywords: ["lateral", "pivot", "spread", "internal"]
+    keywords_zh: ["横向移动", "内网渗透"]
+    operations:
+      - tool: "wireshark_detect_port_scan"
+    description: "Detect lateral movement activity"
+
+  - intent: "dns_suspicious"
+    keywords: ["suspicious dns", "dns tunnel", "dns exfil", "dga"]
+    keywords_zh: ["DNS隧道", "可疑DNS", "DGA"]
+    operations:
+      - tool: "wireshark_detect_dns_tunnel"
+      - tool: "wireshark_detect_exfiltration"
+    description: "Analyze suspicious DNS activity"
+
+  - intent: "data_exfiltration"
+    keywords: ["exfil", "data leak", "large transfer", "stealing"]
+    keywords_zh: ["数据外泄", "数据泄露", "大文件传输"]
+    operations:
+      - tool: "wireshark_detect_exfiltration"
+      - tool: "wireshark_enrich_metadata"
+    description: "Detect data exfiltration"
+
+  - intent: "malware_analysis"
+    keywords: ["malware", "trojan", "rat", "backdoor"]
+    keywords_zh: ["恶意软件", "木马", "后门", "RAT"]
+    operations:
+      - tool: "wireshark_detect_beaconing"
+      - tool: "wireshark_extract_fingerprints"
+      - tool: "wireshark_carve_files"
+      - tool: "wireshark_check_threats"
+    description: "Analyze potential malware traffic"
+
+  - intent: "credential_theft"
+    keywords: ["credential", "password", "login", "auth"]
+    keywords_zh: ["凭证", "密码", "登录", "认证"]
+    operations:
+      - tool: "wireshark_extract_credentials"
+    description: "Detect credential exposure"
+
+  - intent: "full_investigation"
+    keywords: ["investigate", "full analysis", "what happened"]
+    keywords_zh: ["调查", "全面分析", "发生了什么"]
+    operations:
+      - tool: "wireshark_detect_anomalies"
+      - tool: "wireshark_build_evidence_chain"
+    description: "Full investigation workflow"
