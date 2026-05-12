@@ -175,8 +175,75 @@ def make_contextual_forensics_tools(client: TSharkClient) -> list[tuple[str, Any
 
         return success_response("\n".join(output_parts))
 
+    async def wireshark_enrich_metadata(pcap_file: str) -> str:
+        """[Forensics] Extract external IPs/domains for enrichment (GeoIP, ASN, WHOIS pointers). Offline extraction only — does not make network requests."""
+
+        async def _external_ips() -> str:
+            return await client.extract_fields(
+                pcap_file,
+                ["ip.dst"],
+                display_filter="ip && !ip.dst == 10.0.0.0/8 && !ip.dst == 172.16.0.0/12 && !ip.dst == 192.168.0.0/16",
+                limit=500,
+            )
+
+        async def _dns_names() -> str:
+            return await client.extract_fields(
+                pcap_file,
+                ["dns.qry.name"],
+                display_filter="dns.flags.response == 0",
+                limit=500,
+            )
+
+        ip_result, dns_result = await asyncio.gather(_external_ips(), _dns_names())
+
+        # Parse and deduplicate IPs
+        ip_wrapped = parse_tool_result(ip_result)
+        unique_ips: list[str] = []
+        if ip_wrapped["success"]:
+            raw = ip_wrapped.get("data", "")
+            for line in raw.split("\n"):
+                line = line.strip()
+                if line and line != "ip.dst" and line not in unique_ips:
+                    unique_ips.append(line)
+
+        # Parse and deduplicate DNS names
+        dns_wrapped = parse_tool_result(dns_result)
+        unique_domains: list[str] = []
+        if dns_wrapped["success"]:
+            raw = dns_wrapped.get("data", "")
+            for line in raw.split("\n"):
+                line = line.strip()
+                if line and line != "dns.qry.name" and line not in unique_domains:
+                    unique_domains.append(line)
+
+        output_parts: list[str] = []
+        output_parts.append(f"{INFO} Metadata Enrichment Targets")
+        output_parts.append(f"  Unique external IPs: {len(unique_ips)}")
+        output_parts.append(f"  Unique domains: {len(unique_domains)}")
+
+        # External IPs (cap at 50)
+        output_parts.append(f"\n{INFO} External IPs (for GeoIP/ASN/WHOIS lookup)")
+        output_parts.append("-" * 60)
+        display_ips = unique_ips[:50]
+        for ip in display_ips:
+            output_parts.append(f"  {ip}")
+        if len(unique_ips) > 50:
+            output_parts.append(f"  ... and {len(unique_ips) - 50} more")
+
+        # DNS domains (cap at 50)
+        output_parts.append(f"\n{INFO} DNS Domains (for reputation/WHOIS lookup)")
+        output_parts.append("-" * 60)
+        display_domains = unique_domains[:50]
+        for domain in display_domains:
+            output_parts.append(f"  {domain}")
+        if len(unique_domains) > 50:
+            output_parts.append(f"  ... and {len(unique_domains) - 50} more")
+
+        return success_response("\n".join(output_parts))
+
     return [
         ("wireshark_extract_fingerprints", wireshark_extract_fingerprints),
         ("wireshark_carve_files", wireshark_carve_files),
         ("wireshark_build_evidence_chain", wireshark_build_evidence_chain),
+        ("wireshark_enrich_metadata", wireshark_enrich_metadata),
     ]

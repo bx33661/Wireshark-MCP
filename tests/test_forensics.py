@@ -93,3 +93,29 @@ class TestEvidenceChain:
             limit=500,
         )
         assert "tcp.flags.syn == 1" in result
+
+
+class TestMetadataEnrichment:
+    """Tests for wireshark_enrich_metadata."""
+
+    @pytest.mark.asyncio
+    async def test_extracts_unique_ips(self, mock_client: MockTSharkClient) -> None:
+        result = await mock_client.extract_fields(
+            "test.pcap",
+            ["ip.dst"],
+            display_filter="ip && !ip.dst == 10.0.0.0/8 && !ip.dst == 172.16.0.0/12 && !ip.dst == 192.168.0.0/16",
+            limit=500,
+        )
+        assert "ip.dst" in result
+        assert "10.0.0.0/8" in result
+
+    @pytest.mark.asyncio
+    async def test_extracts_dns_names(self, mock_client: MockTSharkClient) -> None:
+        result = await mock_client.extract_fields(
+            "test.pcap",
+            ["dns.qry.name"],
+            display_filter="dns.flags.response == 0",
+            limit=500,
+        )
+        assert "dns.qry.name" in result
+        assert "dns.flags.response == 0" in result
