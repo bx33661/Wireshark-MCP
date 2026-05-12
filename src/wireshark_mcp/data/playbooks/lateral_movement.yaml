@@ -1,0 +1,17 @@
+name: lateral_movement
+description: "Investigate internal lateral movement"
+triggers:
+  - anomaly_type: port_scan
+    min_confidence: 0.5
+steps:
+  - tool: wireshark_detect_port_scan
+    description: "Detect internal port scanning"
+    on_finding: continue
+  - tool: wireshark_extract_credentials
+    description: "Check for credential exposure"
+    on_finding: continue
+  - tool: wireshark_build_evidence_chain
+    description: "Build lateral movement timeline"
+    on_finding: continue
+report:
+  include: [timeline, iocs, detection_rules]

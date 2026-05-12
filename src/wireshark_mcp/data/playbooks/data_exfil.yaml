@@ -1,0 +1,20 @@
+name: data_exfil
+description: "Investigate data exfiltration"
+triggers:
+  - anomaly_type: exfiltration
+    min_confidence: 0.6
+steps:
+  - tool: wireshark_detect_exfiltration
+    description: "Detect outbound data anomalies"
+    on_finding: continue
+  - tool: wireshark_detect_dns_tunnel
+    description: "Check for DNS tunneling"
+    on_finding: continue
+  - tool: wireshark_extract_fingerprints
+    description: "Fingerprint encrypted channels"
+    on_finding: continue
+  - tool: wireshark_enrich_metadata
+    description: "Enrich destination metadata"
+    on_finding: continue
+report:
+  include: [timeline, iocs, detection_rules]

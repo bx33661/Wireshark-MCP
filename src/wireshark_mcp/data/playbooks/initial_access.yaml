@@ -1,0 +1,20 @@
+name: initial_access
+description: "Investigate initial compromise vector"
+triggers:
+  - anomaly_type: malware
+    min_confidence: 0.5
+steps:
+  - tool: wireshark_extract_smtp_emails
+    description: "Extract email metadata for phishing"
+    on_finding: continue
+  - tool: wireshark_carve_files
+    description: "Carve malicious attachments"
+    on_finding: continue
+  - tool: wireshark_detect_beaconing
+    description: "Find first outbound C2 connection"
+    on_finding: continue
+  - tool: wireshark_build_evidence_chain
+    description: "Build initial access timeline"
+    on_finding: continue
+report:
+  include: [timeline, iocs, mitre_mapping]
