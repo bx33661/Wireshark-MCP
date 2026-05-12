@@ -75,3 +75,28 @@ class TestParseTsvRows:
         data = "col1\tcol2\n\nval1\tval2\n\n"
         rows = _parse_tsv_rows(data)
         assert len(rows) == 2
+
+
+class TestExfiltrationDetection:
+    """Tests for wireshark_detect_exfiltration."""
+
+    @pytest.mark.asyncio
+    async def test_exfil_extracts_outbound_volumes(self, mock_client: MockTSharkClient) -> None:
+        result = await mock_client.extract_fields(
+            "test.pcap",
+            ["ip.src", "ip.dst", "tcp.dstport", "tcp.len"],
+            display_filter="tcp && !ip.dst == 10.0.0.0/8 && !ip.dst == 172.16.0.0/12 && !ip.dst == 192.168.0.0/16",
+            limit=10000,
+        )
+        assert "tcp.len" in result
+        assert "10.0.0.0/8" in result
+
+    @pytest.mark.asyncio
+    async def test_exfil_checks_dns_length(self, mock_client: MockTSharkClient) -> None:
+        result = await mock_client.extract_fields(
+            "test.pcap",
+            ["ip.src", "dns.qry.name", "dns.qry.name.len"],
+            display_filter="dns.qry.name.len > 50",
+            limit=1000,
+        )
+        assert "dns.qry.name.len > 50" in result

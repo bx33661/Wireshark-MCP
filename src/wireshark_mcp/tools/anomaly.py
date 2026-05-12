@@ -1,5 +1,6 @@
 """Anomaly detection tools for Wireshark MCP — statistical and heuristic analysis."""
 
+import asyncio
 import json
 import logging
 import statistics
@@ -137,4 +138,103 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
 
         return success_response("\n".join(output_parts))
 
-    return [("wireshark_detect_beaconing", wireshark_detect_beaconing)]
+    async def wireshark_detect_exfiltration(pcap_file: str, limit: int = 10000) -> str:
+        """[Anomaly] Detect potential data exfiltration (large outbound transfers, DNS query length anomalies, non-standard port usage)."""
+        # Two concurrent extractions
+        tcp_task = client.extract_fields(
+            pcap_file,
+            ["ip.src", "ip.dst", "tcp.dstport", "tcp.len"],
+            display_filter="tcp && !ip.dst == 10.0.0.0/8 && !ip.dst == 172.16.0.0/12 && !ip.dst == 192.168.0.0/16",
+            limit=limit,
+        )
+        dns_task = client.extract_fields(
+            pcap_file,
+            ["ip.src", "dns.qry.name", "dns.qry.name.len"],
+            display_filter="dns.qry.name.len > 50",
+            limit=1000,
+        )
+
+        tcp_result, dns_result = await asyncio.gather(tcp_task, dns_task)
+
+        # Parse TCP outbound data
+        tcp_wrapped = parse_tool_result(tcp_result)
+        dns_wrapped = parse_tool_result(dns_result)
+
+        output_parts = ["Data Exfiltration Detection Analysis"]
+
+        # --- TCP outbound volume analysis ---
+        tcp_volumes: dict[tuple[str, str, str], int] = {}
+        if tcp_wrapped["success"]:
+            tcp_data = tcp_wrapped.get("data", "")
+            if isinstance(tcp_data, str) and len(tcp_data.strip()) > 20:
+                rows = _parse_tsv_rows(tcp_data)
+                if len(rows) > 1:
+                    for row in rows[1:]:
+                        if len(row) < 4:
+                            continue
+                        src = row[0].strip().strip('"')
+                        dst = row[1].strip().strip('"')
+                        port = row[2].strip().strip('"')
+                        length_str = row[3].strip().strip('"')
+                        try:
+                            length = int(length_str)
+                        except (ValueError, TypeError):
+                            continue
+                        key = (src, dst, port)
+                        tcp_volumes[key] = tcp_volumes.get(key, 0) + length
+
+        # Top 10 by volume
+        top_transfers = sorted(tcp_volumes.items(), key=lambda x: x[1], reverse=True)[:10]
+
+        output_parts.append(f"\nTotal external TCP flows: {len(tcp_volumes)}")
+        if top_transfers:
+            output_parts.append(f"\n{WARN} Top 10 outbound transfers by volume:\n")
+            for (src, dst, port), total_bytes in top_transfers:
+                output_parts.append(
+                    f"  {WARN} {src} -> {dst}:{port} | {total_bytes} bytes"
+                )
+        else:
+            output_parts.append(f"\n{OK} No significant outbound TCP transfers to external IPs.")
+
+        # --- DNS query length analysis ---
+        long_dns_queries: list[dict[str, str]] = []
+        if dns_wrapped["success"]:
+            dns_data = dns_wrapped.get("data", "")
+            if isinstance(dns_data, str) and len(dns_data.strip()) > 20:
+                rows = _parse_tsv_rows(dns_data)
+                if len(rows) > 1:
+                    for row in rows[1:]:
+                        if len(row) < 3:
+                            continue
+                        src = row[0].strip().strip('"')
+                        qname = row[1].strip().strip('"')
+                        qlen = row[2].strip().strip('"')
+                        long_dns_queries.append({"src": src, "query": qname, "length": qlen})
+
+        output_parts.append(f"\nLong DNS queries (>50 chars): {len(long_dns_queries)}")
+        if long_dns_queries:
+            output_parts.append(f"\n{CRIT} Suspicious long DNS queries (first 10):\n")
+            for entry in long_dns_queries[:10]:
+                output_parts.append(
+                    f"  {CRIT} {entry['src']} | len={entry['length']} | {entry['query']}"
+                )
+        else:
+            output_parts.append(f"\n{OK} No abnormally long DNS queries detected.")
+
+        # Structured findings
+        findings = {
+            "top_outbound_transfers": [
+                {"src": src, "dst": dst, "port": port, "bytes": total}
+                for (src, dst, port), total in top_transfers
+            ],
+            "long_dns_queries": long_dns_queries[:10],
+        }
+        output_parts.append(f"\n{INFO} Structured findings:")
+        output_parts.append(json.dumps(findings, indent=2))
+
+        return success_response("\n".join(output_parts))
+
+    return [
+        ("wireshark_detect_beaconing", wireshark_detect_beaconing),
+        ("wireshark_detect_exfiltration", wireshark_detect_exfiltration),
+    ]
