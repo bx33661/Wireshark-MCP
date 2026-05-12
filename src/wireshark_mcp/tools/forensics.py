@@ -125,7 +125,58 @@ def make_contextual_forensics_tools(client: TSharkClient) -> list[tuple[str, Any
 
         return success_response(f"{OK} No embedded files detected via magic byte scan")
 
+    async def wireshark_build_evidence_chain(pcap_file: str, limit: int = 500) -> str:
+        """[Forensics] Build an evidence chain: correlate IPs, domains, certificates, and file hashes into a structured timeline."""
+
+        async def _dns_resolutions() -> str:
+            return await client.extract_fields(
+                pcap_file,
+                ["dns.qry.name", "dns.a", "dns.aaaa"],
+                display_filter="dns.flags.response == 1",
+                limit=limit,
+            )
+
+        async def _tcp_connections() -> str:
+            return await client.extract_fields(
+                pcap_file,
+                ["ip.src", "ip.dst", "tcp.dstport", "frame.time_epoch"],
+                display_filter="tcp.flags.syn == 1 && tcp.flags.ack == 0",
+                limit=limit,
+            )
+
+        async def _tls_sni() -> str:
+            return await client.extract_fields(
+                pcap_file,
+                ["ip.src", "ip.dst", "tls.handshake.extensions.server_name", "tls.handshake.ja3"],
+                display_filter="tls.handshake.type == 1",
+                limit=limit,
+            )
+
+        dns_result, tcp_result, tls_result = await asyncio.gather(
+            _dns_resolutions(), _tcp_connections(), _tls_sni()
+        )
+
+        output_parts: list[str] = []
+
+        output_parts.append(f"{INFO} DNS Resolutions")
+        output_parts.append("-" * 60)
+        dns_wrapped = parse_tool_result(dns_result)
+        output_parts.append(dns_wrapped.get("data", dns_result) if dns_wrapped["success"] else dns_result)
+
+        output_parts.append(f"\n{INFO} TCP Connections (SYN only)")
+        output_parts.append("-" * 60)
+        tcp_wrapped = parse_tool_result(tcp_result)
+        output_parts.append(tcp_wrapped.get("data", tcp_result) if tcp_wrapped["success"] else tcp_result)
+
+        output_parts.append(f"\n{INFO} TLS Client Hellos (SNI + JA3)")
+        output_parts.append("-" * 60)
+        tls_wrapped = parse_tool_result(tls_result)
+        output_parts.append(tls_wrapped.get("data", tls_result) if tls_wrapped["success"] else tls_result)
+
+        return success_response("\n".join(output_parts))
+
     return [
         ("wireshark_extract_fingerprints", wireshark_extract_fingerprints),
         ("wireshark_carve_files", wireshark_carve_files),
+        ("wireshark_build_evidence_chain", wireshark_build_evidence_chain),
     ]
