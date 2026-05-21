@@ -3,20 +3,11 @@
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
-
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result, parse_tool_result, success_response
 from .formatting import CRIT, INFO, OK, WARN
 
 logger = logging.getLogger("wireshark_mcp")
-
-
-def register_protocol_tools(mcp: FastMCP, client: TSharkClient) -> None:
-    """Register core protocol analysis tools (always available)."""
-    # No core protocol tools — all are contextual.
-    # This function is kept for backward compatibility but does nothing.
-    pass
 
 
 def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]]:
@@ -439,6 +430,131 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
 
         return success_response(f"gRPC messages (up to {limit}):\n{data}")
 
+    async def wireshark_analyze_ble(pcap_file: str, limit: int = 100) -> str:
+        """[Wireless] Analyze Bluetooth LE traffic (advertising, L2CAP, ATT operations, GATT)."""
+        fields = [
+            "btle.advertising_address",
+            "btle.data_header.llid",
+            "btle.length",
+            "btatt.opcode",
+            "btatt.handle",
+            "btl2cap.cid",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="btle",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No Bluetooth LE traffic found in this capture.")
+
+        return success_response(f"Bluetooth LE packets (up to {limit}):\n{data}")
+
+    async def wireshark_analyze_wifi(pcap_file: str, limit: int = 100) -> str:
+        """[Wireless] Analyze 802.11 management frames (beacons, probes, auth, deauth, SSIDs)."""
+        fields = [
+            "wlan.sa",
+            "wlan.da",
+            "wlan.bssid",
+            "wlan.fc.type_subtype",
+            "wlan.ssid",
+            "wlan.rsn.akms.type",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="wlan.fc.type == 0",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No 802.11 management frames found in this capture.")
+
+        return success_response(f"802.11 management frames (up to {limit}):\n{data}")
+
+    async def wireshark_analyze_wireguard(pcap_file: str, limit: int = 100) -> str:
+        """[Tunnel] Analyze WireGuard VPN sessions (handshakes, data transport, peer identification)."""
+        fields = [
+            "ip.src",
+            "ip.dst",
+            "udp.dstport",
+            "wg.type",
+            "wg.sender",
+            "wg.receiver",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="wg",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No WireGuard traffic found in this capture.")
+
+        return success_response(f"WireGuard sessions (up to {limit}):\n{data}")
+
+    async def wireshark_detect_doh(pcap_file: str, limit: int = 100) -> str:
+        """[Tunnel] Detect DNS-over-HTTPS traffic (encrypted DNS resolution via HTTP/2)."""
+        fields = [
+            "ip.src",
+            "ip.dst",
+            "http2.header.value",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter='http2.header.name == "content-type" && http2.header.value contains "dns"',
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No DNS-over-HTTPS traffic found in this capture.")
+
+        return success_response(f"{WARN} DNS-over-HTTPS detected (up to {limit}):\n{data}")
+
+    async def wireshark_detect_icmp_tunnel(pcap_file: str, limit: int = 100) -> str:
+        """[Tunnel] Detect ICMP tunneling (abnormally large ICMP payloads indicating covert channel)."""
+        fields = [
+            "ip.src",
+            "ip.dst",
+            "icmp.type",
+            "data.len",
+        ]
+        result = await client.extract_fields(
+            pcap_file,
+            fields,
+            display_filter="icmp && data.len > 48",
+            limit=limit,
+        )
+        wrapped = parse_tool_result(result)
+        if not wrapped["success"]:
+            return normalize_tool_result(wrapped)
+
+        data = wrapped.get("data", "")
+        if not isinstance(data, str) or len(data.strip()) < 20:
+            return success_response("No large ICMP payloads found in this capture.")
+
+        return success_response(f"{WARN} ICMP tunneling indicators (up to {limit}):\n{data}")
+
     return [
         ("wireshark_extract_tls_handshakes", wireshark_extract_tls_handshakes),
         ("wireshark_analyze_tcp_health", wireshark_analyze_tcp_health),
@@ -449,4 +565,9 @@ def make_contextual_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]
         ("wireshark_analyze_websocket", wireshark_analyze_websocket),
         ("wireshark_analyze_mqtt", wireshark_analyze_mqtt),
         ("wireshark_analyze_grpc", wireshark_analyze_grpc),
+        ("wireshark_analyze_ble", wireshark_analyze_ble),
+        ("wireshark_analyze_wifi", wireshark_analyze_wifi),
+        ("wireshark_analyze_wireguard", wireshark_analyze_wireguard),
+        ("wireshark_detect_doh", wireshark_detect_doh),
+        ("wireshark_detect_icmp_tunnel", wireshark_detect_icmp_tunnel),
     ]

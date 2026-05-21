@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
-from mcp.server.fastmcp import FastMCP
-
 from ..tshark.client import TSharkClient
 from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
 
@@ -230,13 +228,6 @@ async def _get_threat_data() -> str:
 
     logger.info("Downloading fresh threat feed from %s", URLHAUS_URL)
     return await _download_threat_feed()
-
-
-def register_security_tools(mcp: FastMCP, client: TSharkClient) -> None:
-    """Register core security tools (always available)."""
-    # No core security tools — all are contextual.
-    # This function is kept for backward compatibility but does nothing.
-    pass
 
 
 def make_contextual_security_tools(client: TSharkClient) -> list[tuple[str, Any]]:

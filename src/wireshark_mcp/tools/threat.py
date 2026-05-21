@@ -3,17 +3,11 @@
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
-
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result, parse_tool_result, success_response
 from .formatting import CRIT, INFO, OK, WARN
 
 logger = logging.getLogger("wireshark_mcp")
-
-
-def register_threat_tools(mcp: FastMCP, client: TSharkClient) -> None:
-    pass
 
 
 def make_contextual_threat_tools(client: TSharkClient) -> list[tuple[str, Any]]:
