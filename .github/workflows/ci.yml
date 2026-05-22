@@ -11,10 +11,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v5
       with:
         python-version: "3.12"
 
@@ -32,6 +32,11 @@ jobs:
     - name: Type check
       run: mypy --package wireshark_mcp --ignore-missing-imports --no-namespace-packages
 
+    - name: Dependency audit
+      run: |
+        pip install pip-audit
+        pip-audit
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -41,10 +46,10 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -55,7 +60,7 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        pytest tests/ --cov=wireshark_mcp --cov-report=term-missing -v
+        pytest tests/ --cov=wireshark_mcp --cov-report=term-missing --cov-fail-under=50 -v
 
     - name: Compile check
       run: python -m compileall src/
@@ -63,10 +68,10 @@ jobs:
   integration-linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v5
       with:
         python-version: "3.12"
 
@@ -93,10 +98,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v5
       with:
         python-version: "3.12"
 

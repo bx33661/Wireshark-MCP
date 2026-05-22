@@ -4,7 +4,10 @@ import asyncio
 import json
 import logging
 import statistics
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result, parse_tool_result, success_response
@@ -59,7 +62,6 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
         if len(rows) < 2:
             return success_response("Insufficient connection data for beacon analysis.")
 
-        header = rows[0]
         data_rows = rows[1:]
 
         # Group connections by (src, dst, port)
@@ -81,7 +83,7 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
             groups[key].append(epoch)
 
         # Analyze each group for beaconing behavior
-        findings = []
+        findings: list[dict[str, object]] = []
         for (src, dst, port), timestamps in groups.items():
             if len(timestamps) < min_connections:
                 continue
@@ -106,7 +108,7 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
                 )
 
         # Sort by confidence descending
-        findings.sort(key=lambda f: f["confidence"], reverse=True)
+        findings.sort(key=lambda f: float(str(f["confidence"])), reverse=True)
 
         # Build output
         output_parts = ["Beacon Detection Analysis"]
@@ -319,7 +321,7 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
         pcap_file: str, detectors: str = "all"
     ) -> str:
         """[Anomaly] Run all anomaly detectors concurrently (beacon, exfiltration, protocol). Returns combined findings."""
-        detector_map = {
+        detector_map: dict[str, Callable[[str], Awaitable[str]]] = {
             "beacon": wireshark_detect_beaconing,
             "exfiltration": wireshark_detect_exfiltration,
             "protocol": wireshark_detect_protocol_anomalies,
@@ -342,7 +344,7 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
         results = await asyncio.gather(*(fn(pcap_file) for fn in selected))
 
         output_parts = ["Aggregate Anomaly Detection Report", f"Detectors run: {', '.join(selected_names)}", ""]
-        for name, result in zip(selected_names, results):
+        for name, result in zip(selected_names, results, strict=False):
             output_parts.append(f"{'=' * 60}")
             output_parts.append(f"  {name.upper()} DETECTOR")
             output_parts.append(f"{'=' * 60}")

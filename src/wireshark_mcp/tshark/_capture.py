@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 
+from ._typing import _ClientProtocol
 
-class CaptureMixin:
+
+class CaptureMixin(_ClientProtocol):
     """Network interface listing and live packet capture."""
 
     async def list_interfaces(self) -> str:

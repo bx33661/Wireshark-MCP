@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import os
 
+from ._typing import _ClientProtocol
 
-class ExtractionMixin:
+
+class ExtractionMixin(_ClientProtocol):
     """Field extraction, object export, packet search, stream follow, SSL decrypt."""
-
-    tshark_path: str
 
     async def extract_fields(
         self,

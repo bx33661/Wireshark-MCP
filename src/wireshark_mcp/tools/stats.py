@@ -13,7 +13,7 @@ def _maybe_summarize(raw_result: str, max_rows: int = 50) -> str:
     return normalize_tool_result(raw_result)
 
 
-def register_stats_tools(mcp: FastMCP, client: TSharkClient):
+def register_stats_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
     @mcp.tool()
     async def wireshark_stats_protocol_hierarchy(pcap_file: str) -> str:

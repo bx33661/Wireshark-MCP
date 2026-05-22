@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - "mcp>=1.0.0"
+          - "pyyaml>=6.0"
+          - "types-PyYAML>=6.0"
+        args: [--strict, --ignore-missing-imports, --no-namespace-packages]
+        pass_filenames: false
+        entry: mypy --package wireshark_mcp

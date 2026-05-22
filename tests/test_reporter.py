@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 
 class TestReportGeneration:
     """Tests for generating investigation reports."""

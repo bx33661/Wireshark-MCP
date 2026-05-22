@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
+from ._typing import _ClientProtocol
 
-class StatsMixin:
+
+class StatsMixin(_ClientProtocol):
     """Protocol hierarchy, endpoints, conversations, I/O graph, expert info."""
-
-    tshark_path: str
 
     async def get_protocol_stats(self, pcap_file: str) -> str:
         """Protocol Hierarchy (-z io,phs)."""

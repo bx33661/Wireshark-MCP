@@ -152,7 +152,7 @@ async def _extract_domain_indicators(
     return domains
 
 
-async def _analyze_urlhaus_matches(client: TSharkClient, pcap_file: str) -> dict[str, Any]:
+async def analyze_urlhaus_matches(client: TSharkClient, pcap_file: str) -> dict[str, Any]:
     """Extract capture indicators and match them against the cached URLhaus feed."""
     http_urls, http_domains = await _extract_http_indicators(client, pcap_file)
     dns_domains = await _extract_domain_indicators(
@@ -236,7 +236,7 @@ def make_contextual_security_tools(client: TSharkClient) -> list[tuple[str, Any]
     async def wireshark_check_threats(pcap_file: str) -> str:
         """[Security] Match captured URLs and hostnames against cached URLhaus threat intelligence."""
         try:
-            return success_response(await _analyze_urlhaus_matches(client, pcap_file))
+            return success_response(await analyze_urlhaus_matches(client, pcap_file))
         except Exception as exc:
             logger.exception("Failed to fetch threat feed")
             return error_response(

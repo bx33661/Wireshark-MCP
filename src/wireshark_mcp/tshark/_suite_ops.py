@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import os
 
+from ._typing import _ClientProtocol
 
-class SuiteOpsMixin:
+
+class SuiteOpsMixin(_ClientProtocol):
     """File info, merge, editcap operations, text2pcap import, filter-and-save."""
-
-    tshark_path: str
 
     async def get_file_info(self, pcap_file: str) -> str:
         """Capinfos: Get file metadata."""

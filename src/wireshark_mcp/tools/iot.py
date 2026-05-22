@@ -5,7 +5,7 @@ from typing import Any
 
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result, parse_tool_result, success_response
-from .formatting import INFO, WARN
+from .formatting import INFO
 
 logger = logging.getLogger("wireshark_mcp")
 

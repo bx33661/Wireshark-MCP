@@ -1,0 +1,7 @@
+interface:
+  display_name: "Wireshark Traffic Analysis"
+  short_description: "Triage, hunt, and debug packet captures"
+  default_prompt: "Use $wireshark-traffic-analysis to investigate this capture, choose the right workflow, and produce an evidence-backed packet analysis report."
+
+policy:
+  allow_implicit_invocation: true

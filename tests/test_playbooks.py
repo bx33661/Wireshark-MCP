@@ -1,14 +1,13 @@
 """Tests for playbook engine."""
 
-import pytest
 
 
 class TestPlaybookLoader:
     """Tests for playbook loading."""
 
     def test_load_bundled_playbooks(self) -> None:
-        from wireshark_mcp.tools.playbooks import load_playbooks
         import wireshark_mcp.tools.playbooks as pb_mod
+        from wireshark_mcp.tools.playbooks import load_playbooks
 
         # Reset cache to force reload
         pb_mod._PLAYBOOKS = None

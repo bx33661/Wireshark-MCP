@@ -195,6 +195,11 @@ class ToolRegistry:
             len(self._contextual_catalog),
         )
 
+    def register_and_catalog(self) -> list[str]:
+        """Build the catalog and register all contextual tools in one step."""
+        self.build_catalog()
+        return self.register_all_contextual_tools()
+
     def register_all_contextual_tools(self) -> list[str]:
         """Register every contextual tool once at startup.
 

@@ -1,0 +1,101 @@
+name: Build Bottles
+
+on:
+  push:
+    branches: [main]
+    paths: ["Formula/wireshark-mcp.rb"]
+  workflow_dispatch:
+
+jobs:
+  # ── Step 1: build one bottle per platform ─────────────────────────────────────
+  build:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip bottles]') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15   # arm64 — Sequoia
+            tag: arm64_sequoia
+          - os: macos-14   # arm64 — Sonoma
+            tag: arm64_sonoma
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Get formula version
+        id: ver
+        run: |
+          VERSION=$(grep -E '^\s+url "https://files.pythonhosted' Formula/wireshark-mcp.rb \
+            | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install for bottling
+        run: brew install --build-bottle bx33661/wireshark-mcp/wireshark-mcp
+
+      - name: Create bottle
+        run: |
+          brew bottle bx33661/wireshark-mcp/wireshark-mcp \
+            --json \
+            --root-url "https://github.com/bx33661/homebrew-wireshark-mcp/releases/download/wireshark-mcp-${{ steps.ver.outputs.version }}"
+
+      - name: Upload bottle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bottle-${{ matrix.tag }}
+          path: |
+            *.bottle.tar.gz
+            *.bottle.json
+
+  # ── Step 2: merge JSON, publish release, commit updated formula ───────────────
+  release:
+    needs: build
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need push access; GITHUB_TOKEN with contents:write is enough
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all bottle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bottle-*
+          merge-multiple: true
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Get formula version
+        id: ver
+        run: |
+          VERSION=$(grep -E '^\s+url "https://files.pythonhosted' Formula/wireshark-mcp.rb \
+            | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Merge bottle JSON into formula
+        run: brew bottle --merge --write --no-commit *.bottle.json
+
+      - name: Create GitHub Release and upload bottles
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "wireshark-mcp-${{ steps.ver.outputs.version }}"
+          name: "wireshark-mcp ${{ steps.ver.outputs.version }}"
+          body: "Pre-built bottles for wireshark-mcp ${{ steps.ver.outputs.version }}"
+          files: "*.bottle.tar.gz"
+
+      - name: Commit updated formula (with bottle block)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/wireshark-mcp.rb
+          git diff --cached --quiet && echo "No formula changes" && exit 0
+          git commit -m "chore: add bottles for wireshark-mcp ${{ steps.ver.outputs.version }} [skip bottles]"
+          git push

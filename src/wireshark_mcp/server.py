@@ -71,8 +71,7 @@ def _build_server(*, host: str, port: int, log_level: LogLevelName) -> FastMCP:
     # ── Contextual recommendations ─────────────────────────────────────
     # Build and register the contextual tool catalog once for a stable tool surface
     registry = ToolRegistry(mcp, client)
-    registry.build_catalog()
-    registry.register_all_contextual_tools()
+    registry.register_and_catalog()
 
     # Register the entry-point tool that recommends the most relevant tools
     register_open_file_tool(mcp, client, registry)

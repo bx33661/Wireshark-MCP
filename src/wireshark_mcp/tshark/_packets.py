@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
+from ._typing import _ClientProtocol
 
-class PacketsMixin:
+
+class PacketsMixin(_ClientProtocol):
     """JSON packet reading, packet list, details, and hex dump."""
-
-    tshark_path: str
 
     async def read_packets_json(
         self,

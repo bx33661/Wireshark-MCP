@@ -29,7 +29,7 @@ def _calculate_score(data: bytes) -> float:
         return (count / len(data)) * 0.5  # Penalty for non-utf8
 
 
-def _try_decode(data: str, encoding: str):
+def _try_decode(data: str, encoding: str) -> tuple[bool, bytes | None, str | None]:
     """Try to decode data with specific encoding, returning (success, result_bytes, error)."""
     try:
         if encoding == "base64":
@@ -88,7 +88,7 @@ def _try_decode(data: str, encoding: str):
     return False, None, "Unknown encoding"
 
 
-def register_decode_tools(mcp: FastMCP):
+def register_decode_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def wireshark_decode_payload(data: str, encoding: str = "auto") -> str:
@@ -162,7 +162,7 @@ def register_decode_tools(mcp: FastMCP):
                     pass
 
             # Sort by score desc
-            results.sort(key=lambda x: x["score"], reverse=True)
+            results.sort(key=lambda x: float(str(x["score"])), reverse=True)
 
             return success_response({"candidates": results[:5]})
 

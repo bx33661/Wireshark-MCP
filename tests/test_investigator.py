@@ -1,6 +1,5 @@
 """Tests for investigation engine."""
 
-import pytest
 
 
 class TestInvestigationSession:

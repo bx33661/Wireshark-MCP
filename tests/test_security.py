@@ -3,7 +3,7 @@
 import pytest
 
 from wireshark_mcp.tools.envelope import success_response
-from wireshark_mcp.tools.security import _analyze_urlhaus_matches, _is_cache_valid, _parse_urlhaus_feed
+from wireshark_mcp.tools.security import _is_cache_valid, _parse_urlhaus_feed, analyze_urlhaus_matches
 
 
 class TestCacheManagement:
@@ -72,7 +72,7 @@ https://Tls-Bad.Example/login
 
         monkeypatch.setattr("wireshark_mcp.tools.security._get_threat_data", fake_get_threat_data)
 
-        result = await _analyze_urlhaus_matches(FakeThreatClient(), "test.pcap")
+        result = await analyze_urlhaus_matches(FakeThreatClient(), "test.pcap")
 
         assert result["urls_checked"] == 2
         assert result["domains_checked"] == 4

@@ -57,7 +57,7 @@ class ValidationMixin:
         """Extract the executable name from POSIX or Windows-style paths."""
         return command.replace("\\", "/").rsplit("/", 1)[-1].lower()
 
-    def _validate_protocol(self, protocol: str, valid_set: set) -> dict[str, Any]:
+    def _validate_protocol(self, protocol: str, valid_set: set[str]) -> dict[str, Any]:
         """Validate protocol against whitelist."""
         if protocol.lower() not in valid_set:
             return {

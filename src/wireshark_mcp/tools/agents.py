@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -33,9 +34,9 @@ def _coerce_int(value: object) -> int:
     return value if isinstance(value, int) else int(value) if isinstance(value, str) and value.isdigit() else 0
 
 
-async def _safe_run(coro, default=None):
+async def _safe_run(coro: Any, default: str | None = None) -> str | None:
     try:
-        return await coro
+        return await coro  # type: ignore[no-any-return]
     except Exception as e:
         logger.debug("Safe run caught exception: %s", e)
         return default
@@ -95,9 +96,9 @@ async def _run_security_audit(client: TSharkClient, pcap_file: str) -> str:
         phase_findings: list[str] = []
         phase_risk = 0
         try:
-            from .security import _analyze_urlhaus_matches
+            from .security import analyze_urlhaus_matches
 
-            urlhaus_summary = await _analyze_urlhaus_matches(client, pcap_file)
+            urlhaus_summary = await analyze_urlhaus_matches(client, pcap_file)
             urls_checked = _coerce_int(urlhaus_summary.get("urls_checked", 0))
             domains_checked = _coerce_int(urlhaus_summary.get("domains_checked", 0))
             malicious_urls = urlhaus_summary.get("malicious_urls", [])

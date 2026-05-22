@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 
 class TestInvestigationWorkflow:
     """End-to-end investigation workflow test."""
@@ -15,7 +13,6 @@ class TestInvestigationWorkflow:
             add_finding,
             add_hypothesis,
             create_session,
-            get_session,
             update_hypothesis,
         )
         from wireshark_mcp.tools.reporter import (

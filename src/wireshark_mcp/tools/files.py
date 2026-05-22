@@ -4,7 +4,7 @@ from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result
 
 
-def register_files_tools(mcp: FastMCP, client: TSharkClient):
+def register_files_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
     @mcp.tool()
     async def wireshark_get_file_info(pcap_file: str) -> str:

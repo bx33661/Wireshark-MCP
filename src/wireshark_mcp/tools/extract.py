@@ -6,7 +6,7 @@ from ..tshark.client import TSharkClient
 from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
 
 
-def register_extract_tools(mcp: FastMCP, client: TSharkClient):
+def register_extract_tools(mcp: FastMCP, client: TSharkClient) -> None:
     """Register core extract tools (always available)."""
 
     @mcp.tool()

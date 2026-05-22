@@ -9,7 +9,7 @@ import yaml
 
 from ..tshark.client import TSharkClient
 from .envelope import success_response
-from .formatting import INFO, WARN
+from .formatting import INFO
 
 logger = logging.getLogger("wireshark_mcp")
 

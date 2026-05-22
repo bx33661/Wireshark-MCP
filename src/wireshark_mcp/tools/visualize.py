@@ -156,7 +156,7 @@ def _render_ascii_tree(node: dict[str, Any], total_frames: int, prefix: str = ""
     return lines
 
 
-def register_visualize_tools(mcp: FastMCP, client: TSharkClient):
+def register_visualize_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
     @mcp.tool()
     async def wireshark_plot_traffic(pcap_file: str, interval: int = 1) -> str:

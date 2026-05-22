@@ -6,7 +6,7 @@ from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result, parse_tool_result, success_response
 
 
-def register_capture_tools(mcp: FastMCP, client: TSharkClient):
+def register_capture_tools(mcp: FastMCP, client: TSharkClient) -> None:
 
     @mcp.tool()
     async def wireshark_list_interfaces() -> str:

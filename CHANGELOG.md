@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [2.0.0](changelog/2.0.0.md) | 2026-05-22 | Architecture overhaul: modular installer, typed tshark client, investigation engine, mypy strict |
 | [1.2.0](changelog/1.2.0.md) | 2026-05-10 | Concurrent agents, result cache, QUIC/WebSocket/MQTT/gRPC tools, token optimization |
 | [Unreleased](changelog/unreleased-release-automation.md) | 2026-04-28 | Harden release/tap automation and ignore generated Claude worktrees |
 | [1.1.5](changelog/1.1.5.md) | 2026-04-18 | Fix TUI arrow-key input (SS3 sequences + BufferedReader race); add Void, BoltAI, Kiro clients |
@@ -23,7 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Version Links
 
-[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/bx33661/Wireshark-MCP/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/bx33661/Wireshark-MCP/compare/v1.2.0...v2.0.0
 [1.2.0]: https://github.com/bx33661/Wireshark-MCP/compare/v1.1.5...v1.2.0
 [1.1.5]: https://github.com/bx33661/Wireshark-MCP/compare/v1.1.0...v1.1.5
 [1.1.0]: https://github.com/bx33661/Wireshark-MCP/compare/v1.0.0...v1.1.0
