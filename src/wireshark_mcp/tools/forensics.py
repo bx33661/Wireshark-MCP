@@ -28,7 +28,7 @@ def _load_fingerprint_db() -> list[dict[str, str]]:
     try:
         data_ref = importlib_resources.files("wireshark_mcp") / "data" / "fingerprints" / "ja3_malware.json"
         with importlib_resources.as_file(data_ref) as fp:
-            db = json.loads(fp.read_text())
+            db = json.loads(fp.read_text(encoding="utf-8"))
             fingerprints.extend(db.get("fingerprints", []))
     except Exception:
         logger.warning("Could not load bundled JA3 fingerprint database")
@@ -38,7 +38,7 @@ def _load_fingerprint_db() -> list[dict[str, str]]:
     if user_dir.exists():
         for f in user_dir.glob("*.json"):
             try:
-                db = json.loads(f.read_text())
+                db = json.loads(f.read_text(encoding="utf-8"))
                 fingerprints.extend(db.get("fingerprints", []))
             except Exception:
                 logger.warning("Could not load user fingerprint file: %s", f)
@@ -60,9 +60,7 @@ def make_contextual_forensics_tools(client: TSharkClient) -> list[tuple[str, Any
             "tls.handshake.ja3s",
             "tls.handshake.extensions.server_name",
         ]
-        result = await client.extract_fields(
-            pcap_file, fields, display_filter="tls.handshake.type == 1", limit=limit
-        )
+        result = await client.extract_fields(pcap_file, fields, display_filter="tls.handshake.type == 1", limit=limit)
         wrapped = parse_tool_result(result)
         if not wrapped["success"]:
             return normalize_tool_result(wrapped)
@@ -79,9 +77,7 @@ def make_contextual_forensics_tools(client: TSharkClient) -> list[tuple[str, Any
             for line in raw_data.split("\n"):
                 for ja3_hash, fp_info in known_hashes.items():
                     if ja3_hash in line:
-                        matches.append(
-                            f"{CRIT} MATCH: {ja3_hash} -> {fp_info['label']} ({fp_info['category']})"
-                        )
+                        matches.append(f"{CRIT} MATCH: {ja3_hash} -> {fp_info['label']} ({fp_info['category']})")
             if matches:
                 output_parts.append(f"\n{CRIT} Known Malware Fingerprint Matches")
                 output_parts.extend(matches)
@@ -104,9 +100,7 @@ def make_contextual_forensics_tools(client: TSharkClient) -> list[tuple[str, Any
         }
 
         async def _search(file_type: str, magic_hex: str) -> tuple[str, str]:
-            result = await client.search_packet_contents(
-                pcap_file, magic_hex, search_type="hex", limit=50
-            )
+            result = await client.search_packet_contents(pcap_file, magic_hex, search_type="hex", limit=50)
             return file_type, result
 
         tasks = [_search(ft, mh) for ft, mh in MAGIC_BYTES.items()]
@@ -152,9 +146,7 @@ def make_contextual_forensics_tools(client: TSharkClient) -> list[tuple[str, Any
                 limit=limit,
             )
 
-        dns_result, tcp_result, tls_result = await asyncio.gather(
-            _dns_resolutions(), _tcp_connections(), _tls_sni()
-        )
+        dns_result, tcp_result, tls_result = await asyncio.gather(_dns_resolutions(), _tcp_connections(), _tls_sni())
 
         output_parts: list[str] = []
 

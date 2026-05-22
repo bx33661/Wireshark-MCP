@@ -72,7 +72,7 @@ def generate_detection_rules(session_id: str) -> dict[str, str]:
     for ioc in iocs:
         if ioc["type"] == "ipv4":
             snort_rules.append(
-                f'alert ip any any -> {ioc["value"]} any '
+                f"alert ip any any -> {ioc['value']} any "
                 f'(msg:"Suspicious traffic to {ioc["value"]}"; sid:1000001; rev:1;)'
             )
     if snort_rules:
@@ -185,9 +185,7 @@ def _generate_markdown_report(session: dict[str, Any]) -> str:
     if session["hypotheses"]:
         parts.append("\n## Hypotheses")
         for i, h in enumerate(session["hypotheses"]):
-            status_icon = {"confirmed": "CONFIRMED", "refuted": "REFUTED"}.get(
-                h["status"], "PENDING"
-            )
+            status_icon = {"confirmed": "CONFIRMED", "refuted": "REFUTED"}.get(h["status"], "PENDING")
             parts.append(f"\n### Hypothesis #{i}: {h['description']}")
             parts.append(f"- **Status:** {status_icon}")
             parts.append(f"- **Confidence:** {h['confidence']:.0%}")
@@ -223,9 +221,7 @@ def _generate_markdown_report(session: dict[str, Any]) -> str:
 def make_contextual_reporter_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     """Create contextual report generation tools."""
 
-    async def wireshark_generate_report(
-        session_id: str, format: str = "markdown"
-    ) -> str:
+    async def wireshark_generate_report(session_id: str, format: str = "markdown") -> str:
         """[Investigation] Generate an investigation report (markdown or json) from a session."""
         session = get_session(session_id)
         if session is None:
@@ -261,9 +257,7 @@ def make_contextual_reporter_tools(client: TSharkClient) -> list[tuple[str, Any]
 
         rules = generate_detection_rules(session_id)
         if not rules:
-            return success_response(
-                f"{INFO} No detection rules generated (insufficient IOCs or findings)."
-            )
+            return success_response(f"{INFO} No detection rules generated (insufficient IOCs or findings).")
 
         output_parts = [f"{OK} Generated detection rules:"]
         for rule_type, content in rules.items():

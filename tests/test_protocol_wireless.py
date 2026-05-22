@@ -9,7 +9,14 @@ class TestBluetoothLE:
     async def test_ble_hci_extraction(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.extract_fields(
             "test.pcap",
-            ["btle.advertising_address", "btle.data_header.llid", "btle.length", "btatt.opcode", "btatt.handle", "btl2cap.cid"],
+            [
+                "btle.advertising_address",
+                "btle.data_header.llid",
+                "btle.length",
+                "btatt.opcode",
+                "btatt.handle",
+                "btl2cap.cid",
+            ],
             display_filter="btle",
             limit=100,
         )

@@ -249,11 +249,7 @@ Present your final analysis as:
     @mcp.prompt()
     def investigate_alert(pcap_file: str, ioc: str, ioc_type: str = "") -> str:
         """Investigate a single IOC/alert and expand the analysis outward."""
-        type_hint = (
-            f" (type: **{ioc_type}**)"
-            if ioc_type
-            else " (type not specified — infer from format)"
-        )
+        type_hint = f" (type: **{ioc_type}**)" if ioc_type else " (type not specified — infer from format)"
         return f"""\
 You are a threat analyst investigating a specific indicator of compromise (IOC) within captured traffic.
 

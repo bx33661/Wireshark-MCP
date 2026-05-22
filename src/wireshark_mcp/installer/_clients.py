@@ -253,4 +253,3 @@ def get_client_configs(selected_clients: list[str] | None = None) -> dict[str, t
         raise ValueError(f"Unknown client(s): {', '.join(unknown)}. Supported clients: {supported}.")
 
     return resolved
-

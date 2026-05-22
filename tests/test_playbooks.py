@@ -1,7 +1,6 @@
 """Tests for playbook engine."""
 
 
-
 class TestPlaybookLoader:
     """Tests for playbook loading."""
 

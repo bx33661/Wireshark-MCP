@@ -95,7 +95,9 @@ class TestGenerateMcpConfig:
 
     def test_windows_stdio_uses_unbuffered_python(self, monkeypatch):
         monkeypatch.setattr("wireshark_mcp.installer._detection.sys.platform", "win32")
-        monkeypatch.setattr("wireshark_mcp.installer._config_gen._get_python_executable", lambda: r"C:\\Python\\python.exe")
+        monkeypatch.setattr(
+            "wireshark_mcp.installer._config_gen._get_python_executable", lambda: r"C:\\Python\\python.exe"
+        )
         config = generate_mcp_config()
         assert config["command"] == r"C:\\Python\\python.exe"
         assert config["args"] == ["-u", "-m", "wireshark_mcp.server"]

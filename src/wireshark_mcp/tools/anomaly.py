@@ -38,9 +38,7 @@ def _parse_tsv_rows(data: str) -> list[list[str]]:
 def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     """Create contextual anomaly detection tools."""
 
-    async def wireshark_detect_beaconing(
-        pcap_file: str, min_connections: int = 10, max_jitter: float = 0.2
-    ) -> str:
+    async def wireshark_detect_beaconing(pcap_file: str, min_connections: int = 10, max_jitter: float = 0.2) -> str:
         """[Anomaly] Detect periodic communication patterns (C2 beacons) by analyzing connection timing intervals and jitter."""
         fields = ["ip.src", "ip.dst", "tcp.dstport", "frame.time_epoch"]
         result = await client.extract_fields(
@@ -88,9 +86,7 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
             if len(timestamps) < min_connections:
                 continue
             timestamps.sort()
-            intervals = [
-                timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)
-            ]
+            intervals = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
             jitter = _compute_jitter(intervals)
             if jitter <= max_jitter:
                 mean_interval = statistics.mean(intervals)
@@ -119,13 +115,9 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
         )
 
         if not findings:
-            output_parts.append(
-                f"\n{OK} No beaconing patterns detected (jitter threshold: {max_jitter})"
-            )
+            output_parts.append(f"\n{OK} No beaconing patterns detected (jitter threshold: {max_jitter})")
         else:
-            output_parts.append(
-                f"\n{CRIT} {len(findings)} potential beacon(s) detected:\n"
-            )
+            output_parts.append(f"\n{CRIT} {len(findings)} potential beacon(s) detected:\n")
             for f in findings:
                 output_parts.append(
                     f"  {WARN} {f['src']} -> {f['dst']}:{f['port']} "
@@ -192,9 +184,7 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
         if top_transfers:
             output_parts.append(f"\n{WARN} Top 10 outbound transfers by volume:\n")
             for (src, dst, port), total_bytes in top_transfers:
-                output_parts.append(
-                    f"  {WARN} {src} -> {dst}:{port} | {total_bytes} bytes"
-                )
+                output_parts.append(f"  {WARN} {src} -> {dst}:{port} | {total_bytes} bytes")
         else:
             output_parts.append(f"\n{OK} No significant outbound TCP transfers to external IPs.")
 
@@ -217,17 +207,14 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
         if long_dns_queries:
             output_parts.append(f"\n{CRIT} Suspicious long DNS queries (first 10):\n")
             for entry in long_dns_queries[:10]:
-                output_parts.append(
-                    f"  {CRIT} {entry['src']} | len={entry['length']} | {entry['query']}"
-                )
+                output_parts.append(f"  {CRIT} {entry['src']} | len={entry['length']} | {entry['query']}")
         else:
             output_parts.append(f"\n{OK} No abnormally long DNS queries detected.")
 
         # Structured findings
         findings = {
             "top_outbound_transfers": [
-                {"src": src, "dst": dst, "port": port, "bytes": total}
-                for (src, dst, port), total in top_transfers
+                {"src": src, "dst": dst, "port": port, "bytes": total} for (src, dst, port), total in top_transfers
             ],
             "long_dns_queries": long_dns_queries[:10],
         }
@@ -236,9 +223,7 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
 
         return success_response("\n".join(output_parts))
 
-    async def wireshark_detect_protocol_anomalies(
-        pcap_file: str, limit: int = 5000
-    ) -> str:
+    async def wireshark_detect_protocol_anomalies(pcap_file: str, limit: int = 5000) -> str:
         """[Anomaly] Detect protocol anomalies (known protocols on non-standard ports, unusual protocol distributions)."""
         fields = ["ip.src", "ip.dst", "tcp.dstport", "_ws.col.Protocol"]
         result = await client.extract_fields(
@@ -253,15 +238,11 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
 
         data = wrapped.get("data", "")
         if not isinstance(data, str) or len(data.strip()) < 20:
-            return success_response(
-                f"{OK} No protocol anomalies detected (no traffic on non-standard ports)."
-            )
+            return success_response(f"{OK} No protocol anomalies detected (no traffic on non-standard ports).")
 
         rows = _parse_tsv_rows(data)
         if len(rows) < 2:
-            return success_response(
-                f"{OK} No protocol anomalies detected (insufficient data)."
-            )
+            return success_response(f"{OK} No protocol anomalies detected (insufficient data).")
 
         data_rows = rows[1:]
 
@@ -288,26 +269,19 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
                 continue
             seen.add(dedup_key)
 
-            anomalies.append(
-                {"src": src, "dst": dst, "port": port, "protocol": protocol}
-            )
+            anomalies.append({"src": src, "dst": dst, "port": port, "protocol": protocol})
 
         # Build output
         output_parts = ["Protocol Anomaly Detection Analysis"]
         output_parts.append(f"Rows analyzed: {len(data_rows)}")
 
         if not anomalies:
-            output_parts.append(
-                f"\n{OK} No known protocols detected on non-standard ports."
-            )
+            output_parts.append(f"\n{OK} No known protocols detected on non-standard ports.")
         else:
-            output_parts.append(
-                f"\n{WARN} {len(anomalies)} protocol anomalie(s) found:\n"
-            )
+            output_parts.append(f"\n{WARN} {len(anomalies)} protocol anomalie(s) found:\n")
             for entry in anomalies[:20]:
                 output_parts.append(
-                    f"  {WARN} {entry['src']} -> {entry['dst']}:{entry['port']} "
-                    f"| protocol={entry['protocol']}"
+                    f"  {WARN} {entry['src']} -> {entry['dst']}:{entry['port']} | protocol={entry['protocol']}"
                 )
             if len(anomalies) > 20:
                 output_parts.append(f"  ... and {len(anomalies) - 20} more")
@@ -317,9 +291,7 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
 
         return success_response("\n".join(output_parts))
 
-    async def wireshark_detect_anomalies(
-        pcap_file: str, detectors: str = "all"
-    ) -> str:
+    async def wireshark_detect_anomalies(pcap_file: str, detectors: str = "all") -> str:
         """[Anomaly] Run all anomaly detectors concurrently (beacon, exfiltration, protocol). Returns combined findings."""
         detector_map: dict[str, Callable[[str], Awaitable[str]]] = {
             "beacon": wireshark_detect_beaconing,
@@ -338,7 +310,10 @@ def make_contextual_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]
                     selected.append(detector_map[name])
                 else:
                     return normalize_tool_result(
-                        {"success": False, "error": f"Unknown detector: {name}. Available: {', '.join(detector_map.keys())}"}
+                        {
+                            "success": False,
+                            "error": f"Unknown detector: {name}. Available: {', '.join(detector_map.keys())}",
+                        }
                     )
 
         results = await asyncio.gather(*(fn(pcap_file) for fn in selected))

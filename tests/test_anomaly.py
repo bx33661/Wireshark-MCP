@@ -106,6 +106,7 @@ class TestAggregateAnomalies:
     @pytest.mark.asyncio
     async def test_aggregate_tool_exists(self, mock_client: MockTSharkClient) -> None:
         from wireshark_mcp.tools.anomaly import make_contextual_anomaly_tools
+
         tools = make_contextual_anomaly_tools(mock_client)
         tool_names = [name for name, _ in tools]
         assert "wireshark_detect_anomalies" in tool_names

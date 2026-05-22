@@ -91,5 +91,3 @@ def print_install_doctor(*, selected_clients: list[str] | None = None, output_fo
     if summary:
         print()
         print("Summary: " + ", ".join(summary))
-
-

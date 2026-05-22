@@ -196,4 +196,3 @@ def run_install(
     if list_clients:
         print_client_targets(selected_clients=selected_clients, output_format=output_format)
         return
-

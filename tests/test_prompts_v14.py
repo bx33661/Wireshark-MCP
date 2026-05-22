@@ -25,9 +25,7 @@ def test_analyze_with_hypothesis_without_initial_hypothesis() -> None:
     mcp = FastMCP("test")
     register_prompts(mcp)
 
-    messages = _run_async(
-        mcp._prompt_manager.render_prompt("analyze_with_hypothesis", {"pcap_file": "test.pcap"})
-    )
+    messages = _run_async(mcp._prompt_manager.render_prompt("analyze_with_hypothesis", {"pcap_file": "test.pcap"}))
     text = messages[0].content.text
 
     assert 'wireshark_open_file("test.pcap")' in text

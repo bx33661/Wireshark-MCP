@@ -54,7 +54,14 @@ class TestS7comm:
     async def test_s7comm_session_extraction(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.extract_fields(
             "test.pcap",
-            ["ip.src", "ip.dst", "s7comm.param.func", "s7comm.param.item.area", "s7comm.param.item.dbnum", "s7comm.resp.data"],
+            [
+                "ip.src",
+                "ip.dst",
+                "s7comm.param.func",
+                "s7comm.param.item.area",
+                "s7comm.param.item.dbnum",
+                "s7comm.resp.data",
+            ],
             display_filter="s7comm",
             limit=100,
         )

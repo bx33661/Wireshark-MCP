@@ -32,20 +32,26 @@ class TestInvestigationWorkflow:
         add_hypothesis(session["session_id"], "DNS tunneling for data exfiltration", confidence=0.5)
 
         # 3. Add findings
-        add_finding(session["session_id"], {
-            "type": "beacon",
-            "severity": "high",
-            "confidence": 0.87,
-            "description": "Periodic connection to 45.33.32.156:443 every 60s",
-            "evidence_frames": [100, 200, 300, 400],
-        })
-        add_finding(session["session_id"], {
-            "type": "dns_tunnel",
-            "severity": "critical",
-            "confidence": 0.72,
-            "description": "High-entropy DNS queries to evil.example.com",
-            "evidence_frames": [500, 600, 700],
-        })
+        add_finding(
+            session["session_id"],
+            {
+                "type": "beacon",
+                "severity": "high",
+                "confidence": 0.87,
+                "description": "Periodic connection to 45.33.32.156:443 every 60s",
+                "evidence_frames": [100, 200, 300, 400],
+            },
+        )
+        add_finding(
+            session["session_id"],
+            {
+                "type": "dns_tunnel",
+                "severity": "critical",
+                "confidence": 0.72,
+                "description": "High-entropy DNS queries to evil.example.com",
+                "evidence_frames": [500, 600, 700],
+            },
+        )
 
         # 4. Update hypotheses
         update_hypothesis(session["session_id"], 0, status="confirmed", confidence=0.95)

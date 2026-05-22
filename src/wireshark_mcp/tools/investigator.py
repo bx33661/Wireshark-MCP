@@ -47,16 +47,12 @@ def list_sessions() -> list[dict[str, Any]]:
     return list(_SESSIONS.values())
 
 
-def add_hypothesis(
-    session_id: str, description: str, confidence: float = 0.5
-) -> None:
+def add_hypothesis(session_id: str, description: str, confidence: float = 0.5) -> None:
     """Add a hypothesis to a session."""
     session = _SESSIONS.get(session_id)
     if session is None:
         return
-    session["hypotheses"].append(
-        {"description": description, "confidence": confidence, "status": "pending"}
-    )
+    session["hypotheses"].append({"description": description, "confidence": confidence, "status": "pending"})
 
 
 def update_hypothesis(
@@ -99,9 +95,7 @@ def make_contextual_investigator_tools(client: TSharkClient) -> list[tuple[str, 
             pb = get_playbook(playbook)
             if pb is None:
                 available = ", ".join(list_playbook_names())
-                return error_response(
-                    f"Playbook '{playbook}' not found. Available: {available}"
-                )
+                return error_response(f"Playbook '{playbook}' not found. Available: {available}")
 
         session = create_session(
             pcap_file,
@@ -121,9 +115,7 @@ def make_contextual_investigator_tools(client: TSharkClient) -> list[tuple[str, 
             output_parts.append(f"  Playbook: {pb['name']} — {pb['description']}")
             steps_str = " → ".join(s.get("tool", "?") for s in pb.get("steps", []))
             output_parts.append(f"  Steps: {steps_str}")
-            output_parts.append(
-                f"\n{INFO} Execute playbook steps with wireshark_execute_playbook_step"
-            )
+            output_parts.append(f"\n{INFO} Execute playbook steps with wireshark_execute_playbook_step")
         else:
             output_parts.append(f"\n{INFO} Suggested next steps:")
             output_parts.append("  1. Run wireshark_quick_analysis for overview")
@@ -133,9 +125,7 @@ def make_contextual_investigator_tools(client: TSharkClient) -> list[tuple[str, 
 
         return success_response("\n".join(output_parts))
 
-    async def wireshark_execute_playbook_step(
-        session_id: str, step_index: int = -1
-    ) -> str:
+    async def wireshark_execute_playbook_step(session_id: str, step_index: int = -1) -> str:
         """[Investigation] Execute the next (or specified) step in the active playbook for a session."""
         session = get_session(session_id)
         if session is None:
@@ -183,15 +173,11 @@ def make_contextual_investigator_tools(client: TSharkClient) -> list[tuple[str, 
                 f"{next_step.get('tool', '?')} — {next_step.get('description', '')}"
             )
         else:
-            output_parts.append(
-                f"\n{OK} Playbook complete. Generate report with wireshark_generate_report."
-            )
+            output_parts.append(f"\n{OK} Playbook complete. Generate report with wireshark_generate_report.")
 
         return success_response("\n".join(output_parts))
 
-    async def wireshark_add_hypothesis(
-        session_id: str, description: str, confidence: float = 0.5
-    ) -> str:
+    async def wireshark_add_hypothesis(session_id: str, description: str, confidence: float = 0.5) -> str:
         """[Investigation] Add a hypothesis to an investigation session (e.g., 'Host X has C2 implant')."""
         session = get_session(session_id)
         if session is None:
@@ -217,8 +203,7 @@ def make_contextual_investigator_tools(client: TSharkClient) -> list[tuple[str, 
 
         if hypothesis_index < 0 or hypothesis_index >= len(session["hypotheses"]):
             return error_response(
-                f"Hypothesis index {hypothesis_index} out of range "
-                f"(0-{len(session['hypotheses']) - 1})"
+                f"Hypothesis index {hypothesis_index} out of range (0-{len(session['hypotheses']) - 1})"
             )
 
         update_hypothesis(

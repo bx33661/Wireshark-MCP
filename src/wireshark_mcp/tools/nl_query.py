@@ -28,7 +28,7 @@ def _load_templates() -> list[dict[str, Any]]:
     try:
         data_ref = importlib_resources.files("wireshark_mcp") / "data" / "nl_templates.yaml"
         with importlib_resources.as_file(data_ref) as fp:
-            data = yaml.safe_load(fp.read_text())
+            data = yaml.safe_load(fp.read_text(encoding="utf-8"))
             templates.extend(data.get("templates", []))
     except Exception:
         logger.warning("Could not load bundled NL templates")
@@ -36,7 +36,7 @@ def _load_templates() -> list[dict[str, Any]]:
     user_file = Path.home() / ".wireshark-mcp" / "nl_templates.yaml"
     if user_file.exists():
         try:
-            data = yaml.safe_load(user_file.read_text())
+            data = yaml.safe_load(user_file.read_text(encoding="utf-8"))
             templates.extend(data.get("templates", []))
         except Exception:
             logger.warning("Could not load user NL templates")

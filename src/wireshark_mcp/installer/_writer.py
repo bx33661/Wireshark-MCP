@@ -247,5 +247,3 @@ def _install_codex_config(config_path: str, *, uninstall: bool) -> bool:
         return False
     _write_text_config(config_path, updated, ".toml")
     return True
-
-

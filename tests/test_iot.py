@@ -76,7 +76,14 @@ class TestZigbee:
     async def test_zigbee_network_extraction(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.extract_fields(
             "test.pcap",
-            ["zbee_nwk.src", "zbee_nwk.dst", "zbee_nwk.frame_type", "zbee_aps.profile", "zbee_aps.cluster", "zbee_zcl.cmd.id"],
+            [
+                "zbee_nwk.src",
+                "zbee_nwk.dst",
+                "zbee_nwk.frame_type",
+                "zbee_aps.profile",
+                "zbee_aps.cluster",
+                "zbee_zcl.cmd.id",
+            ],
             display_filter="zbee_nwk",
             limit=100,
         )

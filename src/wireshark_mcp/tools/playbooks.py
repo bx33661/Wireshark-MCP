@@ -30,7 +30,7 @@ def load_playbooks() -> list[dict[str, Any]]:
         for item in data_dir.iterdir():
             if str(item).endswith(".yaml"):
                 with importlib_resources.as_file(item) as fp:
-                    pb = yaml.safe_load(fp.read_text())
+                    pb = yaml.safe_load(fp.read_text(encoding="utf-8"))
                     if pb and "name" in pb:
                         playbooks.append(pb)
     except Exception:
@@ -41,7 +41,7 @@ def load_playbooks() -> list[dict[str, Any]]:
     if user_dir.exists():
         for f in user_dir.glob("*.yaml"):
             try:
-                pb = yaml.safe_load(f.read_text())
+                pb = yaml.safe_load(f.read_text(encoding="utf-8"))
                 if pb and "name" in pb:
                     playbooks.append(pb)
             except Exception:

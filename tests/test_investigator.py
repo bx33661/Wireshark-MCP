@@ -1,12 +1,12 @@
 """Tests for investigation engine."""
 
 
-
 class TestInvestigationSession:
     """Tests for session creation and state management."""
 
     def test_create_session(self) -> None:
         from wireshark_mcp.tools.investigator import create_session
+
         session = create_session("test.pcap")
         assert session["pcap_file"] == "test.pcap"
         assert session["status"] == "active"
@@ -17,16 +17,19 @@ class TestInvestigationSession:
 
     def test_create_session_with_lead(self) -> None:
         from wireshark_mcp.tools.investigator import create_session
+
         session = create_session("test.pcap", initial_lead="suspect IP 1.2.3.4")
         assert session["initial_lead"] == "suspect IP 1.2.3.4"
 
     def test_create_session_with_playbook(self) -> None:
         from wireshark_mcp.tools.investigator import create_session
+
         session = create_session("test.pcap", playbook="malware_c2")
         assert session["playbook"] == "malware_c2"
 
     def test_get_session(self) -> None:
         from wireshark_mcp.tools.investigator import create_session, get_session
+
         session = create_session("test.pcap")
         retrieved = get_session(session["session_id"])
         assert retrieved is not None
@@ -34,6 +37,7 @@ class TestInvestigationSession:
 
     def test_get_nonexistent_session(self) -> None:
         from wireshark_mcp.tools.investigator import get_session
+
         assert get_session("nonexistent-id") is None
 
     def test_list_sessions(self) -> None:
@@ -42,6 +46,7 @@ class TestInvestigationSession:
             create_session,
             list_sessions,
         )
+
         _SESSIONS.clear()
         create_session("a.pcap")
         create_session("b.pcap")
@@ -58,6 +63,7 @@ class TestHypothesisManagement:
             create_session,
             get_session,
         )
+
         session = create_session("test.pcap")
         add_hypothesis(session["session_id"], "Host X has C2 implant", confidence=0.7)
         s = get_session(session["session_id"])
@@ -73,6 +79,7 @@ class TestHypothesisManagement:
             get_session,
             update_hypothesis,
         )
+
         session = create_session("test.pcap")
         add_hypothesis(session["session_id"], "Test hypothesis", confidence=0.5)
         update_hypothesis(session["session_id"], 0, status="confirmed", confidence=0.95)
@@ -90,6 +97,7 @@ class TestFindingsManagement:
             create_session,
             get_session,
         )
+
         session = create_session("test.pcap")
         finding = {
             "type": "beacon",
