@@ -25,20 +25,20 @@ htmlcov/
 # OS metadata
 .DS_Store
 
-# Documentation site
-
 # Spec (internal)
 spec/
 .omx/
 
-# Local / duplicated docs
-docs/
-changelog/
+# Internal plans and generated presentation assets
+docs/superpowers/
+docs/presentation/
+
+# Local / duplicated agent files
 AGENTS.md
 GEMINI.md
 CODE_OF_CONDUCT.md
-CHANGELOG.md
 
 # Auto-generated skill mirrors (canonical source lives in skills/)
 .github/skills/
 .claude/skills/
+.agents/skills/

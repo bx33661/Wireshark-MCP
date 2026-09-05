@@ -12,18 +12,24 @@ from ._clients import _OPENCODE_STYLE_CLIENTS, _SPECIAL_JSON_STRUCTURES, get_cli
 from ._config_gen import SERVER_NAME, _render_codex_toml_block
 
 
-def _read_json_config(path: str) -> dict[str, Any]:
-    """Read a JSON config file, returning {} for missing/empty/invalid files."""
+def _read_json_config(path: str, *, strict: bool = False) -> dict[str, Any]:
+    """Read a JSON config file, optionally refusing malformed or non-object content."""
     if not os.path.exists(path):
         return {}
-    with open(path, encoding="utf-8") as f:
+    with open(path, encoding="utf-8-sig") as f:
         data = f.read().strip()
         if not data:
             return {}
         try:
-            parsed = json.loads(data)
-            return cast("dict[str, Any]", parsed) if isinstance(parsed, dict) else {}
-        except json.JSONDecodeError:
+            parsed: Any = json.loads(data)
+            if isinstance(parsed, dict):
+                return cast("dict[str, Any]", parsed)
+            if strict:
+                raise ValueError(f"Refusing to modify non-object JSON configuration: {path}")
+            return {}
+        except json.JSONDecodeError as exc:
+            if strict:
+                raise ValueError(f"Refusing to modify malformed JSON configuration: {path}") from exc
             return {}
 
 

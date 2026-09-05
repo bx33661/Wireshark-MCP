@@ -1,132 +1,41 @@
-# Playbooks
+# Investigation branches
 
-Use these mode-specific playbooks after the initial overview in `SKILL.md`.
+Choose one branch. These are decision paths, not mandatory call sequences.
 
-## Contents
+## Triage: explain an unknown capture
 
-- [Triage](#triage)
-- [Security](#security)
-- [Incident Response](#incident-response)
-- [Troubleshoot](#troubleshoot)
+Use `wireshark_open_file` for unfamiliar input, then `wireshark_quick_analysis` if a broad overview is useful. It already includes several statistics. Fill only missing context using `wireshark_stats_protocol_hierarchy`, `wireshark_stats_endpoints`, or `wireshark_stats_conversations`; select IPv4/IPv6 according to observed traffic.
 
-## Triage
+Rank activity relevant to the question with `wireshark_aggregate`. Inspect the strongest unexplained group. Stop once you can describe the capture and identify evidence-backed leads, or explain that no lead is established. Do not force a quota of suspicious hosts.
 
-Goal: explain what the capture mostly contains, identify the main communicators, and point to the three best next leads.
+## Security: discriminate a signal from benign activity
 
-Recommended flow:
+Start with the supplied indicator or a lead from triage. A detector is a candidate generator; corroborate its output with a separate extraction or packet query.
 
-1. `wireshark_open_file`
-2. `wireshark_quick_analysis`
-3. `wireshark_stats_protocol_hierarchy`
-4. `wireshark_stats_endpoints`
-5. `wireshark_stats_conversations`
-6. `wireshark_stats_io_graph` if timing matters
-7. Follow the most relevant streams with `wireshark_follow_stream`
+| Signal | Discriminating evidence | Counter-explanation |
+|---|---|---|
+| DNS tunnel | Per-client and per-domain query distribution, query/response distinction, timing, sampled labels | CDN, telemetry, security tooling; unrelated domains sharing a public suffix |
+| Port scan | Source/target fanout, ports, time window, SYN versus completed connections | Approved scanner, inventory, health checks |
+| Beaconing or exfiltration | Repeated timing plus direction, volume and application context for the same conversations | Backup, sync, polling; periodicity alone is insufficient |
+| Credentials | Actual credential-bearing field and exact frame; mask the value | A login page or prompt alone is not credential transmission |
+| TLS anomaly | Handshake outcome and endpoint context; `wireshark_analyze_protocol(protocol="tls_handshakes")` when available | Internal PKI, interception, test services |
 
-Interpretation notes:
+Use `wireshark_extract_dns_queries`, `wireshark_extract_http_requests`, or `wireshark_extract_fields` for targeted evidence. Use `wireshark_follow_stream` and packet details when the claim depends on content or sequence. If an optional export or decryption tool is absent, state the missing evidence instead of assuming its result.
 
-- Use endpoints to answer "who is present?"
-- Use conversations to answer "who is actually exchanging meaningful traffic?"
-- Do not sum protocol hierarchy percentages across rows as if they were exclusive buckets.
+Stop at a supported observation or candidate when intent cannot be established. Do not promote rarity, a fingerprint, or a heuristic threshold to confirmed malware.
 
-Deliver:
+## Troubleshoot: locate the failure boundary
 
-- capture summary
-- top protocols and top talkers
-- any obvious anomalies
-- the three most valuable filters, streams, or hosts to inspect next
+Start with the affected endpoint, service, and time. Separate name resolution, connection establishment, TLS negotiation, application response, and transfer behavior. Inspect the earliest failing stage rather than dumping all protocol statistics.
 
-## Security
+Use `wireshark_analyze_tcp_health`, `wireshark_stats_expert_info`, or `wireshark_stats_service_response_time` only for the relevant symptom. Time buckets from `wireshark_aggregate` or `wireshark_stats_io_graph` help distinguish bursts from whole-capture averages. Validate the time window and units before comparing rates.
 
-Goal: determine whether the capture shows suspicious behavior and explain why.
+Inspect the affected stream and adjacent frames with `wireshark_get_packet_context`. Check capture loss, offload artifacts, and one-sided visibility before attributing retransmissions or missing responses to the network. A delayed response alone does not distinguish application processing from an unseen network segment. Stop at the deepest boundary the capture supports and identify the specific additional observation needed.
 
-Recommended flow:
+## Incident response: reconstruct bounded events
 
-1. Start with the triage playbook.
-2. Run `wireshark_quick_analysis` for a broad first pass.
-3. Verify specific signals with:
-   - `wireshark_extract_credentials`
-   - `wireshark_detect_port_scan`
-   - `wireshark_detect_dns_tunnel`
-   - `wireshark_detect_beaconing`
-   - `wireshark_detect_exfiltration`
-4. If HTTP, DNS, or TLS matter, extract evidence with:
-   - `wireshark_extract_http_requests`
-   - `wireshark_extract_dns_queries`
-   - `wireshark_analyze_protocol(protocol="tls_handshakes")`
-5. Follow suspicious conversations with `wireshark_follow_stream`.
-6. Use `wireshark_get_packet_details` or `wireshark_get_packet_context` to anchor claims in exact frames.
+Reuse established evidence. Associate each event with capture identity, timestamp/time basis, actor, action, frame or stream, and confidence. Capture boundaries are not incident boundaries. Before ordering events across files, check clock offsets and capture locations; stream IDs and frame numbers are local to a capture.
 
-Interpretation notes:
+Use conversations to establish observed participants, filtered time buckets to locate activity, and packet evidence to verify key transitions. Keep the observed timeline separate from the proposed attack narrative. Do not claim initial access, affected-system scope, or exfiltration solely from missing earlier packets or asymmetric byte totals.
 
-- Treat `wireshark_stats_expert_info` as a shortlist of leads, not proof of compromise.
-- When DNS or TLS looks odd, compare the behavior against the counterexamples in `evidence-rubric.md` before escalating severity.
-
-Deliver:
-
-- risk summary
-- top suspicious behaviors
-- evidence for each finding
-- what is confirmed versus what is only likely
-- next validation steps
-
-## Incident Response
-
-Goal: reconstruct what happened, when it happened, and which systems were involved.
-
-Recommended flow:
-
-1. Start with the triage playbook.
-2. Use `wireshark_get_file_info` to understand duration and capture boundaries.
-3. Use `wireshark_stats_endpoints` and `wireshark_stats_conversations` to map actors.
-4. Use security-focused tools to identify IOCs and suspicious traffic.
-5. Follow the streams that matter most for:
-   - initial contact
-   - credential use
-   - lateral movement
-   - download or upload behavior
-6. When time ordering matters, anchor events with frame numbers and timestamps from `wireshark_get_packet_list` or `wireshark_get_packet_details`.
-
-Interpretation notes:
-
-- Capture start and end times are not the same as incident start and end times.
-- Use conversations plus timestamps to separate repeated background traffic from incident-driving exchanges.
-
-Deliver:
-
-- incident timeline
-- affected hosts and services
-- IOC list
-- likely attack narrative
-- containment or follow-up recommendations
-
-## Troubleshoot
-
-Goal: explain packet-level causes of slowness, failure, or instability.
-
-Recommended flow:
-
-1. Start with `wireshark_open_file`.
-2. Build the baseline with:
-   - `wireshark_stats_protocol_hierarchy`
-   - `wireshark_stats_endpoints`
-   - `wireshark_stats_conversations`
-   - `wireshark_stats_io_graph`
-3. Use protocol health tools:
-   - `wireshark_analyze_tcp_health`
-   - `wireshark_stats_expert_info`
-   - `wireshark_stats_service_response_time`
-4. Follow the problematic stream.
-5. Compare client and server behavior before concluding whether the issue is network, application, or remote service behavior.
-
-Interpretation notes:
-
-- Repeated retransmissions, duplicate ACK bursts, zero windows, and resets are stronger together than alone.
-- Capture loss and one-sided visibility can mimic network issues. Say so when confidence is reduced.
-
-Deliver:
-
-- symptom summary
-- probable bottleneck or failure mode
-- exact evidence
-- what to test next outside the capture if needed
+Stop when the requested timeline and visible scope are reconstructed, with unresolved intervals and the next useful log or capture identified.

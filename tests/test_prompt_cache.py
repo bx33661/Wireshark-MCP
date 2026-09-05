@@ -132,9 +132,10 @@ def test_ceiling_is_enforced_through_call_tool() -> None:
         return json.dumps({"success": True, "data": "C" * 50_000})
 
     mcp.add_tool(flood, name="flood")
-    blocks = asyncio.run(mcp.call_tool("flood", {"pcap_file": "x.pcap"}))
-    assert len(blocks) == 1
-    assert len(blocks[0].text) <= 2_000, "call_tool did not apply the ceiling"
+    result = asyncio.run(mcp.call_tool("flood", {"pcap_file": "x.pcap"}))
+    assert hasattr(result, "content")
+    assert len(result.content) == 1
+    assert len(result.content[0].text) <= 2_000, "call_tool did not apply the ceiling"
 
 
 # ── Annotations ─────────────────────────────────────────────────────────────

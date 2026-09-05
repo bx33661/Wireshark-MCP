@@ -45,10 +45,12 @@ _WRITERS: Final[frozenset[str]] = frozenset(
         "wireshark_editcap_split",
         "wireshark_editcap_time_shift",
         "wireshark_editcap_trim",
+        "wireshark_export_objects",
         "wireshark_extract_frames",
         "wireshark_filter_save",
         "wireshark_merge_pcaps",
         "wireshark_text2pcap_import",
+        "wireshark_yara_scan",
     }
 )
 

@@ -23,12 +23,13 @@ Skipped when tshark is unavailable, since there is nothing to validate against.
 """
 
 import json
+import os
 import shutil
 import subprocess
 
 import pytest
-from conftest import MockTSharkClient
-from mcp.server.fastmcp import FastMCP
+from conftest import MockTSharkClient, call_tool_text
+from mcp.server import MCPServer
 
 from wireshark_mcp.tools.analyze import make_analyze_tools, supported_protocols
 from wireshark_mcp.tools.registry import ToolRegistry
@@ -60,7 +61,7 @@ def tshark_fields() -> frozenset[str]:
         "_ws.col.Info",
     }
     probe = subprocess.run(
-        ["tshark", "-r", "/dev/null", "-T", "fields", *[a for f in sorted(column_fields) for a in ("-e", f)]],
+        ["tshark", "-r", os.devnull, "-T", "fields", *[a for f in sorted(column_fields) for a in ("-e", f)]],
         capture_output=True,
         text=True,
         timeout=30,
@@ -112,7 +113,7 @@ def test_all_registry_tool_fields_are_valid(tshark_fields: frozenset[str]) -> No
     """Sweep the tools that hardcode field lists but take only a pcap path."""
 
     async def run(client: MockTSharkClient) -> None:
-        mcp = FastMCP("test")
+        mcp = MCPServer("test")
         registry = ToolRegistry(mcp, client)
         names = registry.register()
         for name in names:
@@ -124,7 +125,7 @@ def test_all_registry_tool_fields_are_valid(tshark_fields: frozenset[str]) -> No
             if required - {"pcap_file"}:
                 continue
             try:
-                await mcp._tool_manager.call_tool(name, {"pcap_file": "demo.pcap"})
+                await call_tool_text(mcp, name, {"pcap_file": "demo.pcap"})
             except Exception:
                 # A tool may reject the mock's canned output; its fields were still recorded.
                 continue
@@ -183,7 +184,7 @@ def test_display_filters_are_accepted_by_tshark(tshark_fields: frozenset[str]) -
     bad: list[str] = []
     for display_filter in sorted(client.filters_applied()):
         probe = subprocess.run(
-            ["tshark", "-Y", display_filter, "-r", "/dev/null"],
+            ["tshark", "-Y", display_filter, "-r", os.devnull],
             capture_output=True,
             text=True,
             timeout=30,

@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol, TypedDict
+
+FieldRowConsumer = Callable[[list[str]], None]
+
+
+class FieldStreamResult(TypedDict, total=False):
+    success: bool
+    rows: int
+    bytes_read: int
+    stderr: str
+    error: dict[str, Any]
 
 
 class _ClientProtocol(Protocol):
@@ -20,7 +31,7 @@ class _ClientProtocol(Protocol):
     def _get_checked_tool_path(self, tool_name: str) -> str: ...
     def _select_capture_backend_path(self) -> str: ...
     @staticmethod
-    def _ok(data: str) -> str: ...
+    def _ok(data: str, stderr: str = "", truncated: bool = False) -> str: ...
     @staticmethod
     def _unwrap(result: str) -> tuple[bool, str]: ...
     async def _run_command(
@@ -29,7 +40,16 @@ class _ClientProtocol(Protocol):
         limit_lines: int = 0,
         offset_lines: int = 0,
         timeout: int = 30,
+        stream_limit: bool = False,
     ) -> str: ...
+    async def _stream_field_rows(
+        self,
+        cmd: list[str],
+        consumer: FieldRowConsumer,
+        *,
+        max_rows: int,
+        timeout: int = 30,
+    ) -> FieldStreamResult: ...
     async def get_packet_list(
         self,
         pcap_file: str,
@@ -46,4 +66,15 @@ class _ClientProtocol(Protocol):
         separator: str = "\t",
         limit: int = 100,
         offset: int = 0,
+        aggregator: str = ",",
+        stream_limit: bool = False,
     ) -> str: ...
+    async def stream_fields(
+        self,
+        pcap_file: str,
+        fields: list[str],
+        consumer: FieldRowConsumer,
+        display_filter: str = "",
+        max_rows: int = 1_000_000,
+        timeout: int = 30,
+    ) -> FieldStreamResult: ...

@@ -11,7 +11,7 @@ import re
 from collections.abc import Callable
 from typing import Any, NamedTuple
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result, parse_tool_result, success_response
@@ -159,7 +159,7 @@ PROTOCOL_TOOL_MAP: dict[str, list[Recommendation]] = {
 class ToolRegistry:
     """Registers the analysis tool catalog and maps protocols to recommendations."""
 
-    def __init__(self, mcp: FastMCP, client: TSharkClient) -> None:
+    def __init__(self, mcp: MCPServer, client: TSharkClient) -> None:
         self._mcp = mcp
         self._client = client
         # tool_name -> tool function, for docstring lookup and recommendation validation
@@ -194,8 +194,8 @@ class ToolRegistry:
                 self._catalog[name] = fn
 
         registered: list[str] = []
+        excluded: frozenset[str] = getattr(self._mcp, "excluded_tools", frozenset())
         for name in sorted(self._catalog):
-            excluded: frozenset[str] = getattr(self._mcp, "excluded_tools", frozenset())
             if name in excluded:
                 continue
             try:
@@ -226,9 +226,10 @@ class ToolRegistry:
     def recommended_tools_for_protocols(self, detected_protocols: set[str]) -> list[str]:
         """Return calls worth making for the detected protocols, as rendered strings."""
         recommended: set[str] = set()
+        excluded: frozenset[str] = getattr(self._mcp, "excluded_tools", frozenset())
         for protocol in detected_protocols:
             for rec in PROTOCOL_TOOL_MAP.get(protocol.lower().strip(), []):
-                if rec.tool in self._catalog:
+                if rec.tool in self._catalog and rec.tool not in excluded:
                     recommended.add(rec.render())
         return sorted(recommended)
 
@@ -265,7 +266,7 @@ def parse_protocol_hierarchy(phs_output: str) -> set[str]:
     return protocols
 
 
-def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRegistry) -> None:
+def register_open_file_tool(mcp: MCPServer, client: TSharkClient, registry: ToolRegistry) -> None:
     """Register the wireshark_open_file entry-point tool."""
 
     @mcp.tool()
@@ -305,7 +306,8 @@ def register_open_file_tool(mcp: FastMCP, client: TSharkClient, registry: ToolRe
             output_parts.append("\nNo protocol-specific recommendations. Core tools are available.")
 
         output_parts.append(
-            "\nStart with wireshark_quick_analysis or wireshark_get_packet_list, then use recommended tools."
+            "\nStart with wireshark_quick_analysis or wireshark_get_packet_list. "
+            "Use wireshark_aggregate for capture-wide counts and distributions, then use recommended tools."
         )
 
         return success_response("\n".join(output_parts))

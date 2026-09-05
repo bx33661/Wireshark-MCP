@@ -16,8 +16,8 @@ import json
 from typing import Any
 
 import pytest
-from conftest import MockTSharkClient
-from mcp.server.fastmcp import FastMCP
+from conftest import MockTSharkClient, call_tool_text
+from mcp.server import MCPServer
 
 from wireshark_mcp.tools.analyze import make_analyze_tools, supported_protocols
 from wireshark_mcp.tools.registry import ToolRegistry
@@ -25,9 +25,10 @@ from wireshark_mcp.tools.registry import ToolRegistry
 
 async def _analyze(mock_client: MockTSharkClient, protocol: str, **kwargs: Any) -> dict[str, Any]:
     """Call wireshark_analyze_protocol through the MCP tool manager."""
-    mcp = FastMCP("test")
+    mcp = MCPServer("test")
     ToolRegistry(mcp, mock_client).register()
-    raw = await mcp._tool_manager.call_tool(
+    raw = await call_tool_text(
+        mcp,
         "wireshark_analyze_protocol",
         {"pcap_file": "demo.pcap", "protocol": protocol, **kwargs},
     )
@@ -134,7 +135,7 @@ class TestLimit:
 
     @pytest.mark.asyncio
     async def test_default_limit_is_one_hundred(self, mock_client: MockTSharkClient) -> None:
-        mcp = FastMCP("test")
+        mcp = MCPServer("test")
         ToolRegistry(mcp, mock_client).register()
         tool = mcp._tool_manager.get_tool("wireshark_analyze_protocol")
         assert tool is not None

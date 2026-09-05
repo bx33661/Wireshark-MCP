@@ -2,12 +2,12 @@
 
 import logging
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
 logger = logging.getLogger("wireshark_mcp")
 
 
-def register_prompts(mcp: FastMCP) -> None:
+def register_prompts(mcp: MCPServer, *, write_tools_enabled: bool = True) -> None:
     """Register all MCP Prompts."""
 
     @mcp.prompt()
@@ -28,6 +28,7 @@ Follow this systematic workflow:
 
 ## Step 2: Credential Exposure
 - Use `wireshark_extract_credentials("{pcap_file}")` to find any plaintext credentials.
+- Use `wireshark_aggregate("{pcap_file}", display_filter="ip", group_by="ip.src", distinct="ip.dst,tcp.dstport")` to rank broad fan-out across the full capture.
 
 ## Step 3: Attack Pattern Detection
 - Use `wireshark_detect_port_scan("{pcap_file}")` to check for scanning activity.
@@ -64,6 +65,7 @@ You are a network performance engineer analyzing traffic for performance issues.
 - Use `wireshark_open_file("{pcap_file}")` first for capture-wide context and tool recommendations.
 - Use `wireshark_get_file_info("{pcap_file}")` for capture metadata.
 - Use `wireshark_stats_io_graph("{pcap_file}", interval=1)` to visualize traffic patterns.
+- Use `wireshark_aggregate("{pcap_file}", display_filter="ip", group_by="ip.src", time_bucket_seconds=60)` to quantify source activity over time.
 
 ## Step 2: Connection Analysis
 - Use `wireshark_stats_conversations("{pcap_file}", type="tcp")` to see TCP conversations.
@@ -93,6 +95,11 @@ Create a performance analysis report with:
     @mcp.prompt()
     def incident_response(pcap_file: str) -> str:
         """Incident response investigation workflow."""
+        impact_export = (
+            "- Use `wireshark_export_objects` to extract any transferred files."
+            if write_tools_enabled
+            else "- Object export is disabled by the selected read-only profile; record candidate streams for later extraction."
+        )
         return f"""\
 You are a SOC analyst investigating a potential security incident from a network capture.
 
@@ -108,6 +115,7 @@ You are a SOC analyst investigating a potential security incident from a network
 - Use `wireshark_stats_endpoints("{pcap_file}")` — get the host inventory for SIEM correlation.
 - Use `wireshark_extract_dns_queries("{pcap_file}")` — check for DGA domains.
 - Use `wireshark_detect_dns_tunnel("{pcap_file}")` — check for command & control.
+- Use `wireshark_aggregate("{pcap_file}", display_filter="dns.flags.response == 0", group_by="ip.src", distinct="dns.qry.name", time_bucket_seconds=60)` to build a DNS activity timeline.
 
 ## Phase 3: Attack Analysis (15 minutes)
 - Use `wireshark_detect_port_scan("{pcap_file}")` — was there reconnaissance?
@@ -119,7 +127,7 @@ You are a SOC analyst investigating a potential security incident from a network
 - Use `wireshark_detect_exfiltration("{pcap_file}")` — outbound data volume anomalies.
 - Use `wireshark_detect_beaconing("{pcap_file}")` — periodic C2 callbacks.
 - Use `wireshark_follow_stream` on suspicious conversations for payload analysis.
-- Use `wireshark_export_objects` to extract any transferred files.
+{impact_export}
 
 ## Output: Incident Report
 - Incident Timeline (first seen → last activity)
@@ -144,7 +152,7 @@ Provide a concise overview of the network traffic in the capture file.
 4. Use `wireshark_stats_endpoints("{pcap_file}")` for top talkers.
 5. Use `wireshark_stats_conversations("{pcap_file}")` for communication pairs.
 6. Use `wireshark_stats_io_graph("{pcap_file}")` for the traffic timeline.
-7. Use `wireshark_stats_protocol_hierarchy("{pcap_file}")` for protocol distribution.
+7. Use `wireshark_aggregate("{pcap_file}", display_filter="ip", group_by="ip.src", distinct="ip.dst")` for a full-capture source distribution.
 
 Summarize: what type of traffic is this? What are the main hosts communicating? Any anomalies visible at a glance?
 """

@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 from ._typing import _ClientProtocol
 
 
 class SuiteOpsMixin(_ClientProtocol):
     """File info, merge, editcap operations, text2pcap import, filter-and-save."""
+
+    _FRAME_RANGE = re.compile(r"^([1-9]\d{0,9})(?:-([1-9]\d{0,9}))?$")
+    MAX_FRAME_RANGE_TOKENS = 1000
+    MAX_FRAME_NUMBER = 1_000_000_000
 
     async def get_file_info(self, pcap_file: str) -> str:
         """Capinfos: Get file metadata."""
@@ -162,19 +167,31 @@ class SuiteOpsMixin(_ClientProtocol):
         if not output_validation["success"]:
             return json.dumps(output_validation)
 
-        if not frame_ranges.strip():
+        frame_tokens = frame_ranges.strip().split()
+        valid_ranges = bool(frame_tokens) and len(frame_tokens) <= self.MAX_FRAME_RANGE_TOKENS
+        for token in frame_tokens:
+            match = self._FRAME_RANGE.fullmatch(token)
+            if match is None:
+                valid_ranges = False
+                break
+            start = int(match.group(1))
+            end = int(match.group(2) or match.group(1))
+            if start > self.MAX_FRAME_NUMBER or end > self.MAX_FRAME_NUMBER or end < start:
+                valid_ranges = False
+                break
+        if not valid_ranges:
             return json.dumps(
                 {
                     "success": False,
                     "error": {
                         "type": "InvalidParameter",
-                        "message": "frame_ranges must not be empty. Format: '1-10 15 20-30'",
+                        "message": "frame_ranges must contain only positive frames or ranges, e.g. '1-10 15 20-30'",
                     },
                 }
             )
 
         editcap_path = self._get_checked_tool_path("editcap")
-        cmd = [editcap_path, "-r", input_file, output_file] + frame_ranges.strip().split()
+        cmd = [editcap_path, "-r", input_file, output_file] + frame_tokens
         result = await self._run_command(cmd)
 
         ok, text = self._unwrap(result)

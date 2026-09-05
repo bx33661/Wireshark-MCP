@@ -6,8 +6,20 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from mcp.server import MCPServer
+from mcp.types import CallToolResult, TextContent
 
 from wireshark_mcp.tshark.client import TSharkClient
+
+
+async def call_tool_text(mcp: MCPServer, name: str, arguments: dict[str, Any]) -> str:
+    """Invoke a tool through the public MCPServer v2 API and return its text block."""
+    result = await mcp.call_tool(name, arguments)
+    assert isinstance(result, CallToolResult)
+    assert len(result.content) == 1
+    content = result.content[0]
+    assert isinstance(content, TextContent)
+    return content.text
 
 
 class MockTSharkClient(TSharkClient):
@@ -63,6 +75,12 @@ class MockTSharkClient(TSharkClient):
             return super()._validate_file(filepath)
         return {"success": True}
 
+    def _validate_output_path(self, filepath: str) -> dict[str, Any]:
+        """Allow command-construction tests to write nowhere; real clients stay fail-closed."""
+        if self._allowed_dirs:
+            return super()._validate_output_path(filepath)
+        return {"success": True}
+
     @staticmethod
     def _tool_is_available(tool_path: str | None) -> bool:
         """Treat any configured mock command name as available."""
@@ -74,9 +92,11 @@ class MockTSharkClient(TSharkClient):
         limit_lines: int = 0,
         offset_lines: int = 0,
         timeout: int = 30,
+        stream_limit: bool = False,
     ) -> str:
         self._last_cmd = cmd
         self._last_limit_lines = limit_lines
+        self._last_stream_limit = stream_limit
         self._commands.append(list(cmd))
         # Mirror the real client's contract: always return a success envelope.
         return self._ok("CMD: " + " ".join(cmd))

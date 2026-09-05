@@ -30,7 +30,9 @@
 <p>
   <a href="README.md"><b>English</b></a> •
   <a href="README_zh.md"><b>中文</b></a> •
-  <a href="https://github.com/bx33661/Wireshark-MCP/releases"><b>Changelog</b></a> •
+  <a href="docs/README.md"><b>Docs</b></a> •
+  <a href="CHANGELOG.md"><b>Changelog</b></a> •
+  <a href="ROADMAP.md"><b>Roadmap</b></a> •
   <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
 </div>
@@ -53,9 +55,11 @@ Claude: [calls wireshark_extract_dns_queries → wireshark_detect_dns_tunnel]
 
 **Prerequisites:** Python 3.10+ and [Wireshark](https://www.wireshark.org/) with `tshark` on PATH.
 
+Wireshark MCP 3.0 uses the stable MCP Python SDK 2.x line (`mcp>=2.1.1,<3`).
+
 ```sh
 pip install wireshark-mcp
-wireshark-mcp install   # auto-configures all detected MCP clients
+wireshark-mcp install   # choose from detected MCP clients
 ```
 
 Restart your AI client — done.
@@ -71,6 +75,7 @@ Point your AI client at a `.pcap` file and try:
 ```
 Analyze capture.pcap using the Wireshark MCP tools.
 Start with wireshark_open_file, then run wireshark_quick_analysis.
+Use wireshark_aggregate for any capture-wide count or distribution.
 Write findings to report.md.
 ```
 
@@ -78,14 +83,14 @@ Write findings to report.md.
 
 ## Tools
 
-51 tools, each backed by real `tshark` output — organized into categories:
+52 tools, each backed by real `tshark` output — organized into categories:
 
 | Category | Highlights | Count |
 |----------|-----------|:-----:|
 | **Entry & Workflow** | `wireshark_open_file`, `wireshark_quick_analysis` | 2 |
 | **Packet Analysis** | Packet list, details, bytes, context, stream follow, search, file info | 8 |
 | **Data Extraction** | HTTP requests, DNS queries, arbitrary fields, object export | 4 |
-| **Statistics** | Protocol hierarchy, endpoints, conversations, I/O graph, expert info, service response time, flow graph | 7 |
+| **Statistics** | Aggregate/group/distinct/top-k/time buckets, protocol hierarchy, endpoints, conversations, I/O graph, expert info, service response time, flow graph | 8 |
 | **Security & Anomaly** | Credential scan, port scan, DNS tunnel, DoS, beaconing, exfiltration, protocol anomalies, YARA | 8 |
 | **Protocol Analysis** | `wireshark_analyze_protocol` (20 protocols), TCP health, ARP spoofing | 3 |
 | **Decrypt & Dissection** | TLS/WPA decrypt, decryption check, decode-as, protocol preferences | 5 |
@@ -98,21 +103,21 @@ The server starts with only `tshark` required. Optional tools (`capinfos`, `merg
 
 ### Context cost
 
-The tool list travels in the prompt prefix of every request your client sends, so its size is a fixed per-request cost. The default surface is ~21 KB — about 9 KB of parameter schema, 5 KB of descriptions, and 3 KB of read/write annotations — and it is byte-identical across restarts so clients can cache the prefix rather than re-reading it each session.
+The tool list travels in the prompt prefix of every request your client sends, so its size is a fixed per-request cost. The default surface is ~22 KB — about 9 KB of parameter schema, 5 KB of descriptions, and 3 KB of read/write annotations — and it is byte-identical across restarts so clients can cache the prefix rather than re-reading it each session.
 
 If your client never captures live traffic or writes pcaps, `--profile` advertises less:
 
 | Profile | Tools | Payload | Drops |
 |---------|:-----:|:-------:|-------|
-| `full` (default) | 51 | ~21 KB | nothing |
-| `analysis` | 41 | ~17 KB | live capture, interface listing, all file-writing tools |
-| `core` | 33 | ~14 KB | the above, plus decryption, dissection overrides, and low-level views |
+| `full` (default) | 52 | ~22 KB | nothing |
+| `analysis` | 40 | ~17 KB | live capture, interface listing, all file-writing tools |
+| `core` | 32 | ~14 KB | the above, plus decryption, dissection overrides, and low-level views |
 
 ```bash
 wireshark-mcp serve --profile core
 ```
 
-Every profile still contains every tool the bundled prompts, resources, skill files, and protocol recommendations can point the model at, so reducing the surface never leaves it chasing a tool that is not there.
+Runtime prompts and protocol recommendations respect the selected profile. Static guides may describe `full`-only workflows, but the server never recommends an excluded tool during capture discovery.
 
 Tool results are bounded too, since a result stays in the conversation for the rest of the session. Output over 8000 characters is truncated head-and-tail with a marker, and the tool's `offset` / `limit` / `display_filter` parameters are the way to page through the rest. Raise or lower the ceiling with:
 
@@ -120,7 +125,9 @@ Tool results are bounded too, since a result stays in the conversation for the r
 export WIRESHARK_MCP_MAX_RESULT_CHARS=16000
 ```
 
-Every tool also declares whether it reads or writes, so clients can auto-approve the 40 read-only analysis tools and still prompt for the 11 that create files (live capture, merge, filter-save, editcap, text2pcap, frame extract, object export).
+Every tool also declares whether it reads or writes, so clients can auto-approve the 41 read-only analysis tools and still prompt for the 11 that create files (live capture, merge, filter-save, editcap, text2pcap, frame extract, object export).
+
+In 3.0, those 11 tools fail closed until `WIRESHARK_MCP_ALLOWED_DIRS` names existing directories. Remote HTTP/SSE binding also stays loopback-only unless `--allow-insecure-http` is explicitly supplied behind a trusted authenticated TLS proxy. See the [3.0 security migration guide](docs/security-hardening-v3.md).
 
 ---
 
@@ -128,12 +135,18 @@ Every tool also declares whether it reads or writes, so clients can auto-approve
 
 | Topic | Link |
 |-------|------|
+| Documentation index | [docs/README.md](docs/README.md) |
+| Capture-wide aggregation | [docs/aggregation.md](docs/aggregation.md) |
 | Platform setup (macOS/Linux/Windows) | [docs/platform-validation.md](docs/platform-validation.md) |
 | Manual client configuration | [docs/manual-configuration.md](docs/manual-configuration.md) |
+| Deployment scenarios | [docs/deployment-scenarios.md](docs/deployment-scenarios.md) |
+| 3.0 security migration | [docs/security-hardening-v3.md](docs/security-hardening-v3.md) |
 | Prompt templates | [docs/prompt-engineering.md](docs/prompt-engineering.md) |
+| Architecture | [docs/architecture.md](docs/architecture.md) |
 | Release checklist | [docs/release-checklist.md](docs/release-checklist.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| Changelog | [GitHub Releases](https://github.com/bx33661/Wireshark-MCP/releases) |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) |
+| Feature roadmap | [ROADMAP.md](ROADMAP.md) |
 | Security policy | [SECURITY.md](SECURITY.md) |
 
 ---

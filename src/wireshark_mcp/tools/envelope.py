@@ -38,29 +38,91 @@ def success_response(data: Any, compact: bool = False) -> str:
     return json.dumps({"success": True, "data": data})
 
 
-def error_response(message: str, error_type: str = "ToolError", details: Any = None) -> str:
+def envelope_response(
+    data: Any,
+    *,
+    scope: dict[str, Any] | None = None,
+    coverage: dict[str, Any] | None = None,
+    pagination: dict[str, Any] | None = None,
+    warnings: list[str] | None = None,
+    truncated: bool | None = None,
+    stderr: str | None = None,
+    compact: bool = False,
+) -> str:
+    """Construct a standardized successful response envelope.
+
+    Ensures top-level consistency for structured findings, scopes, coverage,
+    and pagination across all Wireshark MCP tools.
+    """
+    if compact and isinstance(data, str) and not (scope or coverage or pagination or warnings or truncated or stderr):
+        return data
+
+    payload: dict[str, Any] = {
+        "success": True,
+        "data": data,
+    }
+    if scope is not None:
+        payload["scope"] = scope
+    if coverage is not None:
+        payload["coverage"] = coverage
+    if pagination is not None:
+        payload["pagination"] = pagination
+    if warnings is not None:
+        payload["warnings"] = warnings
+    if truncated is not None:
+        payload["truncated"] = truncated
+    if stderr is not None:
+        payload["stderr"] = stderr
+
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def error_response(
+    message: str,
+    error_type: str = "ToolError",
+    details: Any = None,
+    *,
+    scope: dict[str, Any] | None = None,
+    coverage: dict[str, Any] | None = None,
+    warnings: list[str] | None = None,
+) -> str:
     error: dict[str, Any] = {
         "type": error_type,
         "message": message,
     }
     if details is not None:
         error["details"] = details
-    return json.dumps({"success": False, "error": error})
+    payload: dict[str, Any] = {"success": False, "error": error}
+    if scope is not None:
+        payload["scope"] = scope
+    if coverage is not None:
+        payload["coverage"] = coverage
+    if warnings is not None:
+        payload["warnings"] = warnings
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _normalize_dict_payload(payload: dict[str, Any]) -> str:
     if "success" in payload and isinstance(payload["success"], bool):
         if payload["success"]:
-            if "data" in payload:
-                return success_response(payload["data"])
+            envelope: dict[str, Any] = {"success": True, "data": payload.get("data")}
+            for extra_key in ("scope", "coverage", "pagination", "warnings", "truncated", "stderr"):
+                if extra_key in payload:
+                    envelope[extra_key] = payload[extra_key]
+            if "data" not in payload:
+                extra = {k: v for k, v in payload.items() if k != "success" and k not in envelope}
+                envelope["data"] = extra if extra else None
+            return json.dumps(envelope, ensure_ascii=False)
 
-            extra = {k: v for k, v in payload.items() if k != "success"}
-            return success_response(extra if extra else None)
-
-        return json.dumps({"success": False, "error": _error_object(payload.get("error"))})
+        normalized_err = _error_object(payload.get("error"))
+        err_envelope: dict[str, Any] = {"success": False, "error": normalized_err}
+        for extra_key in ("scope", "coverage", "warnings", "stderr"):
+            if extra_key in payload:
+                err_envelope[extra_key] = payload[extra_key]
+        return json.dumps(err_envelope, ensure_ascii=False)
 
     if "error" in payload:
-        return json.dumps({"success": False, "error": _error_object(payload.get("error"))})
+        return json.dumps({"success": False, "error": _error_object(payload.get("error"))}, ensure_ascii=False)
 
     return success_response(payload)
 

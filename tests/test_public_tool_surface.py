@@ -3,8 +3,8 @@
 import asyncio
 import json
 
-from conftest import MockTSharkClient
-from mcp.server.fastmcp import FastMCP
+from conftest import MockTSharkClient, call_tool_text
+from mcp.server import MCPServer
 
 from wireshark_mcp.tools.extract import register_extract_tools
 from wireshark_mcp.tools.registry import ToolRegistry
@@ -14,24 +14,25 @@ def _run_async(coro):
     return asyncio.run(coro)
 
 
-def test_read_packets_remains_available_for_1_x_compatibility(mock_client: MockTSharkClient) -> None:
-    mcp = FastMCP("test")
+def test_read_packets_remains_available_as_a_deprecated_compatibility_tool(mock_client: MockTSharkClient) -> None:
+    mcp = MCPServer("test")
     register_extract_tools(mcp, mock_client)
 
-    result = json.loads(_run_async(mcp._tool_manager.call_tool("wireshark_read_packets", {"pcap_file": "demo.pcap"})))
+    result = json.loads(_run_async(call_tool_text(mcp, "wireshark_read_packets", {"pcap_file": "demo.pcap"})))
 
     assert result["success"] is True
     assert "-T json" in result["data"]
 
 
 def test_protocol_tool_smoke(mock_client: MockTSharkClient) -> None:
-    mcp = FastMCP("test")
+    mcp = MCPServer("test")
     registry = ToolRegistry(mcp, mock_client)
     registry.register()
 
     result = json.loads(
         _run_async(
-            mcp._tool_manager.call_tool(
+            call_tool_text(
+                mcp,
                 "wireshark_analyze_protocol",
                 {"pcap_file": "demo.pcap", "protocol": "tls_handshakes"},
             )
@@ -43,26 +44,23 @@ def test_protocol_tool_smoke(mock_client: MockTSharkClient) -> None:
 
 
 def test_threat_tool_smoke(mock_client: MockTSharkClient) -> None:
-    mcp = FastMCP("test")
+    mcp = MCPServer("test")
     registry = ToolRegistry(mcp, mock_client)
     registry.register()
 
-    result = json.loads(
-        _run_async(mcp._tool_manager.call_tool("wireshark_detect_port_scan", {"pcap_file": "demo.pcap"}))
-    )
+    result = json.loads(_run_async(call_tool_text(mcp, "wireshark_detect_port_scan", {"pcap_file": "demo.pcap"})))
 
     assert result["success"] is True
-    assert "port scanning" in result["data"].lower()
+    data_str = result["data"]["summary"] if isinstance(result["data"], dict) else result["data"]
+    assert "port scanning" in data_str.lower()
 
 
 def test_extract_tool_smoke(mock_client: MockTSharkClient) -> None:
-    mcp = FastMCP("test")
+    mcp = MCPServer("test")
     registry = ToolRegistry(mcp, mock_client)
     registry.register()
 
-    result = json.loads(
-        _run_async(mcp._tool_manager.call_tool("wireshark_extract_dns_queries", {"pcap_file": "demo.pcap"}))
-    )
+    result = json.loads(_run_async(call_tool_text(mcp, "wireshark_extract_dns_queries", {"pcap_file": "demo.pcap"})))
 
     assert result["success"] is True
     assert "-e dns.qry.name" in result["data"]
@@ -97,7 +95,7 @@ def test_full_server_exposes_a_stable_tool_surface(monkeypatch) -> None:
     # list costs prefix bytes on every request and, more importantly, competes for the
     # model's attention at selection time. Lower this as tools are removed; raising it
     # should require justifying why a new tool is not reachable through an existing one.
-    assert len(names) <= 51, f"tool surface grew to {len(names)}; justify or consolidate"
+    assert len(names) <= 52, f"tool surface grew to {len(names)}; justify or consolidate"
 
 
 def test_every_protocol_recommendation_is_registered() -> None:

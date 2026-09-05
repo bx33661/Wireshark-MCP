@@ -82,3 +82,11 @@ class TestNormalizeToolResult:
         result = normalize_tool_result("hello")
         payload = json.loads(result)
         assert payload["data"] == "hello"
+
+    def test_existing_success_preserves_truncated_and_stderr(self) -> None:
+        raw = {"success": True, "data": "output", "truncated": True, "stderr": "note"}
+        payload = parse_tool_result(raw)
+        assert payload["success"] is True
+        assert payload["data"] == "output"
+        assert payload["truncated"] is True
+        assert payload["stderr"] == "note"

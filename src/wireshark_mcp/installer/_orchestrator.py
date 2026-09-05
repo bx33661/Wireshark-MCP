@@ -110,7 +110,19 @@ def install_mcp_servers(
             installed += 1
             continue
 
-        config = _read_json_config(config_path)
+        try:
+            config = _read_json_config(config_path, strict=True)
+        except (OSError, ValueError) as exc:
+            result_rows.append(
+                {
+                    "marker": "[SKIP]",
+                    "name": name,
+                    "detail": f"{action_word} skipped ({exc})",
+                    "path": config_path,
+                }
+            )
+            skipped += 1
+            continue
         mcp_servers = _get_mcp_servers_dict(config, name)
 
         if uninstall:
@@ -157,6 +169,7 @@ def install_mcp_servers(
 
 
 def run_install(
+    action: str | None = None,
     *,
     install: bool = False,
     update: bool = False,
@@ -169,6 +182,23 @@ def run_install(
     output_format: str = "text",
 ) -> None:
     """Dispatcher called from the CLI entry point."""
+    if action is not None:
+        if action == "install":
+            install = True
+        elif action == "update":
+            update = True
+        elif action == "uninstall":
+            uninstall = True
+        elif action == "config":
+            config = True
+        elif action == "doctor":
+            doctor = True
+        elif action in {"clients", "list_clients"}:
+            list_clients = True
+        else:
+            print(f"Unknown action: {action}")
+            sys.exit(1)
+
     if sum(bool(flag) for flag in (install, update, uninstall, config, doctor, list_clients)) > 1:
         print("Choose only one action at a time: install, update, uninstall, config, doctor, or clients.")
         sys.exit(1)

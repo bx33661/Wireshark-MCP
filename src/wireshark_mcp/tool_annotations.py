@@ -51,7 +51,7 @@ def annotations_for(tool_name: str) -> ToolAnnotations:
     """
     writes = tool_name in WRITE_TOOLS
     return ToolAnnotations(
-        readOnlyHint=not writes,
-        destructiveHint=True if writes else None,
-        openWorldHint=tool_name in OPEN_WORLD_TOOLS,
+        read_only_hint=not writes,
+        destructive_hint=True if writes else None,
+        open_world_hint=tool_name in OPEN_WORLD_TOOLS,
     )

@@ -1,0 +1,29 @@
+{
+    "runs": [
+        {
+            "scenario_id": "T03_dns_query_count",
+            "variant": "with-skill",
+            "answer": "在该抓包完整扫描范围内观察到 27 个 DNS 查询。",
+            "conclusion": "confirmed",
+            "claim_scope": "filter",
+            "facts": {"dns_query_count": 27},
+            "coverage": {"status": "complete", "scanned": 27},
+            "evidence": [
+                {
+                    "type": "aggregate",
+                    "query": 'wireshark_aggregate(display_filter="dns.flags.response == 0")',
+                    "value": 27,
+                }
+            ],
+            "claims": [],
+            "execution": {"status": "completed"},
+            "metrics": {
+                "tool_calls": 1,
+                "elapsed_ms": 250,
+                "peak_rss_bytes": 104857600,
+                "input_tokens": 900,
+                "output_tokens": 120,
+            },
+        }
+    ]
+}

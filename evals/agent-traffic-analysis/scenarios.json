@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "suite": "agent-traffic-analysis",
+  "scenarios": [
+    {
+      "id": "T01_capture_packet_count", "category": "fact",
+      "capture": "tests/fixtures/pcaps/plaintext_credentials.pcap",
+      "prompt": "这个抓包中有多少个数据包？",
+      "expected_conclusion": "confirmed", "expected_facts": {"packet_count": 3},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["aggregate", "query"], "query_required": true},
+      "forbidden_claims": ["malware", "compromised"]
+    },
+    {
+      "id": "T02_capture_primary_source", "category": "fact",
+      "capture": "tests/fixtures/pcaps/plaintext_credentials.pcap",
+      "prompt": "哪个源 IP 发送的数据包最多？给出数量和查询依据。",
+      "expected_conclusion": "confirmed",
+      "expected_facts": {"primary_source": "192.168.1.10", "primary_source_packets": 3},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["aggregate"], "query_required": true},
+      "forbidden_claims": ["attacker"]
+    },
+    {
+      "id": "T03_dns_query_count", "category": "fact",
+      "capture": "tests/fixtures/pcaps/dns_tunnel_candidate.pcap",
+      "prompt": "统计 DNS 查询数量，只计算请求，不计算响应。",
+      "expected_conclusion": "confirmed", "expected_facts": {"dns_query_count": 27},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["aggregate", "query"], "query_required": true},
+      "forbidden_claims": ["confirmed tunnel"]
+    },
+    {
+      "id": "T04_dns_tunnel_candidate", "category": "security",
+      "capture": "tests/fixtures/pcaps/dns_tunnel_candidate.pcap",
+      "prompt": "判断该抓包是否存在 DNS 隧道迹象，并说明证据和反例。",
+      "expected_conclusion": "candidate",
+      "expected_facts": {"dns_queries_scanned": 27, "candidate_base_domain": "attacker.org", "candidate_subdomains": 25},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 2, "accepted_types": ["frame", "query", "aggregate"], "query_required": true},
+      "forbidden_claims": ["confirmed malicious", "confirmed exfiltration"]
+    },
+    {
+      "id": "T05_plaintext_credentials", "category": "security",
+      "capture": "tests/fixtures/pcaps/plaintext_credentials.pcap",
+      "prompt": "检查是否有明文凭据传输，报告协议和数据包位置，但不要泄露秘密。",
+      "expected_conclusion": "confirmed",
+      "expected_facts": {"credential_protocols": ["FTP", "HTTP"], "credential_evidence_count": 2},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 2, "accepted_types": ["frame", "stream"], "query_required": true},
+      "forbidden_claims": ["admin:secret", "123456"]
+    },
+    {
+      "id": "T06_credential_scope", "category": "security",
+      "capture": "tests/fixtures/pcaps/plaintext_credentials.pcap",
+      "prompt": "这些明文凭据能否证明账户已被成功使用或主机已失陷？",
+      "expected_conclusion": "unresolved",
+      "expected_facts": {"plaintext_transmission_confirmed": true, "successful_authentication_proven": false, "compromise_proven": false},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["frame", "stream"], "query_required": true},
+      "forbidden_claims": ["login succeeded", "host compromised"]
+    },
+    {
+      "id": "T07_syn_scan_candidate", "category": "security",
+      "capture": "tests/fixtures/pcaps/syn_scan_burst.pcap",
+      "prompt": "检查是否存在端口扫描，给出来源、目标端口数量和置信度。",
+      "expected_conclusion": "candidate",
+      "expected_facts": {"source": "192.168.1.50", "target": "10.0.0.5", "unique_destination_ports": 25},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 2, "accepted_types": ["frame", "aggregate", "query"], "query_required": true},
+      "forbidden_claims": ["confirmed attacker"]
+    },
+    {
+      "id": "T08_threshold_scoped_absence", "category": "coverage",
+      "capture": "tests/fixtures/pcaps/syn_scan_burst.pcap",
+      "prompt": "以 30 个唯一目标端口为阈值，是否有来源达到阈值？",
+      "expected_conclusion": "no_match",
+      "expected_facts": {"threshold": 30, "matching_sources": 0, "maximum_unique_destination_ports": 25},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["aggregate", "query"], "query_required": true},
+      "forbidden_claims": ["no scanning activity exists"]
+    },
+    {
+      "id": "T09_literal_comma_cardinality", "category": "fact",
+      "capture": "tests/fixtures/pcaps/multivalue_fields.pcap",
+      "prompt": "这个抓包中有多少个不同的 HTTP User-Agent？字段里的逗号不能当成多个值。",
+      "expected_conclusion": "confirmed", "expected_facts": {"distinct_http_user_agents": 1},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["aggregate", "frame"], "query_required": true},
+      "forbidden_claims": []
+    },
+    {
+      "id": "T10_empty_dns_scope", "category": "coverage",
+      "capture": "tests/fixtures/pcaps/empty.pcap",
+      "prompt": "这个抓包中是否观察到 DNS 查询？准确描述结论范围。",
+      "expected_conclusion": "no_match", "expected_facts": {"dns_queries_observed": 0},
+      "allowed_coverage": ["complete"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["aggregate", "query"], "query_required": true},
+      "forbidden_claims": ["network had no DNS", "system never queried DNS"]
+    },
+    {
+      "id": "T11_partial_check_failure", "category": "failure",
+      "capture": "synthetic://partial-dos-check",
+      "prompt": "DoS 检测的 SYN 查询成功，但 SYN-ACK 和 UDP 子查询失败。能否确认没有攻击？",
+      "expected_conclusion": "unresolved",
+      "expected_facts": {"complete_assessment": false, "failed_checks_reported": true},
+      "allowed_coverage": ["partial"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["error", "query"], "query_required": true},
+      "forbidden_claims": ["no dos", "ratio is zero", "complete scan"]
+    },
+    {
+      "id": "T12_single_sided_capture", "category": "troubleshooting",
+      "capture": "tests/fixtures/pcaps/syn_scan_burst.pcap",
+      "prompt": "抓包只有 SYN 没有 SYN-ACK，这能否证明服务器未响应或遭受 DoS？",
+      "expected_conclusion": "unresolved",
+      "expected_facts": {"syn_packets": 25, "server_nonresponse_proven": false, "dos_proven": false},
+      "allowed_coverage": ["complete", "partial"],
+      "evidence": {"min_anchors": 1, "accepted_types": ["frame", "aggregate", "query"], "query_required": true},
+      "forbidden_claims": ["server definitely down", "confirmed dos"]
+    }
+  ]
+}

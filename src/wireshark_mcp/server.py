@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
+from ipaddress import ip_address
 from typing import Literal, cast
 
 from . import __version__
@@ -13,20 +14,24 @@ from .prompts import register_prompts
 from .resources import register_resources
 from .tools.advanced import register_advanced_tools
 from .tools.agents import register_agent_tools
-from .tools.capture import register_capture_tools
-from .tools.edit import register_edit_tools
 from .tools.extract import register_extract_tools
-from .tools.files import register_files_tools
-from .tools.imports import register_import_tools
 from .tools.registry import ToolRegistry, register_open_file_tool
 from .tools.stats import register_stats_tools
-from .tools.suite import register_suite_tools
+from .tools.utility import register_utility_tools
 from .tshark.client import WiresharkSuiteClient
 
 logger = logging.getLogger("wireshark_mcp")
 LogLevelName = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 LOG_LEVELS: tuple[LogLevelName, ...] = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 TRANSPORTS = ("stdio", "sse", "streamable-http")
+SERVER_INSTRUCTIONS = (
+    "Analyze packet captures with the advertised Wireshark tools. Start with "
+    "wireshark_open_file for capture context. For full-capture totals, grouped "
+    "distributions, distinct counts, top-k results, or time buckets, prefer "
+    "wireshark_aggregate over shell pipelines or paginated extraction. It scans the "
+    "full filter automatically; top_k limits only returned groups. Use packet-level "
+    "tools afterward to verify the highest-value findings."
+)
 
 
 class _HelpFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
@@ -54,23 +59,19 @@ def _build_server(*, host: str, port: int, log_level: LogLevelName, profile: str
 
     mcp = WiresharkMCP(
         "Wireshark MCP",
+        instructions=SERVER_INSTRUCTIONS,
+        version=__version__,
         dependencies=["tshark"],
-        host=host,
-        port=port,
         log_level=log_level,
         excluded_tools=excluded_tools(profile),
     )
     client = WiresharkSuiteClient(allowed_dirs=allowed_dirs)
 
     # ── Core tools (always registered) ──────────────────────────────────
-    register_capture_tools(mcp, client)
+    register_utility_tools(mcp, client)
     register_stats_tools(mcp, client)
     register_extract_tools(mcp, client)
-    register_files_tools(mcp, client)
     register_agent_tools(mcp, client)
-    register_suite_tools(mcp, client)
-    register_edit_tools(mcp, client)
-    register_import_tools(mcp, client)
     register_advanced_tools(mcp, client)
 
     # ── Analysis tools + protocol-aware recommendations ────────────────
@@ -83,7 +84,7 @@ def _build_server(*, host: str, port: int, log_level: LogLevelName, profile: str
 
     # ── Resources and Prompts ───────────────────────────────────────────
     register_resources(mcp, client)
-    register_prompts(mcp)
+    register_prompts(mcp, write_tools_enabled=profile == "full")
 
     if profile != DEFAULT_PROFILE:
         logger.info("Tool profile %r: %s", profile, profile_description(profile))
@@ -132,6 +133,21 @@ def _add_server_arguments(parser: argparse.ArgumentParser) -> None:
             "core: analysis minus decryption, dissection overrides, and low-level views."
         ),
     )
+    parser.add_argument(
+        "--allow-insecure-http",
+        action="store_true",
+        help="Allow unauthenticated SSE/HTTP to bind beyond loopback (unsafe without a trusted proxy)",
+    )
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Return whether a bind host is unambiguously local-only."""
+    if host.lower().rstrip(".") == "localhost":
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _add_client_selector_argument(parser: argparse.ArgumentParser) -> None:
@@ -314,6 +330,18 @@ def main(argv: Sequence[str] | None = None) -> None:
         stream=sys.stderr,
     )
 
+    if args.transport != "stdio" and not _is_loopback_host(args.host):
+        if not args.allow_insecure_http:
+            parser.error(
+                "Refusing to expose an unauthenticated MCP transport beyond loopback. "
+                "Bind to 127.0.0.1/::1 or pass --allow-insecure-http behind a trusted authenticated TLS proxy."
+            )
+        logger.warning(
+            "SECURITY: exposing unauthenticated %s on non-loopback host %s; use a trusted authenticated TLS proxy",
+            args.transport,
+            args.host,
+        )
+
     mcp = _build_server(
         host=args.host,
         port=args.port,
@@ -324,10 +352,17 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     if args.transport == "sse":
         logger.info("Starting SSE transport on http://%s:%d%s", args.host, args.port, args.mount_path)
-        mcp.run(transport="sse", mount_path=args.mount_path)
+        mount_path = "/" + args.mount_path.strip("/") if args.mount_path.strip("/") else ""
+        mcp.run(
+            transport="sse",
+            host=args.host,
+            port=args.port,
+            sse_path=f"{mount_path}/sse",
+            message_path=f"{mount_path}/messages/",
+        )
     elif args.transport == "streamable-http":
         logger.info("Starting Streamable HTTP transport on http://%s:%d", args.host, args.port)
-        mcp.run(transport="streamable-http")
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
     else:
         mcp.run()
 

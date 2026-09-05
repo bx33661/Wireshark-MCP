@@ -49,18 +49,17 @@ uv run python -m mypy --package wireshark_mcp --ignore-missing-imports --no-name
 
 ```
 src/wireshark_mcp/
-├── server.py          # MCP server entry point and tool registration
-├── tshark/
-│   └── client.py      # Core logic wrapping TShark CLI commands
-└── tools/             # Individual tool definitions
-    ├── extract.py     # Packet analysis and data extraction
-    ├── stats.py       # Statistics tools
-    ├── files.py       # File operation tools
-    ├── capture.py     # Live capture tools
-    ├── security.py    # Security analysis tools
-    ├── decode.py      # Payload decoding tools
-    └── visualize.py   # ASCII visualization tools
+├── server.py            # CLI, server construction, registration order
+├── mcp_app.py           # schemas, profiles, annotations, result ceiling
+├── profiles.py          # full / analysis / core exclusions
+├── prompts.py           # built-in MCP analysis prompts
+├── resources.py         # display-filter, field, and capability resources
+├── tools/               # public tool behavior and analysis semantics
+├── tshark/              # typed Wireshark suite client mixins and cache
+└── installer/           # client detection, config generation, diagnostics
 ```
+
+The execution path and security boundaries are described in [docs/architecture.md](docs/architecture.md).
 
 ## Submitting Changes
 
@@ -68,8 +67,9 @@ src/wireshark_mcp/
 2. **Write or update tests** for your changes
 3. **Ensure all tests pass**: `uv run python -m pytest tests/`
 4. **Lint your code**: `uv run python -m ruff check src/ tests/`
-5. **Add a change record** under `spec/changes/` following the format in `spec/README.md`
-6. **Open a Pull Request** — fill in the PR template
+5. **Update `changelog/unreleased.md`** for user-visible behavior
+6. **Update both language variants** when changing bilingual documentation
+7. **Open a Pull Request** — fill in the PR template
 
 For release work, use [docs/release-checklist.md](docs/release-checklist.md) and
 [docs/platform-validation.md](docs/platform-validation.md) before tagging a version.
@@ -77,9 +77,13 @@ For release work, use [docs/release-checklist.md](docs/release-checklist.md) and
 ## Adding a New Tool
 
 1. Add your tool function to the appropriate file in `src/wireshark_mcp/tools/`
-2. Register it in `server.py`
-3. Document it in `README.md` and `README_zh.md`
-4. Add tests in `tests/`
+2. Put new Wireshark command construction in `src/wireshark_mcp/tshark/`
+3. Register it through the appropriate module and check all three tool profiles
+4. Add read/write annotations and keep the public tool surface within its tested budget
+5. Document it in `README.md`, `README_zh.md`, the relevant guide, and `changelog/unreleased.md`
+6. Add unit tests; add a real-pcap test when parsing or protocol semantics change
+
+Before proposing another public tool, check whether an existing parameterized tool can express the capability. The project deliberately keeps the advertised tool list small.
 
 ## Reporting Bugs
 

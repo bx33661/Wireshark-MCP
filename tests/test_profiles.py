@@ -68,15 +68,12 @@ def test_profile_is_a_subset_of_full(profile: str) -> None:
     assert _tools(profile) <= full
 
 
-@pytest.mark.parametrize("profile", PROFILE_NAMES)
-def test_every_reachable_tool_survives_the_profile(profile: str) -> None:
-    """The invariant: a profile may shrink the surface but not strand the guidance."""
-    available = _tools(profile)
+def test_every_documented_or_recommended_tool_exists_in_full_profile() -> None:
+    """Guidance may qualify profile-specific tools, but every named tool must exist."""
+    available = _tools("full")
     stranded = sorted(_reachable_tool_names() - available)
     assert not stranded, (
-        f"profile {profile!r} excludes tools the shipped prompts, resources, skills, or "
-        f"protocol recommendations tell the caller to use: {stranded}. Either keep them in "
-        f"the profile or stop naming them in the guidance."
+        f"shipped prompts, resources, skills, or protocol recommendations name missing tools: {stranded}"
     )
 
 

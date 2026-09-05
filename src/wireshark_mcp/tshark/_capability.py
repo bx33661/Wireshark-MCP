@@ -6,7 +6,10 @@ import asyncio
 import logging
 import os
 import shutil
-import subprocess
+
+# Subprocess execution is restricted to resolved Wireshark binaries and never uses a shell.
+import subprocess  # nosec B404
+import sys
 from typing import Any
 
 from ..toolchain import (
@@ -62,7 +65,6 @@ class CapabilityMixin:
             path = self._tool_paths.get(tool_name)
             capabilities[tool_name] = {
                 "available": self._tool_is_available(path),
-                "path": path,
                 "requirement": WIRESHARK_TOOL_REQUIREMENTS[tool_name],
                 "purpose": WIRESHARK_TOOL_PURPOSES[tool_name],
             }
@@ -100,26 +102,33 @@ class CapabilityMixin:
     def _get_checked_tool_path(self, tool_name: str) -> str:
         """Return a tool path after availability has already been validated."""
         tool_path = self._tool_paths.get(tool_name)
-        if not self._tool_is_available(tool_path):
+        if tool_path is None or not self._tool_is_available(tool_path):
             raise RuntimeError(f"{tool_name} tool not available")
-        assert tool_path is not None
         return tool_path
 
     async def check_capabilities(self) -> dict[str, Any]:
         """Check availability and version of all Wireshark suite tools."""
 
         async def get_version(tool_path: str | None) -> dict[str, Any]:
-            if not self._tool_is_available(tool_path):
+            if tool_path is None or not self._tool_is_available(tool_path):
                 return {"available": False}
-            assert tool_path is not None
             try:
-                proc = await asyncio.create_subprocess_exec(
-                    tool_path,
-                    "-v",
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-                stdout, _ = await proc.communicate()
+                process_kwargs: dict[str, Any] = {
+                    "stdout": subprocess.PIPE,
+                    "stderr": subprocess.PIPE,
+                    "stdin": subprocess.DEVNULL,
+                }
+                if sys.platform == "win32":
+                    create_no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                    if create_no_window:
+                        process_kwargs["creationflags"] = create_no_window
+                proc = await asyncio.create_subprocess_exec(tool_path, "-v", **process_kwargs)
+                try:
+                    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    return {"available": True, "version": "unknown"}
                 version_line = stdout.decode("utf-8").split("\n")[0]
                 version = version_line.split()[-1] if version_line else "unknown"
                 return {"available": True, "version": version}

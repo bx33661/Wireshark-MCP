@@ -4,6 +4,8 @@ import json
 import os
 from unittest.mock import patch
 
+import pytest
+
 from wireshark_mcp.installer import (
     SERVER_NAME,
     _collect_python_env,
@@ -128,10 +130,27 @@ class TestReadWriteJsonConfig:
         f.write_text('{"foo": "bar"}')
         assert _read_json_config(str(f)) == {"foo": "bar"}
 
+    def test_read_windows_utf8_bom_json(self, tmp_path):
+        f = tmp_path / "bom.json"
+        f.write_bytes(b'\xef\xbb\xbf{"foo": "bar"}')
+        assert _read_json_config(str(f), strict=True) == {"foo": "bar"}
+
     def test_read_invalid_json(self, tmp_path):
         f = tmp_path / "bad.json"
         f.write_text("{bad json}")
         assert _read_json_config(str(f)) == {}
+
+    def test_strict_read_refuses_invalid_json(self, tmp_path):
+        f = tmp_path / "bad.json"
+        f.write_text("{bad json}")
+        with pytest.raises(ValueError, match="malformed JSON"):
+            _read_json_config(str(f), strict=True)
+
+    def test_strict_read_refuses_non_object_json(self, tmp_path):
+        f = tmp_path / "list.json"
+        f.write_text("[]")
+        with pytest.raises(ValueError, match="non-object JSON"):
+            _read_json_config(str(f), strict=True)
 
     def test_write_creates_file(self, tmp_path):
         path = str(tmp_path / "out.json")
@@ -227,6 +246,21 @@ class TestInstallMcpServers:
         result = json.loads((tmp_path / "cursor" / "mcp.json").read_text())
         assert "existing-mcp" in result["mcpServers"]
         assert SERVER_NAME in result["mcpServers"]
+
+    def test_install_does_not_overwrite_malformed_json(self, tmp_path, capsys):
+        cursor_dir = tmp_path / "cursor"
+        cursor_dir.mkdir()
+        config_path = cursor_dir / "mcp.json"
+        original = "{ malformed user config"
+        config_path.write_text(original, encoding="utf-8")
+        fake = {"Cursor": (str(cursor_dir), "mcp.json")}
+
+        with patch("wireshark_mcp.installer._clients._get_client_configs", return_value=fake):
+            count = install_mcp_servers(uninstall=False)
+
+        assert count == 0
+        assert config_path.read_text(encoding="utf-8") == original
+        assert "malformed JSON" in capsys.readouterr().out
 
     def test_uninstall_removes_entry(self, tmp_path):
         fake = self._make_fake_clients(tmp_path)

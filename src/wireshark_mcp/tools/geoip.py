@@ -133,9 +133,9 @@ def make_geoip_tools(client: TSharkClient) -> list[tuple[str, Any]]:
                     asn = f"AS{resp.traits.autonomous_system_number}"
                     org = resp.traits.autonomous_system_organization or "—"
             except geoip2.errors.AddressNotFoundError:
-                pass
-            except Exception:
-                pass
+                logger.debug("No GeoIP record for %s", ip)
+            except Exception as exc:
+                logger.warning("GeoIP lookup failed for %s: %s", ip, exc)
 
             results.append(f"{ip:<18} {country:<8} {city:<20} {asn:<10} {org}")
             enriched += 1

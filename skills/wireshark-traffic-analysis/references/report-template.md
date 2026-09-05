@@ -1,49 +1,34 @@
-# Report Template
+# Answer and handoff shapes
 
-Adapt this template to the user's goal. Keep it short unless the user asks for depth.
+Use only the detail needed for the user's question. Answer in the user's language.
 
-```markdown
-# Packet Analysis Report
+## Direct question
 
-## Scope
-- Capture: `<path>`
-- Goal: `<triage | security | incident-response | troubleshoot>`
-- Assumptions: `<none>` or `<brief list>`
+State the answer and scope, give the exact query and supporting count/frame/stream, then mention any material limitation. No full report is required for a single count or field lookup.
 
-## Executive Summary
-- Assessment: `<one-paragraph summary>`
-- Confidence: `<confirmed | likely | possible | unresolved>`
-- Severity or Impact: `<critical | high | medium | low | informational>`
+## Investigation
 
-## Environment Snapshot
-- Capture duration:
-- Main protocols:
-- Top talkers:
-- Most relevant conversations:
+1. Assessment: what the capture establishes and the confidence of causal/security claims.
+2. Scope: capture identity, observed time range, relevant filter, capture vantage point if known, and scan completeness.
+3. Findings: observation → packet/stream or aggregate evidence → interpretation → counter-explanation → remaining gap.
+4. Next action: only a query or external observation that could change the conclusion. Omit when the task is complete.
 
-## Key Findings
-| ID | Severity or Impact | Confidence | Finding | Evidence |
-|---|---|---|---|---|
-| F1 | High | Likely | Suspicious DNS beaconing | `wireshark_detect_dns_tunnel`, stream/filter details |
+Example evidence record (fill from actual output; never copy sample numbers):
 
-## Detailed Findings
-### F1. `<finding title>`
-- What we observed:
-- Evidence:
-- Interpretation:
-- Severity or impact:
-- Counterpoints:
-- Next filter, stream, or frame:
-
-## Gaps
-- What could not be verified from this capture
-- What additional packets, logs, or context would change confidence
-
-## Recommended Next Steps
-- `<exact filter or stream to inspect>`
-- `<additional capture or validation to run>`
-
-## Analyst Notes
-- Reproducibility: `<how another analyst can reproduce the finding>`
-- Caveats: `<capture vantage point, decryption limits, missing packets, or none>`
+```text
+Claim:
+Confidence / impact:
+Capture and time basis:
+Executed tool call or command:
+Fields and observed values (secrets masked):
+Frame / stream, or aggregate denominator:
+Coverage and output limits:
+Alternative explanation checked:
+Remaining gap:
 ```
+
+## Resuming or handing off
+
+Keep a compact ledger: task; capture identity and decoding settings; scoped queries already completed; findings and anchors; rejected explanations; failed queries and why; unresolved question; next query and expected decision. This avoids repeating broad scans after context loss.
+
+Distinguish an observed result from a command proposed for later execution. Never fabricate packet anchors or label an unexecuted validation as passed.

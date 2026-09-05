@@ -8,11 +8,13 @@ Inputs:
 
 Requirements:
 
-- Start broad, then narrow.
+- Start with the supplied question; use broad triage only for unfamiliar captures.
 - Use the project skill playbook that matches the goal.
+- Use `wireshark_aggregate` for full-capture totals, grouped distributions, distinct counts, top-k, or time buckets.
 - Include exact filters, streams, frames, or extracted fields for every important finding.
-- Label confidence as `confirmed`, `likely`, `possible`, or `unresolved`.
-- End with concrete next steps.
+- Label confidence as `confirmed`, `likely`, `candidate`, or `unresolved`.
+- Check result coverage and errors before interpreting counts or absence.
+- Stop when the question is answered; propose a next step only for an unresolved gap.
 
 Relevant files:
 

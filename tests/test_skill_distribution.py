@@ -42,3 +42,31 @@ def test_skill_manifest_lists_supported_locations() -> None:
     assert ".claude/skills/wireshark-traffic-analysis" in skill["project_locations"]
     assert skill["copilot"]["instructions_file"] == ".github/copilot-instructions.md"
     assert skill["copilot"]["prompt_file"] == ".github/prompts/wireshark-traffic-analysis.prompt.md"
+
+
+def test_sync_skills_cli_check_returns_zero_when_in_sync() -> None:
+    import subprocess
+    import sys
+
+    res = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "sync_skills.py"), "--check"],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    assert "All skills and manifests are in sync." in res.stdout
+
+
+def test_sync_skills_check_detects_discrepancy(tmp_path: Path, monkeypatch) -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("sync_skills", ROOT / "scripts" / "sync_skills.py")
+    assert spec and spec.loader
+    ss = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ss)
+
+    fake_empty = tmp_path / "empty_dir"
+    fake_empty.mkdir()
+    monkeypatch.setattr(ss, "GITHUB_SKILLS_DIR", fake_empty)
+    skill_dirs = ss.list_skill_dirs()
+    assert ss.run_check(skill_dirs) == 1

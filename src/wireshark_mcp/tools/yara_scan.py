@@ -3,7 +3,6 @@
 import logging
 import os
 import shutil
-import tempfile
 from importlib import resources as importlib_resources
 from pathlib import Path
 from typing import Any
@@ -98,7 +97,16 @@ def make_yara_tools(client: TSharkClient) -> list[tuple[str, Any]]:
             )
 
         use_temp = not dest_dir
-        export_dir = dest_dir or tempfile.mkdtemp(prefix="wireshark_yara_")
+        if use_temp:
+            temp_result = client._create_temporary_output_dir("wireshark_yara_")
+            if not temp_result["success"]:
+                return error_response(
+                    temp_result["error"]["message"],
+                    error_type=temp_result["error"]["type"],
+                )
+            export_dir = str(temp_result["path"])
+        else:
+            export_dir = dest_dir
 
         try:
             export_result = await client.export_objects(pcap_file, protocol, export_dir)
@@ -117,11 +125,14 @@ def make_yara_tools(client: TSharkClient) -> list[tuple[str, Any]]:
             results: list[str] = []
             total_matches = 0
             severity_counts: dict[str, int] = {}
+            scan_errors = 0
 
             for fpath in sorted(files):
                 try:
                     matches = rules.match(str(fpath))
-                except Exception:
+                except Exception as exc:
+                    scan_errors += 1
+                    logger.warning("YARA scan failed for exported object %s: %s", fpath.name, exc)
                     continue
 
                 if matches:
@@ -156,6 +167,9 @@ def make_yara_tools(client: TSharkClient) -> list[tuple[str, Any]]:
                 output.extend(results)
             else:
                 output.append(f"{OK} No YARA matches in {len(files)} exported {protocol} file(s)")
+
+            if scan_errors:
+                output.append(f"{WARN} {scan_errors} exported file(s) could not be scanned; result is incomplete")
 
             if use_temp:
                 output.append(f"\nExported files: {export_dir} (temporary)")

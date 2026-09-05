@@ -71,6 +71,20 @@ class TestExtractFrames:
         result = await mock_client.editcap_extract_frames("/tmp/test.pcap", "/tmp/out.pcap", "")
         assert "InvalidParameter" in result
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "ranges",
+        ["-F pcap", "1-", "0", "1;touch /tmp/pwned", "10-2", "1000000001", "9" * 10000],
+    )
+    async def test_rejects_option_injection(self, mock_client: MockTSharkClient, ranges: str) -> None:
+        result = await mock_client.editcap_extract_frames("/tmp/test.pcap", "/tmp/out.pcap", ranges)
+        assert "InvalidParameter" in result
+
+    @pytest.mark.asyncio
+    async def test_accepts_positive_frames_and_ranges(self, mock_client: MockTSharkClient) -> None:
+        await mock_client.editcap_extract_frames("/tmp/test.pcap", "/tmp/out.pcap", "1-10 15 20-30")
+        assert mock_client._last_cmd[-3:] == ["1-10", "15", "20-30"]
+
 
 class TestFlowGraph:
     @pytest.mark.asyncio

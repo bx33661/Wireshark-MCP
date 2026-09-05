@@ -1,12 +1,12 @@
 from typing import Any, Literal
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result
 
 
-def register_extract_tools(mcp: FastMCP, client: TSharkClient) -> None:
+def register_extract_tools(mcp: MCPServer, client: TSharkClient) -> None:
     """Register core extract tools (always available)."""
 
     @mcp.tool()

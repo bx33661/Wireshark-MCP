@@ -26,16 +26,11 @@
 - [ ] Linting passes (`ruff check src/`)
 - [ ] Manually tested with a real pcap file
 
-## Spec / Change Record
-
-<!-- If this is a code change, have you added a record under spec/changes/? -->
-
-- [ ] Added `spec/changes/YYYY-MM-DD-short-topic.md`
-- [ ] N/A (docs/CI only)
-
 ## Documentation
 
 - [ ] Updated `README.md`
 - [ ] Updated `README_zh.md`
-- [ ] Updated release notes (if applicable)
+- [ ] Updated the relevant guide under `docs/`
+- [ ] Updated `changelog/unreleased.md` for user-visible changes
+- [ ] Updated `ROADMAP.md` / `ROADMAP_zh.md` if scope or priorities changed
 - [ ] N/A

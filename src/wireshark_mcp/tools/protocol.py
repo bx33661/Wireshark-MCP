@@ -489,127 +489,32 @@ def make_protocol_handlers(client: TSharkClient) -> dict[str, ProtocolHandler]:
 
         return success_response(f"gRPC messages (up to {limit}):\n{data}")
 
-    async def _ble(pcap_file: str, limit: int) -> str:
-        fields = [
-            "btle.advertising_address",
-            "btle.data_header.llid",
-            "btle.length",
-            "btatt.opcode",
-            "btatt.handle",
-            "btl2cap.cid",
-        ]
-        result = await client.extract_fields(
-            pcap_file,
-            fields,
-            display_filter="btle",
-            limit=limit,
-        )
-        wrapped = parse_tool_result(result)
-        if not wrapped["success"]:
-            return normalize_tool_result(wrapped)
+    def _make_simple_extractor(
+        fields: list[str],
+        display_filter: str,
+        empty_msg: str,
+        header_tmpl: str,
+    ) -> ProtocolHandler:
+        async def _extractor(pcap_file: str, limit: int) -> str:
+            result = await client.extract_fields(
+                pcap_file,
+                fields,
+                display_filter=display_filter,
+                limit=limit,
+            )
+            wrapped = parse_tool_result(result)
+            if not wrapped["success"]:
+                return normalize_tool_result(wrapped)
 
-        data = wrapped.get("data", "")
-        if not isinstance(data, str) or len(data.strip()) < 20:
-            return success_response("No Bluetooth LE traffic found in this capture.")
+            data = wrapped.get("data", "")
+            if not isinstance(data, str) or len(data.strip()) < 20:
+                return success_response(empty_msg)
 
-        return success_response(f"Bluetooth LE packets (up to {limit}):\n{data}")
+            return success_response(header_tmpl.format(limit=limit, data=data))
 
-    async def _wifi(pcap_file: str, limit: int) -> str:
-        fields = [
-            "wlan.sa",
-            "wlan.da",
-            "wlan.bssid",
-            "wlan.fc.type_subtype",
-            "wlan.ssid",
-            "wlan.rsn.akms.type",
-        ]
-        result = await client.extract_fields(
-            pcap_file,
-            fields,
-            display_filter="wlan.fc.type == 0",
-            limit=limit,
-        )
-        wrapped = parse_tool_result(result)
-        if not wrapped["success"]:
-            return normalize_tool_result(wrapped)
+        return _extractor
 
-        data = wrapped.get("data", "")
-        if not isinstance(data, str) or len(data.strip()) < 20:
-            return success_response("No 802.11 management frames found in this capture.")
-
-        return success_response(f"802.11 management frames (up to {limit}):\n{data}")
-
-    async def _wireguard(pcap_file: str, limit: int) -> str:
-        fields = [
-            "ip.src",
-            "ip.dst",
-            "udp.dstport",
-            "wg.type",
-            "wg.sender",
-            "wg.receiver",
-        ]
-        result = await client.extract_fields(
-            pcap_file,
-            fields,
-            display_filter="wg",
-            limit=limit,
-        )
-        wrapped = parse_tool_result(result)
-        if not wrapped["success"]:
-            return normalize_tool_result(wrapped)
-
-        data = wrapped.get("data", "")
-        if not isinstance(data, str) or len(data.strip()) < 20:
-            return success_response("No WireGuard traffic found in this capture.")
-
-        return success_response(f"WireGuard sessions (up to {limit}):\n{data}")
-
-    async def _doh(pcap_file: str, limit: int) -> str:
-        fields = [
-            "ip.src",
-            "ip.dst",
-            "http2.header.value",
-        ]
-        result = await client.extract_fields(
-            pcap_file,
-            fields,
-            display_filter='http2.header.name == "content-type" && http2.header.value contains "dns"',
-            limit=limit,
-        )
-        wrapped = parse_tool_result(result)
-        if not wrapped["success"]:
-            return normalize_tool_result(wrapped)
-
-        data = wrapped.get("data", "")
-        if not isinstance(data, str) or len(data.strip()) < 20:
-            return success_response("No DNS-over-HTTPS traffic found in this capture.")
-
-        return success_response(f"{WARN} DNS-over-HTTPS detected (up to {limit}):\n{data}")
-
-    async def _icmp_tunnel(pcap_file: str, limit: int) -> str:
-        fields = [
-            "ip.src",
-            "ip.dst",
-            "icmp.type",
-            "data.len",
-        ]
-        result = await client.extract_fields(
-            pcap_file,
-            fields,
-            display_filter="icmp && data.len > 48",
-            limit=limit,
-        )
-        wrapped = parse_tool_result(result)
-        if not wrapped["success"]:
-            return normalize_tool_result(wrapped)
-
-        data = wrapped.get("data", "")
-        if not isinstance(data, str) or len(data.strip()) < 20:
-            return success_response("No large ICMP payloads found in this capture.")
-
-        return success_response(f"{WARN} ICMP tunneling indicators (up to {limit}):\n{data}")
-
-    return {
+    handlers: dict[str, ProtocolHandler] = {
         "tls_handshakes": _tls_handshakes,
         "smtp": _smtp,
         "dhcp": _dhcp,
@@ -617,9 +522,65 @@ def make_protocol_handlers(client: TSharkClient) -> dict[str, ProtocolHandler]:
         "websocket": _websocket,
         "mqtt": _mqtt,
         "grpc": _grpc,
-        "ble": _ble,
-        "wifi": _wifi,
-        "wireguard": _wireguard,
-        "doh": _doh,
-        "icmp_tunnel": _icmp_tunnel,
+        "ble": _make_simple_extractor(
+            [
+                "btle.advertising_address",
+                "btle.data_header.llid",
+                "btle.length",
+                "btatt.opcode",
+                "btatt.handle",
+                "btl2cap.cid",
+            ],
+            "btle",
+            "No Bluetooth LE traffic found in this capture.",
+            "Bluetooth LE packets (up to {limit}):\n{data}",
+        ),
+        "wifi": _make_simple_extractor(
+            [
+                "wlan.sa",
+                "wlan.da",
+                "wlan.bssid",
+                "wlan.fc.type_subtype",
+                "wlan.ssid",
+                "wlan.rsn.akms.type",
+            ],
+            "wlan.fc.type == 0",
+            "No 802.11 management frames found in this capture.",
+            "802.11 management frames (up to {limit}):\n{data}",
+        ),
+        "wireguard": _make_simple_extractor(
+            [
+                "ip.src",
+                "ip.dst",
+                "udp.dstport",
+                "wg.type",
+                "wg.sender",
+                "wg.receiver",
+            ],
+            "wg",
+            "No WireGuard traffic found in this capture.",
+            "WireGuard sessions (up to {limit}):\n{data}",
+        ),
+        "doh": _make_simple_extractor(
+            [
+                "ip.src",
+                "ip.dst",
+                "http2.header.value",
+            ],
+            'http2.header.name == "content-type" && http2.header.value contains "dns"',
+            "No DNS-over-HTTPS traffic found in this capture.",
+            f"{WARN} DNS-over-HTTPS detected (up to {{limit}}):\n{{data}}",
+        ),
+        "icmp_tunnel": _make_simple_extractor(
+            [
+                "ip.src",
+                "ip.dst",
+                "icmp.type",
+                "data.len",
+            ],
+            "icmp && data.len > 48",
+            "No large ICMP payloads found in this capture.",
+            f"{WARN} ICMP tunneling indicators (up to {{limit}}):\n{{data}}",
+        ),
     }
+    return handlers

@@ -6,9 +6,17 @@ on:
     paths: ["Formula/wireshark-mcp.rb"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: bottles-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # ── Step 1: build one bottle per platform ─────────────────────────────────────
   build:
+    name: Build bottle (${{ matrix.tag }})
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip bottles]') }}
     strategy:
       fail-fast: false
@@ -22,10 +30,12 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@main
+        uses: Homebrew/actions/setup-homebrew@f8d4222eb633e65c2a0157383cf80861fc7fae7f # main
 
       - name: Get formula version
         id: ver
@@ -38,13 +48,15 @@ jobs:
         run: brew install --build-bottle bx33661/wireshark-mcp/wireshark-mcp
 
       - name: Create bottle
+        env:
+          BOTTLE_VERSION: ${{ steps.ver.outputs.version }}
         run: |
           brew bottle bx33661/wireshark-mcp/wireshark-mcp \
             --json \
-            --root-url "https://github.com/bx33661/homebrew-wireshark-mcp/releases/download/wireshark-mcp-${{ steps.ver.outputs.version }}"
+            --root-url "https://github.com/bx33661/homebrew-wireshark-mcp/releases/download/wireshark-mcp-${BOTTLE_VERSION}"
 
       - name: Upload bottle artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bottle-${{ matrix.tag }}
           path: |
@@ -53,25 +65,25 @@ jobs:
 
   # ── Step 2: merge JSON, publish release, commit updated formula ───────────────
   release:
+    name: Publish bottles
     needs: build
     runs-on: macos-latest
     permissions:
-      contents: write
+      contents: write # create the bottle release and commit its generated formula block
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          # Need push access; GITHUB_TOKEN with contents:write is enough
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - name: Download all bottle artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: bottle-*
           merge-multiple: true
 
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@main
+        uses: Homebrew/actions/setup-homebrew@f8d4222eb633e65c2a0157383cf80861fc7fae7f # main
 
       - name: Get formula version
         id: ver
@@ -84,7 +96,7 @@ jobs:
         run: brew bottle --merge --write --no-commit *.bottle.json
 
       - name: Create GitHub Release and upload bottles
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: "wireshark-mcp-${{ steps.ver.outputs.version }}"
           name: "wireshark-mcp ${{ steps.ver.outputs.version }}"
@@ -92,10 +104,14 @@ jobs:
           files: "*.bottle.tar.gz"
 
       - name: Commit updated formula (with bottle block)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOTTLE_VERSION: ${{ steps.ver.outputs.version }}
         run: |
+          gh auth setup-git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/wireshark-mcp.rb
           git diff --cached --quiet && echo "No formula changes" && exit 0
-          git commit -m "chore: add bottles for wireshark-mcp ${{ steps.ver.outputs.version }} [skip bottles]"
+          git commit -m "chore: add bottles for wireshark-mcp ${BOTTLE_VERSION} [skip bottles]"
           git push

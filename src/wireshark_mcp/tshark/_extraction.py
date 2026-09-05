@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 
-from ._typing import _ClientProtocol
+from ._typing import FieldRowConsumer, FieldStreamResult, _ClientProtocol
 
 
 class ExtractionMixin(_ClientProtocol):
@@ -19,6 +19,8 @@ class ExtractionMixin(_ClientProtocol):
         separator: str = "\t",
         limit: int = 100,
         offset: int = 0,
+        aggregator: str = ",",
+        stream_limit: bool = False,
     ) -> str:
         """Extract fields (-T fields -e ...)."""
         validation = self._validate_file(pcap_file)
@@ -31,9 +33,50 @@ class ExtractionMixin(_ClientProtocol):
         if display_filter:
             cmd.extend(["-Y", display_filter])
 
-        cmd.extend(["-E", "header=y", "-E", f"separator={separator}", "-E", "quote=d"])
+        cmd.extend(
+            [
+                "-E",
+                "header=y",
+                "-E",
+                f"separator={separator}",
+                "-E",
+                f"aggregator={aggregator}",
+                "-E",
+                "quote=d",
+            ]
+        )
 
+        if stream_limit:
+            return await self._run_command(
+                cmd,
+                limit_lines=limit,
+                offset_lines=offset,
+                stream_limit=True,
+            )
         return await self._run_command(cmd, limit_lines=limit, offset_lines=offset)
+
+    async def stream_fields(
+        self,
+        pcap_file: str,
+        fields: list[str],
+        consumer: FieldRowConsumer,
+        display_filter: str = "",
+        max_rows: int = 1_000_000,
+        timeout: int = 30,
+    ) -> FieldStreamResult:
+        """Consume tshark field rows without materializing its complete stdout."""
+        validation = self._validate_file(pcap_file)
+        if not validation["success"]:
+            error = validation.get("error")
+            return {"success": False, "error": error if isinstance(error, dict) else {"message": str(error)}}
+
+        cmd = [self.tshark_path, "-n", "-r", pcap_file, "-T", "fields"]
+        for field in fields:
+            cmd.extend(["-e", field])
+        if display_filter:
+            cmd.extend(["-Y", display_filter])
+        cmd.extend(["-E", "header=y", "-E", "separator=/t", "-E", "aggregator=,", "-E", "quote=d"])
+        return await self._stream_field_rows(cmd, consumer, max_rows=max_rows, timeout=timeout)
 
     async def export_objects(self, pcap_file: str, protocol: str, dest_dir: str) -> str:
         """Export Objects (--export-objects protocol,dest_dir)."""
@@ -78,7 +121,7 @@ class ExtractionMixin(_ClientProtocol):
             if search_type == "hex":
                 display_filter = f"frame contains {match_pattern}"
             else:
-                safe_pattern = match_pattern.replace('"', '\\"')
+                safe_pattern = match_pattern.replace("\\", "\\\\").replace('"', '\\"')
                 display_filter = f'frame contains "{safe_pattern}"'
 
         elif scope == "details":

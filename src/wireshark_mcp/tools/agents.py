@@ -4,10 +4,10 @@ import asyncio
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
 from ..tshark.client import TSharkClient
-from .envelope import normalize_tool_result, parse_tool_result, success_response
+from .envelope import parse_tool_result, success_response
 from .formatting import CRIT, INFO, OK, WARN, section, smart_truncate
 
 logger = logging.getLogger("wireshark_mcp")
@@ -17,7 +17,7 @@ MAX_TOTAL_CHARS = 4000
 
 
 def _extract_data(result: str) -> str | None:
-    wrapped = parse_tool_result(normalize_tool_result(result))
+    wrapped = parse_tool_result(result)
     if wrapped["success"]:
         data = wrapped.get("data", "")
         if isinstance(data, str) and len(data.strip()) > 10:
@@ -157,7 +157,7 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
 # ── Registration ──
 
 
-def register_agent_tools(mcp: FastMCP, client: TSharkClient) -> None:
+def register_agent_tools(mcp: MCPServer, client: TSharkClient) -> None:
     """Register agentic workflow tools."""
 
     @mcp.tool()
