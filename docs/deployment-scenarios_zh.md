@@ -39,6 +39,12 @@ ssh -L 8080:127.0.0.1:8080 user@analysis-host
 
 ## 容器
 
+从 GitHub Container Registry 拉取官方多平台镜像：
+
+```sh
+docker pull ghcr.io/bx33661/wireshark-mcp:3.0.0
+```
+
 只读挂载抓包并限制允许访问的目录：
 
 ```sh
@@ -46,8 +52,11 @@ docker run --rm -p 127.0.0.1:8080:8080 \
   -v "$PWD/captures:/captures:ro" \
   -v "$PWD/results:/results" \
   -e WIRESHARK_MCP_ALLOWED_DIRS=/captures,/results \
-  IMAGE wireshark-mcp serve --transport streamable-http --host 0.0.0.0 --port 8080 --allow-insecure-http
+  ghcr.io/bx33661/wireshark-mcp:3.0.0
 ```
+
+镜像默认以非 root 用户运行，通过 8080 端口提供 Streamable HTTP，并使用
+`analysis` profile。需要修改启动方式时，可在镜像名后追加 `serve` 参数。
 
 默认优先离线 PCAP 分析。实时抓包需要显式配置网卡和容器 capability。
 不需要任何写文件工具时，移除 results 挂载并使用 `core` profile。

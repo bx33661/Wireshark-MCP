@@ -39,6 +39,12 @@ and 3.0 refuses a non-loopback bind unless `--allow-insecure-http` is supplied.
 
 ## Containers
 
+Pull the official multi-platform image from GitHub Container Registry:
+
+```sh
+docker pull ghcr.io/bx33661/wireshark-mcp:3.0.0
+```
+
 Mount captures read-only and limit the server's allowed directories:
 
 ```sh
@@ -46,8 +52,11 @@ docker run --rm -p 127.0.0.1:8080:8080 \
   -v "$PWD/captures:/captures:ro" \
   -v "$PWD/results:/results" \
   -e WIRESHARK_MCP_ALLOWED_DIRS=/captures,/results \
-  IMAGE wireshark-mcp serve --transport streamable-http --host 0.0.0.0 --port 8080 --allow-insecure-http
+  ghcr.io/bx33661/wireshark-mcp:3.0.0
 ```
+
+The image defaults to Streamable HTTP on port 8080 with the `analysis` profile
+and runs as a non-root user. Append `serve` arguments to override that command.
 
 Prefer offline PCAP analysis. Live capture needs an explicit interface and
 container-capability policy. Omit the writable results mount and use the `core`
