@@ -73,11 +73,7 @@ def make_analyze_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     }
 
     async def wireshark_analyze_protocol(pcap_file: str, protocol: Protocol, limit: int = 100) -> str:
-        """[Protocol] Analyze one protocol with the right fields and display filter already chosen.
-
-        Returns a summary plus matching rows, or "no <protocol> traffic found". `limit`
-        caps rows; rtp and smb return fixed-size tables and ignore it.
-        """
+        """[Protocol] Analyze one protocol with preset fields and filter. Returns a summary and bounded rows; RTP/SMB use fixed tables."""
         handler = handlers.get(protocol)
         if handler is None:
             return error_response(

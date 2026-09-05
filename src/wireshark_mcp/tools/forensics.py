@@ -52,12 +52,7 @@ def make_forensics_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     """Build forensics tools."""
 
     async def wireshark_extract_fingerprints(pcap_file: str, limit: int = 100) -> str:
-        """[Forensics] Extract JA3 (client) and JA3S (server) TLS fingerprints.
-
-        Matches against ~/.wireshark-mcp/fingerprints/*.json if you maintain any; no
-        fingerprint list ships with this package. A JA3 identifies a TLS configuration,
-        not an application, so treat any match as a lead to corroborate.
-        """
+        """[Forensics] Extract JA3/JA3S TLS fingerprints and optionally match local user-maintained lists. Treat matches as leads."""
         # JA3 is computed from the Client Hello and JA3S from the Server Hello, so the
         # two need separate passes: filtering to type == 1 leaves the ja3s column empty
         # in every row, which is what this tool used to do while advertising both.
@@ -115,11 +110,7 @@ def make_forensics_tools(client: TSharkClient) -> list[tuple[str, Any]]:
         return success_response("\n".join(output_parts))
 
     async def wireshark_scan_file_signatures(pcap_file: str) -> str:
-        """[Forensics] Count packets containing a file magic number (PE, ELF, PDF, Office, archives, images).
-
-        An indicator, not an extraction — use wireshark_export_objects to get file bytes.
-        A hit may be a coincidental byte sequence.
-        """
+        """[Forensics] Count packets containing common file signatures. Hits require object extraction and verification."""
         MAGIC_BYTES = {
             "PE/EXE": "4d5a",
             "ELF": "7f454c46",

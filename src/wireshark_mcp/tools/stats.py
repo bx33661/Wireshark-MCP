@@ -459,8 +459,7 @@ def register_stats_tools(mcp: MCPServer, client: TSharkClient) -> None:
 
     @mcp.tool()
     async def wireshark_stats_io_graph(pcap_file: str, interval: int = 1, filters: str = "") -> str:
-        """[I/O Graph] Traffic volume over time. interval: bucket size in seconds. filters: optional
-        semicolon-separated display filters to break the traffic out by type, e.g. 'tcp;udp;dns'."""
+        """[I/O Graph] Traffic volume by time bucket, optionally split by semicolon-separated display filters."""
         filter_list = [f.strip() for f in filters.split(";") if f.strip()] if filters else None
         if filter_list:
             return _maybe_summarize(await client.get_io_stat_filtered(pcap_file, interval, filter_list))

@@ -4,7 +4,7 @@
 > **发布主题**：可信分析与稳定接口 (Trustworthy Analysis and Stable Interfaces)<br>
 > **核心承诺**：同一份抓包，结果可复现；分析不完整时明确说明；每个重要结论都能回到数据包证据。<br>
 > **分发产物**：`dist/wireshark_mcp-3.0.0-py3-none-any.whl` 与 `dist/wireshark_mcp-3.0.0.tar.gz`<br>
-> **Wheel SHA256**：`ea35aed97970595ae67026681a226934711c3e7aec97fdff5605e82acd29fe65`
+> **Wheel SHA256**：`5cbcd3edfc6f5d195cacce1b944aa849e16bdb4dc97e8bbb839afa47a6cdef81`
 
 ---
 
@@ -125,7 +125,7 @@ $ pytest -v
 1. **构建输出**：`dist/wireshark_mcp-3.0.0-py3-none-any.whl`、`dist/wireshark_mcp-3.0.0.tar.gz`
 2. **SHA256 校验和**：
    ```text
-   ea35aed97970595ae67026681a226934711c3e7aec97fdff5605e82acd29fe65  dist/wireshark_mcp-3.0.0-py3-none-any.whl
+   5cbcd3edfc6f5d195cacce1b944aa849e16bdb4dc97e8bbb839afa47a6cdef81  dist/wireshark_mcp-3.0.0-py3-none-any.whl
    ```
 3. **独立环境安装**：
    ```bash
