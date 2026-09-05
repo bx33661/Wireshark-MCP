@@ -19,7 +19,7 @@ COMPARE_SPEC.loader.exec_module(COMPARE_MODULE)
 
 
 def _manifest() -> dict:
-    return json.loads((ROOT / "evals" / "agent-traffic-analysis" / "scenarios.json").read_text())
+    return json.loads((ROOT / "evals" / "agent-traffic-analysis" / "scenarios.json").read_text(encoding="utf-8"))
 
 
 def test_manifest_has_balanced_unique_scenarios() -> None:
