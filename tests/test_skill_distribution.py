@@ -70,3 +70,17 @@ def test_sync_skills_check_detects_discrepancy(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr(ss, "GITHUB_SKILLS_DIR", fake_empty)
     skill_dirs = ss.list_skill_dirs()
     assert ss.run_check(skill_dirs) == 1
+
+
+def test_sync_skills_check_allows_unmaterialized_ignored_mirrors(tmp_path: Path, monkeypatch) -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("sync_skills", ROOT / "scripts" / "sync_skills.py")
+    assert spec and spec.loader
+    ss = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ss)
+
+    monkeypatch.setattr(ss, "GITHUB_SKILLS_DIR", tmp_path / "missing-github-skills")
+    monkeypatch.setattr(ss, "CLAUDE_SKILLS_DIR", tmp_path / "missing-claude-skills")
+    skill_dirs = ss.list_skill_dirs()
+    assert ss.run_check(skill_dirs) == 0

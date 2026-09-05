@@ -101,9 +101,9 @@ def run_check(skill_dirs: list[Path]) -> int:
     for skill_dir in skill_dirs:
         github_dest = GITHUB_SKILLS_DIR / skill_dir.name
         claude_dest = CLAUDE_SKILLS_DIR / skill_dir.name
-        if not check_tree_matches(skill_dir, github_dest):
+        if GITHUB_SKILLS_DIR.exists() and not check_tree_matches(skill_dir, github_dest):
             return 1
-        if not check_tree_matches(skill_dir, claude_dest):
+        if CLAUDE_SKILLS_DIR.exists() and not check_tree_matches(skill_dir, claude_dest):
             return 1
 
     print("All skills and manifests are in sync.")
