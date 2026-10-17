@@ -78,4 +78,43 @@ The gate exits 1 for missing/duplicate cells, reused contexts/traces, inconsiste
 
 The comparator adds sample/missing counts, minimum, median, maximum and sample standard deviation for eligible efficiency metrics. One sample has unknown standard deviation, not zero. Missing Token/RSS measurements stay missing.
 
-Engineering-run status: both independent CLI connection probes timed out at the request stage; the complete 180-cell model experiment has not run. Separately recorded targeted subagent behavior checks are not a complete matrix and do not establish accuracy or Token improvement percentages.
+## Running the matrix with the collector
+
+`scripts/agent_eval_harness.py` is a trusted collector for the matrix. It builds the nine `synthetic://` inputs (failed DoS sub-queries, a 64-byte snaplen, two unsynchronised sensors, a 15-source top-k, an unknown field, a changed capture, a 4 KB output budget, instructions inside a payload and a known frame), writes one blind cell per scenario × variant × trial, and runs every query the Agent makes so the trace is written by the collector, not by the Agent. It does not call a model: you bring the Agent.
+
+```sh
+EVAL=/absolute/path/to/new-eval-dir
+uv run python scripts/agent_eval_harness.py prepare "$EVAL" \
+  --model <model-id> --reasoning-effort <setting> --budget "30 min, 60 tool calls per cell"
+```
+
+Each `cells/<scenario>--<variant>--t<n>/` holds `task.json` and `prompt.md`. The prompt tells the Agent to run every query through `agent_eval_harness.py call --cell <cell> {mcp TOOL JSON | mcp-list | cmd tshark|capinfos ... | hash FILE}` and to write `answer.json`. MCP variants use the `full` profile in-process; the CLI variant may only run `tshark` and `capinfos`. Input arguments must name the cell's own inputs. Expected facts live in `.collector/cells.json`, which the Agent must not be able to read.
+
+`drive` runs an Agent command once per unanswered cell, each in a fresh process with the cell as working directory. `{prompt_file}`, `{cell}` and `{harness}` are substituted. With Claude Code:
+
+```sh
+uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent \
+  'claude -p "$(cat {prompt_file})" --output-format json --model <model-id> \
+   --allowedTools "Bash(*agent_eval_harness.py call*)" "Read(../../skills/**)" "Write(answer.json)"'
+```
+
+`--only T05_` limits a pass to matching cells; interrupted runs resume because answered cells are skipped. Token usage is read from the Agent's JSON output when it reports `usage`. Then:
+
+```sh
+uv run python scripts/agent_eval_harness.py finalize "$EVAL" --output "$EVAL/runs"
+uv run python scripts/check_agent_matrix.py --variant without-skill="$EVAL/runs/without-skill.json" \
+  --variant with-skill="$EVAL/runs/with-skill.json" --variant tshark-cli="$EVAL/runs/tshark-cli.json" \
+  --trace-dir "$EVAL/.collector/traces" --output "$EVAL/matrix.json"
+uv run python scripts/compare_agent_traffic.py --variant without-skill="$EVAL/runs/without-skill.json" \
+  --variant with-skill="$EVAL/runs/with-skill.json" --variant tshark-cli="$EVAL/runs/tshark-cli.json" \
+  --trace-dir "$EVAL/.collector/traces" --output "$EVAL/comparison.json"
+```
+
+Limits of this collector, to state next to any published result:
+
+- MCP variants call the server through the collector's command wrapper, not a native MCP client connection, so tool-discovery behaviour of a real client is not measured.
+- The prompt lists the fact names (not values) the answer must fill, which is more structure than a real user gives.
+- Observations are derived by rules: a value fact counts as observed when a completed call's output shows that value, and each judgment fact has one scenario-specific rule. Input paths are masked first so a file name cannot count as evidence. Review disagreements by hand.
+- Isolation depends on the Agent client's permissions; the collector cannot stop an Agent that is allowed to read `.collector/`.
+
+Engineering-run status: the collector and its end-to-end tests exist; the complete 180-cell model experiment has not been run.

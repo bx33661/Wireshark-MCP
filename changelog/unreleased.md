@@ -16,6 +16,11 @@
   coverage, findings merged by id, analyst verdicts and notes, and a Markdown
   report rendered only from that record. `wireshark://cases/{case_id}` exposes
   the full JSON. See [Findings and cases](../docs/findings-and-cases.md).
+- `scripts/agent_eval_harness.py` collects the 180-cell Agent matrix: it builds
+  the nine `synthetic://` inputs, writes blind cells, executes every Agent query
+  itself so traces are collector-written, drives any command-line Agent once per
+  cell and emits runs files for `check_agent_matrix.py`. See
+  [Agent evaluation](../docs/agent-evaluation.md#running-the-matrix-with-the-collector).
 
 ### Changed
 
@@ -52,6 +57,10 @@
   及其摘要/范围/覆盖、按 id 合并的发现、分析者结论与备注，以及只依据案卷生成的
   Markdown 报告；`wireshark://cases/{case_id}` 提供完整 JSON。见
   [发现模型与调查案卷](../docs/findings-and-cases_zh.md)。
+- `scripts/agent_eval_harness.py` 采集 180 格 Agent 矩阵：生成 9 个 `synthetic://`
+  输入、写出盲测格、由自身执行 Agent 的每条查询（轨迹由采集器写入）、对每格调用任意
+  命令行 Agent，并输出供 `check_agent_matrix.py` 使用的运行文件。见
+  [Agent 评测](../docs/agent-evaluation_zh.md#用采集器运行矩阵)。
 
 ### 变更
 

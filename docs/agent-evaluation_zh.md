@@ -76,4 +76,43 @@ python scripts/check_agent_matrix.py \
 
 比较器在通过样本上补充各指标的样本数、缺失数、最小值、中位数、最大值和样本标准差。一个样本的标准差是缺失，不是零；缺失 Token/RSS 不补零。
 
-本轮工程记录：两种独立 CLI 连接探测均在请求阶段超时，180 格完整模型实验尚未执行。独立子任务的定向行为验证另行保存，不混称完整矩阵结果，也不据此发布准确率或 Token 提升百分比。
+## 用采集器运行矩阵
+
+`scripts/agent_eval_harness.py` 是矩阵的可信采集器。它生成 9 个 `synthetic://` 输入（DoS 子查询失败、64 字节 snaplen、两台时钟未同步的传感器、15 个源的 top-k、不存在的字段、被替换的抓包、4 KB 输出限额、载荷中的指令、已知帧），为每个场景 × 路径 × 轮次写一个盲测格，并代为执行 Agent 发出的每条查询，因此轨迹由采集器而不是 Agent 写入。它不调用模型，Agent 由你提供。
+
+```sh
+EVAL=/absolute/path/to/new-eval-dir
+uv run python scripts/agent_eval_harness.py prepare "$EVAL" \
+  --model <model-id> --reasoning-effort <setting> --budget "30 min, 60 tool calls per cell"
+```
+
+每个 `cells/<scenario>--<variant>--t<n>/` 含 `task.json` 和 `prompt.md`。提示要求 Agent 通过 `agent_eval_harness.py call --cell <cell> {mcp TOOL JSON | mcp-list | cmd tshark|capinfos ... | hash FILE}` 执行全部查询，并写出 `answer.json`。两条 MCP 路径在进程内使用 `full` 档位；CLI 路径只能运行 `tshark` 与 `capinfos`。输入参数必须是本格自己的输入。期望事实存放在 `.collector/cells.json`，不能让 Agent 读到。
+
+`drive` 对每个尚未作答的格各启动一次 Agent 命令，每次都是新进程，工作目录为该格。模板中替换 `{prompt_file}`、`{cell}`、`{harness}`。以 Claude Code 为例：
+
+```sh
+uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent \
+  'claude -p "$(cat {prompt_file})" --output-format json --model <model-id> \
+   --allowedTools "Bash(*agent_eval_harness.py call*)" "Read(../../skills/**)" "Write(answer.json)"'
+```
+
+`--only T05_` 只跑名称匹配的格；中断后重跑会跳过已作答的格。Agent 的 JSON 输出含 `usage` 时记录 Token。之后：
+
+```sh
+uv run python scripts/agent_eval_harness.py finalize "$EVAL" --output "$EVAL/runs"
+uv run python scripts/check_agent_matrix.py --variant without-skill="$EVAL/runs/without-skill.json" \
+  --variant with-skill="$EVAL/runs/with-skill.json" --variant tshark-cli="$EVAL/runs/tshark-cli.json" \
+  --trace-dir "$EVAL/.collector/traces" --output "$EVAL/matrix.json"
+uv run python scripts/compare_agent_traffic.py --variant without-skill="$EVAL/runs/without-skill.json" \
+  --variant with-skill="$EVAL/runs/with-skill.json" --variant tshark-cli="$EVAL/runs/tshark-cli.json" \
+  --trace-dir "$EVAL/.collector/traces" --output "$EVAL/comparison.json"
+```
+
+发布结果时需要一并说明的局限：
+
+- MCP 路径经采集器的命令包装调用服务端，不是原生 MCP 客户端连接，因此不衡量真实客户端的工具发现行为。
+- 提示列出了答案需填写的事实名（不含值），比真实用户给的结构更多。
+- 观测由规则推导：完成的调用输出中出现该值即视为观测到数值事实；每个判断类事实各有一条场景规则。先屏蔽输入路径，文件名不能当作证据。分歧需人工复核。
+- 隔离依赖 Agent 客户端的权限设置；若 Agent 被允许读取 `.collector/`，采集器无法阻止。
+
+本轮工程记录：采集器及其端到端测试已就绪，180 格完整模型实验尚未执行。
