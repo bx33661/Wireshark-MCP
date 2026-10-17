@@ -16,6 +16,7 @@ Start with the page that matches the task at hand.
 | Migrate a 2.x deployment safely | [3.0 security migration](security-hardening-v3.md) |
 | Ask better packet-analysis questions | [Prompt examples](prompt-engineering.md) |
 | Compute capture-wide counts and distributions | [Aggregation guide](aggregation.md) |
+| Read detector findings and keep investigation case files | [Findings and cases](findings-and-cases.md) |
 
 ## Maintain the project
 

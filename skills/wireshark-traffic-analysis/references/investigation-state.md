@@ -19,6 +19,17 @@ For each input record a stable ID, path, SHA-256 when available, size, capture t
 
 For each claim record observation versus explanation, confidence, evidence-query IDs, strongest alternative checked, and remaining gap. On resume, verify input identity and settings before reuse; invalidate results affected by changes. A modified capture, different Decode As, reassembly preference or key material can change stream IDs and field visibility.
 
+## Server-side case files
+
+When the server exposes `wireshark_case`, it can hold this ledger for you across sessions:
+
+- `create` with a title and the capture paths records each input's SHA-256 and size.
+- `record` takes a tool's JSON result unchanged. The case keeps its digest, scope and coverage and merges its `findings` by their `id`, so the same finding seen twice is one entry with two query references.
+- `verdict` sets `confirmed`, `dismissed` or `open` on a finding id, with a short reason. Dismiss with the alternative that explains it; do not confirm from a detector label alone.
+- `show` returns the compact state to resume from; `report` renders Markdown from the recorded data only.
+
+A case stores what tools returned, not what you concluded in prose. Claims without a recorded finding belong in a `note`, marked as interpretation.
+
 ## Correlating files
 
 - Keep frame/stream anchors paired with capture ID. Never use frame 42 alone across files.

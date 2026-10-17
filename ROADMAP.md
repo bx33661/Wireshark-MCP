@@ -46,12 +46,12 @@ Exit criterion: numeric aggregation and pagination have real-tshark tests, deter
 
 ## Next — 3.2 evidence-first findings
 
-- Publish the full 20-scenario × 3-path × 3-run Agent evaluation matrix with harness-bound traces.
-- Persist investigation case files (inputs, executed queries, findings, analyst verdicts) so long investigations survive context resets.
-- Define one finding schema shared by security and anomaly tools: severity, confidence, evidence frames, filters, streams, and caveats.
-- Produce Markdown and JSON reports from the same finding data rather than maintaining two independent renderers.
-- Add timeline helpers that preserve exact frame numbers and relative times for incident-response workflows.
-- Add comparison views for two captures or two display-filter windows without loading packet bodies into model context.
+- [ ] Publish the full 20-scenario × 3-path × 3-run Agent evaluation matrix with harness-bound traces.
+- [x] Persist investigation case files (inputs, executed queries, findings, analyst verdicts) so long investigations survive context resets.
+- [x] Define one finding schema shared by security and anomaly tools: severity, confidence, evidence frames, filters, streams, and caveats.
+- [x] Produce Markdown and JSON reports from the same finding data rather than maintaining two independent renderers.
+- [ ] Add timeline helpers that preserve exact frame numbers and relative times for incident-response workflows.
+- [ ] Add comparison views for two captures or two display-filter windows without loading packet bodies into model context.
 
 Exit criterion: every automated finding can be traced back to an exact tool result and packet-level verification path.
 
