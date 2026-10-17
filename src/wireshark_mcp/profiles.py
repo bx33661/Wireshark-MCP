@@ -39,6 +39,8 @@ _CAPTURE: Final[frozenset[str]] = frozenset(
 )
 
 # Tools that write a new file: pcap surgery, format conversion, saved filters.
+# `wireshark_case` is deliberately absent: it writes only its own case files in a
+# server-managed directory under the allowed root, never a caller-chosen path.
 _WRITERS: Final[frozenset[str]] = frozenset(
     {
         "wireshark_editcap_deduplicate",
@@ -94,6 +96,6 @@ def profile_description(profile: str) -> str:
     """One-line summary for `--help` and startup logging."""
     return {
         "full": "every tool (default)",
-        "analysis": "no live capture, no file-writing tools",
+        "analysis": "no live capture, no caller-directed file-writing tools",
         "core": "analysis minus decryption, dissection overrides, and low-level views",
     }.get(profile, "unknown profile")

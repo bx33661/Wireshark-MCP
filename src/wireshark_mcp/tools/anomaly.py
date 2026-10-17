@@ -41,7 +41,9 @@ BEACON_LIMIT = 10000
 EXTERNAL_TCP_FILTER = "tcp && !ip.dst == 10.0.0.0/8 && !ip.dst == 172.16.0.0/12 && !ip.dst == 192.168.0.0/16"
 LONG_DNS_FILTER = "dns.qry.name.len > 50"
 LONG_DNS_LIMIT = 1000
-NONSTANDARD_PORT_FILTER = "tcp && !(tcp.dstport == 80 || tcp.dstport == 443 || tcp.dstport == 8080 || tcp.dstport == 8443)"
+NONSTANDARD_PORT_FILTER = (
+    "tcp && !(tcp.dstport == 80 || tcp.dstport == 443 || tcp.dstport == 8080 || tcp.dstport == 8443)"
+)
 
 
 def make_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]:

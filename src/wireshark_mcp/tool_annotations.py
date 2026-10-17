@@ -20,6 +20,7 @@ from mcp.types import ToolAnnotations
 WRITE_TOOLS: frozenset[str] = frozenset(
     {
         "wireshark_capture",
+        "wireshark_case",  # writes its own case files under the allowed root
         "wireshark_editcap_deduplicate",
         "wireshark_editcap_split",
         "wireshark_editcap_time_shift",

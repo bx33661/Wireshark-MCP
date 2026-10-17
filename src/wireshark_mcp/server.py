@@ -14,6 +14,7 @@ from .prompts import register_prompts
 from .resources import register_resources
 from .tools.advanced import register_advanced_tools
 from .tools.agents import register_agent_tools
+from .tools.case import register_case_tools
 from .tools.extract import register_extract_tools
 from .tools.registry import ToolRegistry, register_open_file_tool
 from .tools.stats import register_stats_tools
@@ -73,6 +74,7 @@ def _build_server(*, host: str, port: int, log_level: LogLevelName, profile: str
     register_extract_tools(mcp, client)
     register_agent_tools(mcp, client)
     register_advanced_tools(mcp, client)
+    register_case_tools(mcp, client)
 
     # ── Analysis tools + protocol-aware recommendations ────────────────
     # Register the full analysis tool catalog once — the tool surface is static.

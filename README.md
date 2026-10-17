@@ -112,11 +112,11 @@ Write findings to report.md.
 
 ## Tools
 
-52 tools, each backed by real `tshark` output — organized into categories:
+53 tools, each backed by real `tshark` output — organized into categories:
 
 | Category | Highlights | Count |
 |----------|-----------|:-----:|
-| **Entry & Workflow** | `wireshark_open_file`, `wireshark_quick_analysis` | 2 |
+| **Entry & Workflow** | `wireshark_open_file`, `wireshark_quick_analysis`, `wireshark_case` (persistent investigation case files) | 3 |
 | **Packet Analysis** | Packet list, details, bytes, context, stream follow, search, file info | 8 |
 | **Data Extraction** | HTTP requests, DNS queries, arbitrary fields, object export | 4 |
 | **Statistics** | Aggregate/group/distinct/top-k/time buckets, protocol hierarchy, endpoints, conversations, I/O graph, expert info, service response time, flow graph | 8 |
@@ -138,9 +138,9 @@ If your client never captures live traffic or writes pcaps, `--profile` advertis
 
 | Profile | Tools | Payload | Drops |
 |---------|:-----:|:-------:|-------|
-| `full` (default) | 52 | ~22 KB | nothing |
-| `analysis` | 40 | ~17 KB | live capture, interface listing, all file-writing tools |
-| `core` | 32 | ~14 KB | the above, plus decryption, dissection overrides, and low-level views |
+| `full` (default) | 53 | ~23 KB | nothing |
+| `analysis` | 41 | ~17 KB | live capture, interface listing, all caller-directed file-writing tools |
+| `core` | 33 | ~14 KB | the above, plus decryption, dissection overrides, and low-level views |
 
 ```bash
 wireshark-mcp serve --profile core
@@ -154,9 +154,9 @@ Tool results are bounded too, since a result stays in the conversation for the r
 export WIRESHARK_MCP_MAX_RESULT_CHARS=16000
 ```
 
-Every tool also declares whether it reads or writes, so clients can auto-approve the 41 read-only analysis tools and still prompt for the 11 that create files (live capture, merge, filter-save, editcap, text2pcap, frame extract, object export).
+Every tool also declares whether it reads or writes, so clients can auto-approve the 41 read-only analysis tools and still prompt for the 12 that create files (live capture, merge, filter-save, editcap, text2pcap, frame extract, object export, case files).
 
-In 3.0, those 11 tools fail closed until `WIRESHARK_MCP_ALLOWED_DIRS` names existing directories. Remote HTTP/SSE binding also stays loopback-only unless `--allow-insecure-http` is explicitly supplied behind a trusted authenticated TLS proxy. See the [3.0 security migration guide](docs/security-hardening-v3.md).
+Since 3.0, those tools fail closed until `WIRESHARK_MCP_ALLOWED_DIRS` names existing directories. Remote HTTP/SSE binding also stays loopback-only unless `--allow-insecure-http` is explicitly supplied behind a trusted authenticated TLS proxy. See the [3.0 security migration guide](docs/security-hardening-v3.md).
 
 ---
 

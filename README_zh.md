@@ -112,11 +112,11 @@ wireshark-mcp install --client codex --scope project
 
 ## 工具
 
-52 个工具，每个都由真实 `tshark` 输出支撑，按类别组织：
+53 个工具，每个都由真实 `tshark` 输出支撑，按类别组织：
 
 | 类别 | 亮点 | 数量 |
 |------|------|:----:|
-| **入口与工作流** | `wireshark_open_file`、`wireshark_quick_analysis` | 2 |
+| **入口与工作流** | `wireshark_open_file`、`wireshark_quick_analysis`、`wireshark_case`（持久化调查案卷） | 3 |
 | **数据包分析** | 数据包列表、详情、字节、上下文、流追踪、搜索、文件信息 | 8 |
 | **数据提取** | HTTP 请求、DNS 查询、任意字段提取、对象导出 | 4 |
 | **统计** | 聚合/分组/去重计数/Top-K/时间分桶、协议层次、端点、会话、I/O 图、专家信息、服务响应时间、流图 | 8 |
@@ -138,9 +138,9 @@ wireshark-mcp install --client codex --scope project
 
 | Profile | 工具数 | 载荷 | 移除的内容 |
 |---------|:-----:|:----:|-----------|
-| `full`（默认） | 52 | ~22 KB | 无 |
-| `analysis` | 40 | ~17 KB | 实时抓包、接口列表、以及全部写文件的工具 |
-| `core` | 32 | ~14 KB | 以上全部，再加解密、解析覆写与底层视图 |
+| `full`（默认） | 53 | ~23 KB | 无 |
+| `analysis` | 41 | ~17 KB | 实时抓包、接口列表、以及全部由调用方指定路径的写文件工具 |
+| `core` | 33 | ~14 KB | 以上全部，再加解密、解析覆写与底层视图 |
 
 ```bash
 wireshark-mcp serve --profile core
@@ -154,9 +154,9 @@ wireshark-mcp serve --profile core
 export WIRESHARK_MCP_MAX_RESULT_CHARS=16000
 ```
 
-每个工具都声明了自己是只读还是写入，因此客户端可以自动放行 41 个只读分析工具，同时仍然对会创建文件的 11 个工具（实时抓包、合并、过滤保存、editcap、text2pcap、帧提取、对象导出）进行确认。
+每个工具都声明了自己是只读还是写入，因此客户端可以自动放行 41 个只读分析工具，同时仍然对会创建文件的 12 个工具（实时抓包、合并、过滤保存、editcap、text2pcap、帧提取、对象导出、调查案卷）进行确认。
 
-3.0 中，这 11 个工具在 `WIRESHARK_MCP_ALLOWED_DIRS` 未指向现有目录时一律失败关闭。HTTP/SSE 默认也只能监听回环地址；只有放在可信、带认证的 TLS 反向代理后，才应显式传入 `--allow-insecure-http`。迁移说明见 [3.0 安全加固指南](docs/security-hardening-v3_zh.md)。
+自 3.0 起，这些工具在 `WIRESHARK_MCP_ALLOWED_DIRS` 未指向现有目录时一律失败关闭。HTTP/SSE 默认也只能监听回环地址；只有放在可信、带认证的 TLS 反向代理后，才应显式传入 `--allow-insecure-http`。迁移说明见 [3.0 安全加固指南](docs/security-hardening-v3_zh.md)。
 
 ---
 

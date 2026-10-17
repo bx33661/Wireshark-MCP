@@ -102,7 +102,9 @@ def test_full_server_exposes_a_stable_tool_surface(monkeypatch) -> None:
     # are wireshark_analyze_protocol values, not tools: their Python-side aggregation
     # lives in protocol handlers, so deep protocol analysis adds enum values and
     # recommendations without touching the tool surface.
-    assert len(names) <= 52, f"tool surface grew to {len(names)}; justify or consolidate"
+    # wireshark_case (3.2) is the one deliberate addition: persistent case files are
+    # state the server owns, so no read-only tool could carry them.
+    assert len(names) <= 53, f"tool surface grew to {len(names)}; justify or consolidate"
 
 
 def test_every_protocol_recommendation_is_registered() -> None:
