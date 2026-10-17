@@ -33,14 +33,14 @@ class TestQuickAnalysis:
         result = await _run_quick_analysis(mock_client, "test.pcap")
         data = json.loads(result)
         assert data["success"]
-        output = data["data"]
+        output = data["data"]["report"]
         assert "## Quick Analysis" in output
 
     @pytest.mark.asyncio
     async def test_contains_all_sections(self, mock_client: MockTSharkClient) -> None:
         result = await _run_quick_analysis(mock_client, "test.pcap")
         data = json.loads(result)
-        output = data["data"]
+        output = data["data"]["report"]
         assert "File Info" in output
         assert "Protocols" in output
         assert "Top Talkers" in output

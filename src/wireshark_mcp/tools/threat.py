@@ -5,7 +5,7 @@ from typing import Any
 
 from ..tshark.client import TSharkClient
 from .envelope import envelope_response, error_response, normalize_tool_result, parse_tool_result
-from .findings import Finding, FindingConstraints, FindingEvidence
+from .findings import Finding, FindingConstraints, FindingEvidence, finalize_findings
 from .formatting import CRIT, OK, WARN
 
 logger = logging.getLogger("wireshark_mcp")
@@ -242,7 +242,10 @@ def make_threat_tools(client: TSharkClient) -> list[tuple[str, Any]]:
             coverage_data["failed_checks"] = failed_checks
 
         return envelope_response(
-            data={"findings": findings, "summary": "\n".join(summary_lines)},
+            data={
+                "findings": finalize_findings("wireshark_detect_port_scan", pcap_file, findings, "port_scan"),
+                "summary": "\n".join(summary_lines),
+            },
             scope={"pcap_file": pcap_file, "threshold": threshold},
             coverage=coverage_data,
             truncated=any_truncated,
@@ -423,7 +426,10 @@ def make_threat_tools(client: TSharkClient) -> list[tuple[str, Any]]:
             summary_lines.append(f"  - {ev.get('description')}: {ev.get('value')}")
 
         return envelope_response(
-            data={"findings": findings, "summary": "\n".join(summary_lines)},
+            data={
+                "findings": finalize_findings("wireshark_detect_dns_tunnel", pcap_file, findings, "dns_tunnel"),
+                "summary": "\n".join(summary_lines),
+            },
             scope={"pcap_file": pcap_file, "filter": "dns.flags.response == 0"},
             coverage={"status": "partial" if warnings else "complete", "scanned": total_queries, "limit": limit},
             warnings=warnings if warnings else None,
@@ -794,7 +800,10 @@ def make_threat_tools(client: TSharkClient) -> list[tuple[str, Any]]:
             coverage_dos["failed_checks"] = failed_checks
 
         return envelope_response(
-            data={"findings": findings, "summary": "\n".join(summary_lines)},
+            data={
+                "findings": finalize_findings("wireshark_detect_dos_attack", pcap_file, findings, "dos"),
+                "summary": "\n".join(summary_lines),
+            },
             scope={"pcap_file": pcap_file},
             coverage=coverage_dos,
             truncated=any_truncated,

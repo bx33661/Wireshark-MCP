@@ -7,7 +7,7 @@ from typing import Any
 
 from ..tshark.client import TSharkClient
 from .envelope import ProtocolHandler, envelope_response, normalize_tool_result, parse_tool_result
-from .findings import Finding, FindingEvidence
+from .findings import Finding, FindingEvidence, finalize_findings
 from .formatting import OK, WARN
 
 logger = logging.getLogger("wireshark_mcp")
@@ -808,7 +808,9 @@ def make_ble_protocol_handlers(client: TSharkClient) -> dict[str, ProtocolHandle
 
         return envelope_response(
             data={
-                "findings": [finding] if scanner_rows else [],
+                "findings": finalize_findings("wireshark_analyze_protocol", pcap_file, [finding], "ble_scan_activity")
+                if scanner_rows
+                else [],
                 "scanners": scanner_rows,
                 "summary": "\n".join(summary_lines),
             },
@@ -1406,7 +1408,7 @@ def make_ble_protocol_handlers(client: TSharkClient) -> dict[str, ProtocolHandle
                 "pairing_response": pairing_response,
                 "pairing_method": {"method": method, "note": method_note},
                 "key_material": key_material,
-                "findings": findings,
+                "findings": finalize_findings("wireshark_analyze_protocol", pcap_file, findings, "ble_pairing"),
                 "summary": "\n".join(summary_lines),
             },
             scope={"pcap_file": pcap_file, "filter": "btsmp"},
