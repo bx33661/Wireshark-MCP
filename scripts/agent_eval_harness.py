@@ -554,6 +554,10 @@ def _judgment_facts(scenario: dict[str, Any], call: dict[str, Any], text: str, t
         ):
             facts.update(clock_alignment_known=False, one_way_latency_proven=False)
     if capture == "synthetic://topk-complete-scan" and status == "completed":
+        # Seeing more than ten distinct sources in one complete result shows a top-10 view is not all groups.
+        sources = set(re.findall(r"(?<![\d.])10\.20\.0\.(\d+)(?![\d.])", text))
+        if call.get("coverage") == "complete" and len(sources) > 10:
+            facts.update(scan_complete=True, all_groups_returned=False, returned_sum_is_global_total=False)
         try:
             data = json.loads(text).get("data", {})
             groups = data.get("groups", [])
@@ -588,6 +592,44 @@ def _judgment_facts(scenario: dict[str, Any], call: dict[str, Any], text: str, t
     ):
         facts["targeted_frame_inspected"] = True
     return facts
+
+
+def _observe(
+    scenario: dict[str, Any],
+    meta: dict[str, Any],
+    trace: dict[str, Any],
+    record: dict[str, Any],
+    output: str,
+    arguments: dict[str, Any],
+) -> None:
+    """Derive a call's observations from its raw result; `trace["calls"]` holds only earlier calls."""
+    kind, query, status = record["kind"], record["query"], record["status"]
+    # Anchors in a cut-short result were still shown to the Agent; the evaluator decides what they support.
+    frames, streams = _anchors(output, query) if status in ("completed", "output_limit") else ([], [])
+    if kind == "mcp" and status == "completed":
+        requested = arguments.get("frame_number")
+        if isinstance(requested, int) and requested > 0 and requested not in frames:
+            frames = sorted([*frames, requested])
+        requested = arguments.get("stream_index")
+        if isinstance(requested, int) and requested >= 0 and requested not in streams:
+            streams = sorted([*streams, requested])
+    # Input paths name the scenario (e.g. "credentials"), so they never count as observed content.
+    shown = output
+    for name in meta["files"]:
+        shown = shown.replace(name, "<input>")
+    record["observations"] = {"facts": {}, "frames": frames, "streams": streams}
+    expected = scenario["expected_facts"]
+    values = {
+        key: value
+        for key, value in expected.items()
+        if not isinstance(value, bool) and status == "completed" and kind != "hash" and _shows(shown, value)
+    }
+    if status == "completed" and kind != "hash" and "threshold" in expected:
+        # The threshold is a scope parameter from the question; a completed query of the input applies it.
+        values["threshold"] = expected["threshold"]
+    record["observations"]["digests"] = sorted(d for d in set(trace["input_files"].values()) if d in output)
+    judged = _judgment_facts(scenario, record, shown, trace)
+    record["observations"]["facts"] = {**values, **{k: v for k, v in judged.items() if k in expected}}
 
 
 def call(cell: Path, kind: str, rest: list[str]) -> int:
@@ -680,15 +722,6 @@ def call(cell: Path, kind: str, rest: list[str]) -> int:
     result_name = f"results/{meta['trace_id']}.{call_id}.txt"
     (root / ".collector/traces" / meta["variant"] / result_name).write_text(output, encoding="utf-8")
     coverage = _mcp_coverage(output, status) if kind == "mcp" else ("complete" if status == "completed" else "unknown")
-    # Anchors in a cut-short result were still shown to the Agent; the evaluator decides what they support.
-    frames, streams = _anchors(output, query) if status in ("completed", "output_limit") else ([], [])
-    if kind == "mcp" and status == "completed":
-        requested = arguments.get("frame_number")
-        if isinstance(requested, int) and requested > 0 and requested not in frames:
-            frames = sorted([*frames, requested])
-        requested = arguments.get("stream_index")
-        if isinstance(requested, int) and requested >= 0 and requested not in streams:
-            streams = sorted([*streams, requested])
     record: dict[str, Any] = {
         "id": call_id,
         "kind": kind,
@@ -698,23 +731,9 @@ def call(cell: Path, kind: str, rest: list[str]) -> int:
         "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
         "result_file": result_name,
         "result_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
-        "observations": {"facts": {}, "frames": frames, "streams": streams},
+        "observations": {},
     }
-    # Input paths name the scenario (e.g. "credentials"), so they never count as observed content.
-    shown = output
-    for name in meta["files"]:
-        shown = shown.replace(name, "<input>")
-    expected = scenario["expected_facts"]
-    values = {
-        key: value
-        for key, value in expected.items()
-        if not isinstance(value, bool) and status == "completed" and kind != "hash" and _shows(shown, value)
-    }
-    if status == "completed" and "threshold" in expected and _shows(query, expected["threshold"]):
-        values["threshold"] = expected["threshold"]  # a scope parameter is observed in the executed query
-    record["observations"]["digests"] = sorted(d for d in set(trace["input_files"].values()) if d in output)
-    judged = _judgment_facts(scenario, record, shown, trace)
-    record["observations"]["facts"] = {**values, **{k: v for k, v in judged.items() if k in expected}}
+    _observe(scenario, meta, trace, record, output, arguments)
     trace["calls"].append(record)
     trace["ended_at"] = time.time()
     path = _trace_path(root, meta)
@@ -722,6 +741,37 @@ def call(cell: Path, kind: str, rest: list[str]) -> int:
     path.write_text(json.dumps(trace, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"call_id: {call_id}\nquery: {query}\nstatus: {status}\ncoverage: {coverage}\n---")
     print(output)
+    return 0
+
+
+def reobserve(root: Path) -> int:
+    """Re-derive every call's observations from its retained raw result with the current rules."""
+    manifest = {item["id"]: item for item in json.loads(MANIFEST.read_text(encoding="utf-8"))["scenarios"]}
+    private = json.loads((root / ".collector/cells.json").read_text(encoding="utf-8"))
+    changed = 0
+    for meta in private.values():
+        path = _trace_path(root, meta)
+        if not path.exists():
+            continue
+        trace = json.loads(path.read_text(encoding="utf-8"))
+        calls, trace["calls"] = trace["calls"], []
+        for record in calls:
+            output = (path.parent / record["result_file"]).read_text(encoding="utf-8")
+            if hashlib.sha256(output.encode("utf-8")).hexdigest() != record["result_sha256"]:
+                raise SystemExit(f"{record['result_file']} no longer matches its recorded digest")
+            arguments: dict[str, Any] = {}
+            if record["kind"] == "mcp":
+                try:
+                    parsed = json.loads(record["query"].split(" ", 1)[1])
+                    arguments = parsed if isinstance(parsed, dict) else {}
+                except (IndexError, json.JSONDecodeError):
+                    pass
+            before = record["observations"]
+            _observe(manifest[meta["scenario_id"]], meta, trace, record, output, arguments)
+            changed += record["observations"] != before
+            trace["calls"].append(record)
+        path.write_text(json.dumps(trace, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"Re-derived observations; {changed} calls changed. Run finalize again before scoring.")
     return 0
 
 
@@ -845,6 +895,8 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--agent", required=True, help="command template; {prompt_file}, {cell}, {harness} are substituted")
     d.add_argument("--only", help="substring filter on cell names")
     d.add_argument("--timeout", type=int, default=1800)
+    r = sub.add_parser("reobserve", help="re-derive observations from retained results with the current rules")
+    r.add_argument("root", type=Path)
     f = sub.add_parser("finalize")
     f.add_argument("root", type=Path)
     f.add_argument("--output", type=Path, required=True)
@@ -854,6 +906,8 @@ def main(argv: list[str] | None = None) -> int:
         return prepare(args.root, args.repeats, experiment, args.variant or list(VARIANTS))
     if args.command == "call":
         return call(args.cell, args.kind, args.rest)
+    if args.command == "reobserve":
+        return reobserve(args.root)
     if args.command == "drive":
         return drive(args.root, args.agent, args.only, args.timeout)
     return finalize(args.root, args.output)

@@ -131,8 +131,9 @@ def score_run(scenario: dict[str, Any], run: dict[str, Any], trace: dict[str, An
     conclusion = run.get("conclusion")
     if conclusion not in VALID_CONCLUSIONS:
         failures.append(f"invalid conclusion: {conclusion!r}")
-    elif conclusion != scenario["expected_conclusion"]:
-        failures.append(f"conclusion expected {scenario['expected_conclusion']!r}, got {conclusion!r}")
+    elif conclusion not in scenario.get("acceptable_conclusions", [scenario["expected_conclusion"]]):
+        expected = scenario.get("acceptable_conclusions", scenario["expected_conclusion"])
+        failures.append(f"conclusion expected {expected!r}, got {conclusion!r}")
 
     facts = run.get("facts")
     if not isinstance(facts, dict):

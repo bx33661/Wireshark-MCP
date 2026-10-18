@@ -306,3 +306,20 @@ def test_supporting_evidence_of_other_types_counts_only_when_true() -> None:
     trace = _trace_for(scenario, only_support)
     failures = MODULE.score_run(scenario, only_support, trace)["failures"]
     assert any("evidence anchors of type" in failure for failure in failures)
+
+
+def test_scenarios_may_accept_more_than_one_conclusion() -> None:
+    scenario = next(item for item in _manifest()["scenarios"] if item["id"] == "T17_changed_capture")
+    assert scenario["acceptable_conclusions"] == ["unresolved", "confirmed"]
+    run = {
+        "scenario_id": scenario["id"],
+        "conclusion": "confirmed",
+        "facts": scenario["expected_facts"],
+        "coverage": {"status": "complete"},
+        "evidence": [{"type": "query", "query": "sha256 after.pcap"}],
+        "answer": "The capture changed; earlier results cannot be reused.",
+    }
+    assert MODULE.score_run(scenario, run, _trace_for(scenario, run))["passed"] is True
+    rejected = {**run, "conclusion": "no_match"}
+    failures = MODULE.score_run(scenario, rejected, _trace_for(scenario, rejected))["failures"]
+    assert any("conclusion expected" in failure for failure in failures)

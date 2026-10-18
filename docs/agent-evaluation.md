@@ -28,7 +28,7 @@ Each trace sidecar has:
 - `calls`: unique `id`, exact `query`, `status` (`completed`, `error`, `timeout`), `coverage` (`complete`, `partial`, `unknown`), `result_file`, `result_sha256`, and `observations`.
 - `observations.facts`: values extracted/annotated by the harness from retained results; `frames`/`streams`: actual observed integer anchors. Keep causal annotations under human review rather than inferring truth from a string match.
 
-Every answer evidence item references `call_id` and the same executed `query`. Only items of the scenario's accepted types count toward `min_anchors`; items of other types are allowed as supporting context but are checked against the trace in the same way, so a wrong supporting item still fails the run. A frame/stream `value` must occur in that call's observations. Reported facts must match both expected facts and trace observations. Complete claims require matching call coverage; error evidence must reference an actually failed call. Report and trace JSON are separate: the Agent cannot establish authenticity by inventing a `trace` field in its answer.
+Every answer evidence item references `call_id` and the same executed `query`. A scenario may list `acceptable_conclusions` when more than one label is correct: T15, T17 and T18 accept `confirmed` as well as `unresolved`, because an answer that directly establishes the limitation (a top-10 view is not all groups, the capture changed, the output was cut short) is confirmed by its evidence. Only items of the scenario's accepted types count toward `min_anchors`; items of other types are allowed as supporting context but are checked against the trace in the same way, so a wrong supporting item still fails the run. A frame/stream `value` must occur in that call's observations. Reported facts must match both expected facts and trace observations. Complete claims require matching call coverage; error evidence must reference an actually failed call. Report and trace JSON are separate: the Agent cannot establish authenticity by inventing a `trace` field in its answer.
 
 ```sh
 python scripts/evaluate_agent_traffic.py runs.json --trace-dir harness-traces --output evaluation.json
@@ -105,7 +105,7 @@ chmod +x agent.sh
 uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent "$PWD/agent.sh {prompt_file} {cell} $EVAL"
 ```
 
-`--only T05_` limits a pass to matching cells; interrupted runs resume because answered cells are skipped. Token usage is read from the Agent's JSON output when it reports `usage`. Then:
+`reobserve "$EVAL"` re-derives every call's observations from the retained raw results after the collector's rules change, checking each result against its recorded digest; run `finalize` again afterwards. `--only T05_` limits a pass to matching cells; interrupted runs resume because answered cells are skipped. Token usage is read from the Agent's JSON output when it reports `usage`. Then:
 
 ```sh
 uv run python scripts/agent_eval_harness.py finalize "$EVAL" --output "$EVAL/runs"

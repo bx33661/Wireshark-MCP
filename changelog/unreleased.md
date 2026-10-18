@@ -35,6 +35,10 @@
   `min_anchors`; evidence of other types is allowed as supporting context and
   is still checked against the trace. Previously any extra supporting item
   failed the run.
+- Scenarios may list `acceptable_conclusions`. T15, T17 and T18 accept
+  `confirmed` alongside `unresolved`, and T17/T18 accept the coverage of a
+  query that settles the limitation; three Haiku rounds showed correct,
+  fully evidenced answers failing only on the label.
 
 ### Fixed
 
@@ -77,6 +81,9 @@
 
 - Agent 评分只把场景接受的证据类型计入 `min_anchors`；其他类型可作为辅助证据，
   但仍按轨迹核对。此前任何额外的辅助证据都会导致判失败。
+- 场景可列出 `acceptable_conclusions`。T15、T17、T18 在 `unresolved` 之外也接受
+  `confirmed`，T17/T18 也接受能够确证该限制的查询覆盖度；三轮 Haiku 评测中，判断正确、
+  证据齐全的回答只因标签而失败。
 
 ### 修复
 

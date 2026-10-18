@@ -22,7 +22,7 @@
 
 执行记录包含 `input_id`、真实文件的 `input_sha256` 和 `calls`。每次调用包含唯一 `id`、实际 `query`、执行 `status`、`coverage`、结果文件 `result_file`/`result_sha256`、以及执行器从结果提取的 `observations.facts`、`frames`、`streams`。不要把标准答案字典复制到实测观察里。
 
-答案证据必须通过 `call_id` 关联真实调用，查询须一致，帧/流编号须出现在该调用的观察中。事实还需匹配观察值；完整性不能与调用记录矛盾；错误证据须对应失败调用。只有场景接受的证据类型计入 `min_anchors`；其他类型可作为辅助证据，但同样按轨迹核对，错误的辅助证据仍会判失败。Agent 自填一段 trace 不构成执行证明。
+答案证据必须通过 `call_id` 关联真实调用，查询须一致，帧/流编号须出现在该调用的观察中。事实还需匹配观察值；完整性不能与调用记录矛盾；错误证据须对应失败调用。当不止一个标签正确时，场景可以列出 `acceptable_conclusions`：T15、T17、T18 同时接受 `confirmed` 和 `unresolved`，因为直接证实了限制本身（top-10 不是全部分组、抓包已变、输出被截断）的回答，其证据足以支持 confirmed。只有场景接受的证据类型计入 `min_anchors`；其他类型可作为辅助证据，但同样按轨迹核对，错误的辅助证据仍会判失败。Agent 自填一段 trace 不构成执行证明。
 
 ```sh
 python scripts/evaluate_agent_traffic.py runs.json --trace-dir harness-traces --output evaluation.json
@@ -103,7 +103,7 @@ chmod +x agent.sh
 uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent "$PWD/agent.sh {prompt_file} {cell} $EVAL"
 ```
 
-`--only T05_` 只跑名称匹配的格；中断后重跑会跳过已作答的格。Agent 的 JSON 输出含 `usage` 时记录 Token。之后：
+采集器规则修改后，`reobserve "$EVAL"` 会用保留的原始结果重新推导每次调用的观测，并逐个核对结果摘要；之后需重新运行 `finalize`。`--only T05_` 只跑名称匹配的格；中断后重跑会跳过已作答的格。Agent 的 JSON 输出含 `usage` 时记录 Token。之后：
 
 ```sh
 uv run python scripts/agent_eval_harness.py finalize "$EVAL" --output "$EVAL/runs"
