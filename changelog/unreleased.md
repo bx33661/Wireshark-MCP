@@ -31,6 +31,11 @@
   returns `data.report` instead of a bare string.
 - `wireshark_case` joins the tool surface as the only tool that keeps state.
 
+- Agent scoring counts only the scenario's accepted evidence types toward
+  `min_anchors`; evidence of other types is allowed as supporting context and
+  is still checked against the trace. Previously any extra supporting item
+  failed the run.
+
 ### Fixed
 
 - Protocol-anomaly detection and the Modbus write check used space-separated
@@ -69,6 +74,9 @@
   `wireshark_yara_scan` 改为返回带 `findings`、`summary`、`scope`、`coverage` 的结果信封，
   不再是纯文本；`wireshark_quick_analysis` 返回 `data.report`，不再是裸字符串。
 - 新增 `wireshark_case`，它是唯一保存状态的工具。
+
+- Agent 评分只把场景接受的证据类型计入 `min_anchors`；其他类型可作为辅助证据，
+  但仍按轨迹核对。此前任何额外的辅助证据都会导致判失败。
 
 ### 修复
 

@@ -28,7 +28,7 @@ Each trace sidecar has:
 - `calls`: unique `id`, exact `query`, `status` (`completed`, `error`, `timeout`), `coverage` (`complete`, `partial`, `unknown`), `result_file`, `result_sha256`, and `observations`.
 - `observations.facts`: values extracted/annotated by the harness from retained results; `frames`/`streams`: actual observed integer anchors. Keep causal annotations under human review rather than inferring truth from a string match.
 
-Every answer evidence item references `call_id` and the same executed `query`. A frame/stream `value` must occur in that call's observations. Reported facts must match both expected facts and trace observations. Complete claims require matching call coverage; error evidence must reference an actually failed call. Report and trace JSON are separate: the Agent cannot establish authenticity by inventing a `trace` field in its answer.
+Every answer evidence item references `call_id` and the same executed `query`. Only items of the scenario's accepted types count toward `min_anchors`; items of other types are allowed as supporting context but are checked against the trace in the same way, so a wrong supporting item still fails the run. A frame/stream `value` must occur in that call's observations. Reported facts must match both expected facts and trace observations. Complete claims require matching call coverage; error evidence must reference an actually failed call. Report and trace JSON are separate: the Agent cannot establish authenticity by inventing a `trace` field in its answer.
 
 ```sh
 python scripts/evaluate_agent_traffic.py runs.json --trace-dir harness-traces --output evaluation.json
@@ -90,12 +90,19 @@ uv run python scripts/agent_eval_harness.py prepare "$EVAL" \
 
 Each `cells/<scenario>--<variant>--t<n>/` holds `task.json` and `prompt.md`. The prompt tells the Agent to run every query through `agent_eval_harness.py call --cell <cell> {mcp TOOL JSON | mcp-list | cmd tshark|capinfos ... | hash FILE}` and to write `answer.json`. MCP variants use the `full` profile in-process; the CLI variant may only run `tshark` and `capinfos`. Input arguments must name the cell's own inputs. Expected facts live in `.collector/cells.json`, which the Agent must not be able to read.
 
-`drive` runs an Agent command once per unanswered cell, each in a fresh process with the cell as working directory. `{prompt_file}`, `{cell}` and `{harness}` are substituted. With Claude Code:
+`drive` runs an Agent command once per unanswered cell, each in a fresh process with the cell as working directory. `{prompt_file}`, `{cell}` and `{harness}` are substituted. With Claude Code, put the isolation flags in a small wrapper so no user settings, hooks, MCP servers or skills leak in, and grant read access only to the copied skills and write access only to the cell's answer (permission paths are absolute, hence the leading `/` before an absolute path; writes are governed by `Edit` rules):
 
 ```sh
-uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent \
-  'claude -p "$(cat {prompt_file})" --output-format json --model <model-id> \
-   --allowedTools "Bash(*agent_eval_harness.py call*)" "Read(../../skills/**)" "Write(answer.json)"'
+cat > agent.sh <<'SH'
+#!/bin/sh
+# agent.sh PROMPT_FILE CELL EVAL_ROOT
+exec claude -p "$(cat "$1")" --model <model-id> --output-format json \
+  --setting-sources "" --strict-mcp-config --disable-slash-commands --no-session-persistence \
+  --tools Bash Read Write \
+  --allowedTools "Bash(*agent_eval_harness.py call*)" "Read(/$3/skills/**)" "Edit(/$2/answer.json)"
+SH
+chmod +x agent.sh
+uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent "$PWD/agent.sh {prompt_file} {cell} $EVAL"
 ```
 
 `--only T05_` limits a pass to matching cells; interrupted runs resume because answered cells are skipped. Token usage is read from the Agent's JSON output when it reports `usage`. Then:

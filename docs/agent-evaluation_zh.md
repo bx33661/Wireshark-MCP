@@ -22,7 +22,7 @@
 
 执行记录包含 `input_id`、真实文件的 `input_sha256` 和 `calls`。每次调用包含唯一 `id`、实际 `query`、执行 `status`、`coverage`、结果文件 `result_file`/`result_sha256`、以及执行器从结果提取的 `observations.facts`、`frames`、`streams`。不要把标准答案字典复制到实测观察里。
 
-答案证据必须通过 `call_id` 关联真实调用，查询须一致，帧/流编号须出现在该调用的观察中。事实还需匹配观察值；完整性不能与调用记录矛盾；错误证据须对应失败调用。Agent 自填一段 trace 不构成执行证明。
+答案证据必须通过 `call_id` 关联真实调用，查询须一致，帧/流编号须出现在该调用的观察中。事实还需匹配观察值；完整性不能与调用记录矛盾；错误证据须对应失败调用。只有场景接受的证据类型计入 `min_anchors`；其他类型可作为辅助证据，但同样按轨迹核对，错误的辅助证据仍会判失败。Agent 自填一段 trace 不构成执行证明。
 
 ```sh
 python scripts/evaluate_agent_traffic.py runs.json --trace-dir harness-traces --output evaluation.json
@@ -88,12 +88,19 @@ uv run python scripts/agent_eval_harness.py prepare "$EVAL" \
 
 每个 `cells/<scenario>--<variant>--t<n>/` 含 `task.json` 和 `prompt.md`。提示要求 Agent 通过 `agent_eval_harness.py call --cell <cell> {mcp TOOL JSON | mcp-list | cmd tshark|capinfos ... | hash FILE}` 执行全部查询，并写出 `answer.json`。两条 MCP 路径在进程内使用 `full` 档位；CLI 路径只能运行 `tshark` 与 `capinfos`。输入参数必须是本格自己的输入。期望事实存放在 `.collector/cells.json`，不能让 Agent 读到。
 
-`drive` 对每个尚未作答的格各启动一次 Agent 命令，每次都是新进程，工作目录为该格。模板中替换 `{prompt_file}`、`{cell}`、`{harness}`。以 Claude Code 为例：
+`drive` 对每个尚未作答的格各启动一次 Agent 命令，每次都是新进程，工作目录为该格。模板中替换 `{prompt_file}`、`{cell}`、`{harness}`。以 Claude Code 为例，把隔离参数放进一个小包装脚本，确保用户设置、hooks、MCP 服务器和技能都不会带进来；只允许读取复制出的 skills，只允许写本格的答案（权限路径用绝对路径，因此绝对路径前再加一个 `/`；写文件受 `Edit` 规则约束）：
 
 ```sh
-uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent \
-  'claude -p "$(cat {prompt_file})" --output-format json --model <model-id> \
-   --allowedTools "Bash(*agent_eval_harness.py call*)" "Read(../../skills/**)" "Write(answer.json)"'
+cat > agent.sh <<'SH'
+#!/bin/sh
+# agent.sh PROMPT_FILE CELL EVAL_ROOT
+exec claude -p "$(cat "$1")" --model <model-id> --output-format json \
+  --setting-sources "" --strict-mcp-config --disable-slash-commands --no-session-persistence \
+  --tools Bash Read Write \
+  --allowedTools "Bash(*agent_eval_harness.py call*)" "Read(/$3/skills/**)" "Edit(/$2/answer.json)"
+SH
+chmod +x agent.sh
+uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent "$PWD/agent.sh {prompt_file} {cell} $EVAL"
 ```
 
 `--only T05_` 只跑名称匹配的格；中断后重跑会跳过已作答的格。Agent 的 JSON 输出含 `usage` 时记录 Token。之后：

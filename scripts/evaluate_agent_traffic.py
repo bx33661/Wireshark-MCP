@@ -178,15 +178,18 @@ def score_run(scenario: dict[str, Any], run: dict[str, Any], trace: dict[str, An
         failures.append("evidence must be a list")
         evidence = []
     rule = scenario.get("evidence", {})
-    if len(evidence) < rule.get("min_anchors", 0):
-        failures.append(f"expected at least {rule.get('min_anchors', 0)} evidence anchors")
+    # Only accepted types count toward min_anchors; other items are supporting
+    # context, but every item must still be true to the trace.
     accepted = set(rule.get("accepted_types", []))
+    counted = sum(1 for anchor in evidence if isinstance(anchor, dict) and anchor.get("type") in accepted)
+    if counted < rule.get("min_anchors", 0):
+        failures.append(f"expected at least {rule.get('min_anchors', 0)} evidence anchors of type {sorted(accepted)!r}")
     for index, anchor in enumerate(evidence):
         if not isinstance(anchor, dict):
             failures.append(f"evidence[{index}] must be an object")
             continue
-        if anchor.get("type") not in accepted:
-            failures.append(f"evidence[{index}] type {anchor.get('type')!r} is not accepted")
+        if anchor.get("type") not in {"aggregate", "query", "frame", "stream", "error"}:
+            failures.append(f"evidence[{index}] type {anchor.get('type')!r} is unknown")
         if rule.get("query_required") and not str(anchor.get("query", "")).strip():
             failures.append(f"evidence[{index}] is missing the executed query")
         call_id = anchor.get("call_id")
