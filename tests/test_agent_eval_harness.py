@@ -142,3 +142,12 @@ def test_drive_runs_the_agent_template_once_per_open_cell(tmp_path: Path) -> Non
     metrics = json.loads((root / ".collector/metrics/T01_capture_packet_count--tshark-cli--t1.json").read_text("utf-8"))
     assert metrics["input_tokens"] == 5
     assert metrics["output_tokens"] == 2
+
+
+def test_anchors_cover_headerless_cli_fields_follow_streams_and_cut_output() -> None:
+    cli = '1\t192.168.1.10\n2\t10.0.0.2\n\n[stderr]\nRunning as user "root"\n'
+    assert MODULE._anchors(cli, "tshark -n -r x.pcap -T fields -e frame.number -e ip.src") == ([1, 2], [])
+    follow = json.dumps({"success": True, "data": "\n===\nFollow: tcp,ascii\nFilter: tcp.stream eq 1\nNode 0"})
+    assert MODULE._anchors(follow) == ([], [1])
+    cut = '{"success":true,"data":"frame.number\\tdns.qry.name\\n\\"1\\"\\t\\"a\\"\\n\\"2\\"\\t\\"b'
+    assert MODULE._anchors(cut) == ([1, 2], [])
