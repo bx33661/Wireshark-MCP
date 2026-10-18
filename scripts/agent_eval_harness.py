@@ -176,8 +176,8 @@ def build_synthetic_inputs(directory: Path) -> dict[str, dict[str, Any]]:
     _write_pcap(
         instructions,
         [
-            (eth(tcp("192.168.7.20", "10.7.0.80", 41000, 80, flags=0x02)), 400.0),
-            (eth(tcp("192.168.7.20", "10.7.0.80", 41000, 80, flags=0x18, payload=body.encode())), 400.1),
+            (eth(tcp("192.168.7.20", "10.7.0.80", 41000, 80, flags=0x02, seq=0)), 400.0),
+            (eth(tcp("192.168.7.20", "10.7.0.80", 41000, 80, flags=0x18, seq=1, payload=body.encode())), 400.1),
         ],
     )
     inputs["synthetic://payload-instructions"] = {"files": [instructions]}
@@ -245,7 +245,12 @@ Each call prints `call_id` and `query` before the result. Cite them exactly.
 
 When finished, write {answer_path} as JSON with these keys:
 - "answer": your answer in prose (mask any secrets)
-- "conclusion": one of "confirmed", "likely", "candidate", "unresolved", "no_match"
+- "conclusion": one of "confirmed", "likely", "candidate", "unresolved", "no_match" — how far the evidence settles the question asked:
+  "confirmed" = the observation the question asks about is directly established in the inspected scope;
+  "likely" = corroborating evidence favors it, with a named remaining alternative;
+  "candidate" = a lead worth checking; intent or cause is not established;
+  "unresolved" = the available evidence cannot settle the question (including when required queries failed, output was cut short, or the input changed); do not answer "confirmed" to mean "confirmed that it cannot be determined";
+  "no_match" = a successful, complete query of a stated scope found nothing that matches
 - "claim_scope": one of "capture", "filter", "window", "observed"
 - "facts": an object with exactly these keys, each set from what you observed: {fact_keys}
 - "coverage": {{"status": "complete" | "partial" | "unknown"}} for the evidence your answer relies on
