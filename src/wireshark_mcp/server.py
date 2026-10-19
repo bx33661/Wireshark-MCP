@@ -8,6 +8,7 @@ from ipaddress import ip_address
 from typing import Any, Literal, cast
 
 from . import __version__
+from .index.store import CaptureIndexStore
 from .mcp_app import WiresharkMCP
 from .profiles import DEFAULT_PROFILE, PROFILE_NAMES, excluded_tools, profile_description
 from .prompts import register_prompts
@@ -15,6 +16,7 @@ from .resources import register_resources
 from .tools.advanced import register_advanced_tools
 from .tools.agents import register_agent_tools
 from .tools.extract import register_extract_tools
+from .tools.index import register_index_tools
 from .tools.registry import ToolRegistry, register_open_file_tool
 from .tools.stats import register_stats_tools
 from .tools.utility import register_utility_tools
@@ -30,7 +32,8 @@ SERVER_INSTRUCTIONS = (
     "distributions, distinct counts, top-k results, or time buckets, prefer "
     "wireshark_aggregate over shell pipelines or paginated extraction. It scans the "
     "full filter automatically; top_k limits only returned groups. Use packet-level "
-    "tools afterward to verify the highest-value findings."
+    "tools afterward to verify the highest-value findings. For a large capture that "
+    "needs several capture-wide questions, run wireshark_index once first."
 )
 
 
@@ -69,7 +72,9 @@ def _build_server(*, host: str, port: int, log_level: LogLevelName, profile: str
 
     # ── Core tools (always registered) ──────────────────────────────────
     register_utility_tools(mcp, client)
-    register_stats_tools(mcp, client)
+    index_store = CaptureIndexStore(client)
+    register_stats_tools(mcp, client, index_store)
+    register_index_tools(mcp, client, index_store)
     register_extract_tools(mcp, client)
     register_agent_tools(mcp, client)
     register_advanced_tools(mcp, client)

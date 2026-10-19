@@ -19,7 +19,7 @@ import pytest
 
 from wireshark_mcp.profiles import PROFILE_NAMES
 from wireshark_mcp.server import _build_server
-from wireshark_mcp.tool_annotations import WRITE_TOOLS
+from wireshark_mcp.tool_annotations import CACHE_WRITE_TOOLS, WRITE_TOOLS
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -107,7 +107,8 @@ def test_read_write_split_is_accurate(spec: ReadmeSpec) -> None:
     mcp = _build_server(host="127.0.0.1", port=8080, log_level="ERROR")
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     writers = len(names & set(WRITE_TOOLS))
-    readers = len(names) - writers
+    # Cache writers (the capture index) are neither read-only nor file-creating.
+    readers = len(names) - writers - len(names & set(CACHE_WRITE_TOOLS))
 
     match = re.search(spec.read_write, _text(spec), re.S)
     assert match, f"{spec.path}: could not find the read/write split sentence"

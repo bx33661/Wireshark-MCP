@@ -16,6 +16,7 @@
 | 将 2.x 部署安全迁移到 3.0 | [3.0 安全迁移](security-hardening-v3_zh.md) |
 | 写出更可靠的流量分析任务 | [提示词示例](prompt-engineering_zh.md) |
 | 计算全量计数与分布 | [聚合指南](aggregation_zh.md) |
+| 大抓包只解析一次，再用 DuckDB 查询 | [抓包索引](capture-index_zh.md) |
 
 ## 维护项目
 

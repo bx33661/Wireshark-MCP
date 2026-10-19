@@ -23,7 +23,7 @@ from wireshark_mcp.mcp_app import WiresharkMCP, cap_result_text
 from wireshark_mcp.server import _build_server
 from wireshark_mcp.tool_annotations import OUTPUT_PATH_PARAMS, WRITE_TOOLS
 
-MAX_WIRE_BYTES = 22_500
+MAX_WIRE_BYTES = 23_000
 REPO_ROOT = Path(__file__).parent.parent
 
 

@@ -112,7 +112,7 @@ wireshark-mcp install --client codex --scope project
 
 ## 工具
 
-52 个工具，每个都由真实 `tshark` 输出支撑，按类别组织：
+53 个工具，每个都由真实 `tshark` 输出支撑，按类别组织：
 
 | 类别 | 亮点 | 数量 |
 |------|------|:----:|
@@ -125,6 +125,7 @@ wireshark-mcp install --client codex --scope project
 | **解密与解析** | TLS/WPA 解密、解密校验、decode-as、协议偏好设置 | 5 |
 | **取证与富化** | TLS 指纹、文件特征扫描、GeoIP | 3 |
 | **文件操作、抓包与套件** | 实时抓包、接口列表、合并、过滤保存、editcap 裁剪/分割/去重/时移、帧提取、text2pcap、能力查询 | 11 |
+| **抓包索引**（可选 `[index]` 扩展） | `wireshark_index`：一次 tshark 解析写入本地 DuckDB 文件；`wireshark_aggregate` 复用它，并可对包表和会话表执行只读 SQL | 1 |
 
 25 种协议由一个工具覆盖，而不是 25 个工具各覆盖一种：`wireshark_analyze_protocol` 接受 `protocol` 参数（`tls_handshakes`、`mqtt`、`modbus`、`s7comm`、`zigbee`、`wifi`、`rtp`、`kerberos` 等），并为其套用正确的字段与显示过滤器。字段名正是关键——`s7comm.param.item.dbnum` 不该由调用方去猜，而猜错时返回的空结果看起来和"干净的流量"没有区别。
 
@@ -132,15 +133,15 @@ wireshark-mcp install --client codex --scope project
 
 ### 上下文开销
 
-工具列表会随客户端的每一次请求进入 prompt 前缀，因此它的体积是每请求的固定成本。默认表面约为 22 KB——其中参数 schema 约 9 KB、描述约 5 KB、读写 annotations 约 3 KB；并且它在重启之间逐字节一致，客户端可以缓存该前缀，而不必每个会话重新读取。
+工具列表会随客户端的每一次请求进入 prompt 前缀，因此它的体积是每请求的固定成本。默认表面约为 23 KB——其中参数 schema 约 9 KB、描述约 5 KB、读写 annotations 约 3 KB；并且它在重启之间逐字节一致，客户端可以缓存该前缀，而不必每个会话重新读取。
 
 如果你的客户端从不实时抓包、也不写入 pcap，可以用 `--profile` 暴露更小的表面：
 
 | Profile | 工具数 | 载荷 | 移除的内容 |
 |---------|:-----:|:----:|-----------|
-| `full`（默认） | 52 | ~22 KB | 无 |
-| `analysis` | 40 | ~17 KB | 实时抓包、接口列表、以及全部写文件的工具 |
-| `core` | 32 | ~14 KB | 以上全部，再加解密、解析覆写与底层视图 |
+| `full`（默认） | 53 | ~23 KB | 无 |
+| `analysis` | 41 | ~17 KB | 实时抓包、接口列表、以及全部写文件的工具 |
+| `core` | 33 | ~14 KB | 以上全部，再加解密、解析覆写与底层视图 |
 
 ```bash
 wireshark-mcp serve --profile core
@@ -154,7 +155,7 @@ wireshark-mcp serve --profile core
 export WIRESHARK_MCP_MAX_RESULT_CHARS=16000
 ```
 
-每个工具都声明了自己是只读还是写入，因此客户端可以自动放行 41 个只读分析工具，同时仍然对会创建文件的 11 个工具（实时抓包、合并、过滤保存、editcap、text2pcap、帧提取、对象导出）进行确认。
+每个工具都声明了自己是只读还是写入，因此客户端可以自动放行 41 个只读分析工具，同时仍然对会创建文件的 11 个工具（实时抓包、合并、过滤保存、editcap、text2pcap、帧提取、对象导出）进行确认。`wireshark_index` 标记为非破坏性：它只写服务器自己的索引缓存。
 
 3.0 中，这 11 个工具在 `WIRESHARK_MCP_ALLOWED_DIRS` 未指向现有目录时一律失败关闭。HTTP/SSE 默认也只能监听回环地址；只有放在可信、带认证的 TLS 反向代理后，才应显式传入 `--allow-insecure-http`。迁移说明见 [3.0 安全加固指南](docs/security-hardening-v3_zh.md)。
 

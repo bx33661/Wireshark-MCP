@@ -1,8 +1,9 @@
+import asyncio
 import logging
 import math
 import os
 from collections import defaultdict
-from typing import Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from mcp.server import MCPServer
 
@@ -16,10 +17,15 @@ from .envelope import (
 )
 from .formatting import summarize_tabular
 
+if TYPE_CHECKING:
+    from ..index.store import CaptureIndexStore
+
 MAX_AGGREGATE_FIELDS = 12
 MAX_AGGREGATE_TOP_K = 200
 AGGREGATE_SCAN_LIMIT = 1_000_000
 MIN_TIME_BUCKET_SECONDS = 0.000001
+# Indexed scans skip dissection, so they may read far more rows in the same time.
+INDEX_AGGREGATE_SCAN_LIMIT = 50_000_000
 
 # Operators may tune the aggregate scan policy, but only inside these bounds.
 AGGREGATE_SCAN_LIMIT_ENV = "WIRESHARK_MCP_AGGREGATE_SCAN_LIMIT"
@@ -297,7 +303,46 @@ def _maybe_summarize(raw_result: str, max_rows: int = 50) -> str:
     return normalize_tool_result(raw_result)
 
 
-def register_stats_tools(mcp: MCPServer, client: TSharkClient) -> None:
+async def _aggregate_from_index(
+    index_store: "CaptureIndexStore",
+    pcap_file: str,
+    display_filter: str,
+    extracted_fields: list[str],
+    make_accumulator: Any,
+    timeout: int,
+) -> tuple[Any, dict[str, Any] | None, str | None]:
+    """Try the capture index. Returns (accumulator, stream result, reason it was not used)."""
+    from ..index.filter_sql import UnsupportedFilter, translate_filter
+
+    handle = await asyncio.to_thread(index_store.lookup, pcap_file)
+    if handle is None:
+        return None, None, None
+    missing = [field for field in extracted_fields if field not in handle.columns]
+    if missing:
+        return None, None, "fields not indexed: " + ", ".join(missing)
+    try:
+        translated = translate_filter(display_filter, set(handle.columns), set(handle.meta.get("protocols", [])))
+    except UnsupportedFilter as exc:
+        return None, None, f"filter not translatable: {exc}"
+    accumulator = make_accumulator()
+    try:
+        streamed = await asyncio.to_thread(
+            index_store.stream_rows,
+            handle,
+            extracted_fields,
+            translated.sql,
+            translated.params,
+            accumulator.add,
+            max_rows=INDEX_AGGREGATE_SCAN_LIMIT,
+            timeout=timeout,
+        )
+    except Exception as exc:  # a broken index must never break the tshark path
+        logger.warning("Capture index query failed, falling back to tshark: %s", exc)
+        return None, None, "index query failed"
+    return accumulator, streamed, None
+
+
+def register_stats_tools(mcp: MCPServer, client: TSharkClient, index_store: "CaptureIndexStore | None" = None) -> None:
     scan_limit, scan_timeout = resolve_aggregate_scan_policy()
 
     @mcp.tool()
@@ -381,21 +426,39 @@ def register_stats_tools(mcp: MCPServer, client: TSharkClient) -> None:
         if time_bucket_seconds > 0 and "frame.time_relative" not in extracted_fields:
             extracted_fields.append("frame.time_relative")
 
-        accumulator = _AggregateAccumulator(
-            extracted_fields,
-            group_fields,
-            distinct_fields,
-            time_bucket_seconds,
-            numeric_operations,
-        )
-        streamed = await client.stream_fields(
-            pcap_file,
-            extracted_fields,
-            accumulator.add,
-            display_filter,
-            max_rows=scan_limit,
-            timeout=scan_timeout,
-        )
+        def make_accumulator() -> _AggregateAccumulator:
+            return _AggregateAccumulator(
+                extracted_fields,
+                group_fields,
+                distinct_fields,
+                time_bucket_seconds,
+                numeric_operations,
+            )
+
+        source = "tshark"
+        effective_limit = scan_limit
+        index_unused: str | None = None
+        accumulator: _AggregateAccumulator | None = None
+        streamed: dict[str, Any] | None = None
+        if index_store is not None and client._validate_file(pcap_file)["success"]:
+            accumulator, streamed, index_unused = await _aggregate_from_index(
+                index_store, pcap_file, display_filter, extracted_fields, make_accumulator, scan_timeout
+            )
+            if streamed is not None:
+                source = "index"
+                effective_limit = INDEX_AGGREGATE_SCAN_LIMIT
+        if accumulator is None or streamed is None:
+            accumulator = make_accumulator()
+            streamed = dict(
+                await client.stream_fields(
+                    pcap_file,
+                    extracted_fields,
+                    accumulator.add,
+                    display_filter,
+                    max_rows=scan_limit,
+                    timeout=scan_timeout,
+                )
+            )
         matched_packets = streamed.get("rows", 0)
         if not streamed.get("success", False):
             stream_error = streamed.get("error", {})
@@ -409,7 +472,8 @@ def register_stats_tools(mcp: MCPServer, client: TSharkClient) -> None:
                 coverage={
                     "status": "partial",
                     "scanned": matched_packets,
-                    "limit": scan_limit,
+                    "limit": effective_limit,
+                    **({"source": "index"} if source == "index" else {}),
                 },
             )
         groups, skipped_invalid_time, agg_warnings = accumulator.finish()
@@ -482,7 +546,9 @@ def register_stats_tools(mcp: MCPServer, client: TSharkClient) -> None:
             coverage={
                 "status": "complete" if not agg_warnings else "partial",
                 "scanned": matched_packets,
-                "limit": scan_limit,
+                "limit": effective_limit,
+                "source": source,
+                **({"index_unused": index_unused} if index_unused else {}),
             },
             stderr=streamed.get("stderr"),
         )

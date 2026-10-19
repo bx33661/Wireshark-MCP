@@ -101,4 +101,6 @@ Each numeric field reports `valid_values`, `missing_values`, and `invalid_values
 - The server has a separate result character ceiling. Lower `top_k` or reduce grouped dimensions when a result is too large.
 - Empty field values can form an empty-string group. Add a presence test such as `http.host` to the display filter when missing values should be excluded.
 
+With the optional [capture index](capture-index.md), a fresh index answers the same call without re-dissecting the capture; `coverage.source` reports `index` or `tshark`.
+
 Aggregation establishes scale and priority. Confirm important conclusions with exact frame numbers, packet details, context, or a followed stream.
