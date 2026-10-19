@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 
 from ._typing import _ClientProtocol
 
@@ -42,12 +43,14 @@ class StatsMixin(_ClientProtocol):
 
         return await self._run_command([self.tshark_path, "-r", pcap_file, "-q", "-z", f"conv,{type}"])
 
-    async def get_io_graph(self, pcap_file: str, interval: int = 1) -> str:
+    async def get_io_graph(self, pcap_file: str, interval: float = 1) -> str:
         """I/O Graphs (-z io,stat,interval)."""
         validation = self._validate_file(pcap_file)
         if not validation["success"]:
             return json.dumps(validation)
 
+        if not math.isfinite(interval) or interval < 0:
+            return json.dumps({"success": False, "error": {"type": "InvalidParameter", "message": "Invalid interval"}})
         return await self._run_command(
             [
                 self.tshark_path,
@@ -55,16 +58,28 @@ class StatsMixin(_ClientProtocol):
                 pcap_file,
                 "-q",
                 "-z",
-                f"io,stat,{interval}",
+                f"io,stat,{interval:g}",
             ]
         )
 
     async def get_service_response_time(self, pcap_file: str, protocol: str = "http") -> str:
-        """Service Response Time (-z proto,tree)."""
+        """HTTP/DNS timing values, or a protocol's SRT statistics tap."""
         validation = self._validate_file(pcap_file)
         if not validation["success"]:
             return json.dumps(validation)
 
+        if protocol in {"http", "dns"}:
+            field = f"{protocol}.time"
+            return await self._run_command(
+                [
+                    self.tshark_path,
+                    "-r",
+                    pcap_file,
+                    "-q",
+                    "-z",
+                    f"io,stat,0,COUNT({field}){field},MIN({field}){field},MAX({field}){field},AVG({field}){field}",
+                ]
+            )
         return await self._run_command(
             [
                 self.tshark_path,
@@ -72,7 +87,7 @@ class StatsMixin(_ClientProtocol):
                 pcap_file,
                 "-q",
                 "-z",
-                f"{protocol},tree",
+                f"{protocol},srt",
             ]
         )
 
@@ -106,16 +121,17 @@ class StatsMixin(_ClientProtocol):
 
         return await self._run_command([self.tshark_path, "-r", pcap_file, "-q", "-z", "http,tree"])
 
-    async def get_io_stat_filtered(self, pcap_file: str, interval: int = 1, filters: list[str] | None = None) -> str:
+    async def get_io_stat_filtered(self, pcap_file: str, interval: float = 1, filters: list[str] | None = None) -> str:
         """Multi-filter I/O statistics (-z io,stat,interval,filter1,filter2,...)."""
         validation = self._validate_file(pcap_file)
         if not validation["success"]:
             return json.dumps(validation)
 
-        stat_arg = f"io,stat,{interval}"
+        if not math.isfinite(interval) or interval < 0:
+            return json.dumps({"success": False, "error": {"type": "InvalidParameter", "message": "Invalid interval"}})
+        stat_arg = f"io,stat,{interval:g}"
         if filters:
-            quoted = ",".join(f'"{f}"' for f in filters)
-            stat_arg = f"io,stat,{interval},{quoted}"
+            stat_arg = f"io,stat,{interval:g}," + ",".join(filters)
 
         return await self._run_command([self.tshark_path, "-r", pcap_file, "-q", "-z", stat_arg])
 

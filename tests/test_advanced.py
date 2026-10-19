@@ -3,8 +3,6 @@
 import pytest
 from conftest import MockTSharkClient
 
-from wireshark_mcp.tools.envelope import parse_tool_result
-
 
 class TestDecodeAs:
     @pytest.mark.asyncio
@@ -57,7 +55,7 @@ class TestDecryptWpa:
     async def test_builds_correct_command(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.decrypt_wpa_traffic("/tmp/test.pcap", wpa_keys=["mypassword:MySSID"])
         assert "wlan.enable_decryption:TRUE" in result
-        assert "wpa-pwd:mypassword:MySSID" in result
+        assert 'uat:80211_keys:"wpa-pwd","mypassword:MySSID"' in mock_client._last_cmd
 
     @pytest.mark.asyncio
     async def test_rejects_empty_keys(self, mock_client: MockTSharkClient) -> None:
@@ -103,8 +101,7 @@ class TestIoStatFiltered:
     async def test_with_filters(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.get_io_stat_filtered("/tmp/test.pcap", interval=1, filters=["tcp", "udp"])
         assert "io,stat,1" in result
-        assert '"tcp"' in parse_tool_result(result)["data"]
-        assert '"udp"' in parse_tool_result(result)["data"]
+        assert "io,stat,1,tcp,udp" in mock_client._last_cmd
 
     @pytest.mark.asyncio
     async def test_no_filters(self, mock_client: MockTSharkClient) -> None:

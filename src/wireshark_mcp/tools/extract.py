@@ -32,8 +32,9 @@ def register_extract_tools(mcp: MCPServer, client: TSharkClient) -> None:
     async def wireshark_get_packet_context(pcap_file: str, frame_number: int, count: int = 5) -> str:
         """[Context] Packets surrounding a specific frame (count before and after)."""
         start = max(1, frame_number - count)
-        limit = count * 2 + 1
-        d_filter = f"frame.number >= {start}"
+        end = frame_number + count
+        limit = end - start + 2
+        d_filter = f"frame.number >= {start} && frame.number <= {end}"
         return normalize_tool_result(
             await client.get_packet_list(pcap_file, limit=limit, offset=0, display_filter=d_filter)
         )
@@ -77,8 +78,9 @@ def register_extract_tools(mcp: MCPServer, client: TSharkClient) -> None:
         limit_lines: int = 500,
         offset_lines: int = 0,
         search_content: str = "",
+        substream_index: int | None = None,
     ) -> str:
-        """[Stream] Reassemble stream with pagination. protocol: tcp|udp|tls|http|http2. output_mode: ascii|hex|raw."""
+        """[Stream] Follow a native stream. HTTP2/QUIC require substream_index. Modes: ascii|hex|raw."""
         return normalize_tool_result(
             await client.follow_stream(
                 pcap_file,
@@ -88,6 +90,7 @@ def register_extract_tools(mcp: MCPServer, client: TSharkClient) -> None:
                 limit_lines=limit_lines,
                 offset_lines=offset_lines,
                 search_content=search_content,
+                substream_index=substream_index,
             )
         )
 
@@ -95,22 +98,27 @@ def register_extract_tools(mcp: MCPServer, client: TSharkClient) -> None:
 def make_extract_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     """Build extract tools."""
 
-    async def wireshark_extract_http_requests(pcap_file: str, limit: int = 100) -> str:
-        """[HTTP] Extract HTTP request details (method, URI, host, user-agent) as TSV."""
+    async def wireshark_extract_http_requests(pcap_file: str, limit: int = 100, offset: int = 0) -> str:
+        """[HTTP] Method, URI, host, user-agent as TSV. limit/offset count lines including header."""
         return normalize_tool_result(
             await client.extract_fields(
                 pcap_file,
                 ["http.request.method", "http.request.uri", "http.host", "http.user_agent"],
                 display_filter="http.request",
                 limit=limit,
+                offset=offset,
             )
         )
 
-    async def wireshark_extract_dns_queries(pcap_file: str, limit: int = 100) -> str:
-        """[DNS] Extract DNS query details (name, type, response flag) as TSV."""
+    async def wireshark_extract_dns_queries(pcap_file: str, limit: int = 100, offset: int = 0) -> str:
+        """[DNS] Query name, type, response flag as TSV. limit/offset count lines including header."""
         return normalize_tool_result(
             await client.extract_fields(
-                pcap_file, ["dns.qry.name", "dns.qry.type", "dns.flags.response"], display_filter="dns", limit=limit
+                pcap_file,
+                ["dns.qry.name", "dns.qry.type", "dns.flags.response"],
+                display_filter="dns",
+                limit=limit,
+                offset=offset,
             )
         )
 

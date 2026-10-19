@@ -476,6 +476,8 @@ def register_stats_tools(mcp: MCPServer, client: TSharkClient) -> None:
             result["skipped_invalid_time"] = skipped_invalid_time
         if time_field_normalized:
             result["normalized_group_by"] = "frame.time_relative is implicit in time buckets"
+        if "cut short" in str(streamed.get("stderr", "")).lower():
+            agg_warnings.append("Capture ended mid-packet; counts cover only readable packets.")
         return envelope_response(
             result,
             warnings=agg_warnings if agg_warnings else None,
@@ -503,7 +505,7 @@ def register_stats_tools(mcp: MCPServer, client: TSharkClient) -> None:
         return _maybe_summarize(await client.get_conversations(pcap_file, type))
 
     @mcp.tool()
-    async def wireshark_stats_io_graph(pcap_file: str, interval: int = 1, filters: str = "") -> str:
+    async def wireshark_stats_io_graph(pcap_file: str, interval: float = 1, filters: str = "") -> str:
         """[I/O Graph] Traffic volume by time bucket, optionally split by semicolon-separated display filters."""
         filter_list = [f.strip() for f in filters.split(";") if f.strip()] if filters else None
         if filter_list:

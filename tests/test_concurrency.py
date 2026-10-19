@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from unittest.mock import AsyncMock
 
 import pytest
 from conftest import MockTSharkClient
@@ -17,14 +18,39 @@ class SlowMockClient(MockTSharkClient):
         super().__init__()
         self._delay = delay
         self._call_count = 0
+        self._active = 0
+        self._peak = 0
 
     async def _run_command(self, cmd: list[str], limit_lines: int = 0, offset_lines: int = 0, timeout: int = 30) -> str:
         self._call_count += 1
         await asyncio.sleep(self._delay)
         return "CMD: " + " ".join(cmd)
 
+    async def stream_fields(self, *args, **kwargs):
+        self._call_count += 1
+        self._active += 1
+        self._peak = max(self._peak, self._active)
+        try:
+            await asyncio.sleep(self._delay)
+        finally:
+            self._active -= 1
+        return {"success": True, "rows": 0}
+
 
 class TestConcurrentQuickAnalysis:
+    @pytest.mark.asyncio
+    async def test_udp_overview_skips_absent_protocol_scans(self) -> None:
+        client = MockTSharkClient()
+        client.get_protocol_stats = AsyncMock(return_value=client._ok(
+            "frame frames:20 bytes:1000\n  ip frames:20 bytes:1000\n    udp frames:20 bytes:1000"
+        ))
+        client.get_conversations = AsyncMock()
+        client.extract_fields = AsyncMock()
+        result = json.loads(await _run_quick_analysis(client, "udp.pcap"))
+        assert result["success"]
+        client.get_conversations.assert_not_awaited()
+        client.extract_fields.assert_not_awaited()
+
     @pytest.mark.asyncio
     async def test_quick_analysis_runs_concurrently(self) -> None:
         client = SlowMockClient(delay=0.02)
@@ -52,5 +78,5 @@ class TestConcurrentTcpHealth:
 
         data = json.loads(result)
         assert data["success"]
-        # 8 checks at 0.02s each: sequential ~0.16s, concurrent ~0.04s
-        assert elapsed < 0.12, f"Took {elapsed:.2f}s — likely not concurrent"
+        assert 1 < client._peak <= 3
+        assert elapsed < 0.3, f"Took {elapsed:.2f}s — unexpected scheduling delay"

@@ -131,7 +131,10 @@ def make_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]:
         tcp_task = client.extract_fields(
             pcap_file,
             ["ip.src", "ip.dst", "tcp.dstport", "tcp.len"],
-            display_filter="tcp && !ip.dst == 10.0.0.0/8 && !ip.dst == 172.16.0.0/12 && !ip.dst == 192.168.0.0/16",
+            display_filter=(
+                "tcp && ip && !(ip.dst in {10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, "
+                "127.0.0.0/8, 169.254.0.0/16, 0.0.0.0/8, 224.0.0.0/4, 240.0.0.0/4})"
+            ),
             limit=limit,
         )
         dns_task = client.extract_fields(
@@ -222,7 +225,7 @@ def make_anomaly_tools(client: TSharkClient) -> list[tuple[str, Any]]:
         result = await client.extract_fields(
             pcap_file,
             fields,
-            display_filter="tcp && !tcp.dstport in {80 443 8080 8443}",
+            display_filter="tcp && !(tcp.dstport in {80, 443, 8080, 8443})",
             limit=limit,
         )
         wrapped = parse_tool_result(result)

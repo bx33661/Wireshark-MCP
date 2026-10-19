@@ -120,6 +120,9 @@ class ExtractionMixin(_ClientProtocol):
         if scope == "bytes":
             if search_type == "hex":
                 display_filter = f"frame contains {match_pattern}"
+            elif search_type == "regex":
+                safe_pattern = match_pattern.replace("\\", "\\\\").replace('"', '\\"')
+                display_filter = f'frame matches "{safe_pattern}"'
             else:
                 safe_pattern = match_pattern.replace("\\", "\\\\").replace('"', '\\"')
                 display_filter = f'frame contains "{safe_pattern}"'
@@ -150,6 +153,7 @@ class ExtractionMixin(_ClientProtocol):
         limit_lines: int = 500,
         offset_lines: int = 0,
         search_content: str = "",
+        substream_index: int | None = None,
     ) -> str:
         """Follow Stream (-z follow) with pagination and search."""
         validation = self._validate_file(pcap_file)
@@ -159,6 +163,28 @@ class ExtractionMixin(_ClientProtocol):
         proto_validation = self._validate_protocol(protocol, self.VALID_STREAM_PROTOCOLS)
         if not proto_validation["success"]:
             return json.dumps(proto_validation)
+        if (
+            stream_index < 0
+            or limit_lines < 1
+            or offset_lines < 0
+            or mode not in {"ascii", "hex", "raw", "utf-8", "yaml"}
+        ):
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {"type": "InvalidParameter", "message": "Invalid stream, mode or pagination"},
+                }
+            )
+        if protocol in {"http2", "quic"} and (substream_index is None or substream_index < 0):
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {"type": "InvalidParameter", "message": "HTTP2/QUIC requires substream_index"},
+                }
+            )
+        selector = str(stream_index)
+        if protocol in {"http2", "quic"}:
+            selector += f",{substream_index}"
 
         raw = await self._run_command(
             [
@@ -167,11 +193,14 @@ class ExtractionMixin(_ClientProtocol):
                 pcap_file,
                 "-q",
                 "-z",
-                f"follow,{protocol},{mode},{stream_index}",
+                f"follow,{protocol},{mode},{selector}",
             ],
-            limit_lines=0,
-            offset_lines=0,
+            limit_lines=0 if search_content else limit_lines,
+            offset_lines=0 if search_content else offset_lines,
+            stream_limit=not search_content,
         )
+        if not search_content:
+            return raw
 
         ok, output = self._unwrap(raw)
         if not ok:
@@ -203,7 +232,7 @@ class ExtractionMixin(_ClientProtocol):
         return self._ok(final_output)
 
     async def decrypt_ssl(self, pcap_file: str, keylog_file: str) -> str:
-        """Decrypt SSL/TLS using a Keylog file."""
+        """Verify decryption by finding decoded HTTP/1 or HTTP/2 messages."""
         validation = self._validate_file(pcap_file)
         if not validation["success"]:
             return json.dumps(validation)
@@ -218,14 +247,57 @@ class ExtractionMixin(_ClientProtocol):
             pcap_file,
             "-o",
             f"tls.keylog_file:{keylog_file}",
-            "-q",
-            "-z",
-            "expert",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http.request.method",
+            "-e",
+            "http.response.code",
+            "-e",
+            "http2.headers.method",
+            "-e",
+            "http2.headers.status",
+            "-e",
+            "http3.headers.method",
+            "-e",
+            "http3.headers.status",
+            "-Y",
+            "http.request or http.response or http2.headers.method or http2.headers.status or http3.headers.method or http3.headers.status",
         ]
-        return await self._run_command(cmd)
+        raw = await self._run_command(cmd, limit_lines=20, stream_limit=True)
+        payload = json.loads(raw)
+        if not payload.get("success"):
+            return raw
+        from ..analysis_context import ACTIVE_OPTIONS
+
+        options = ACTIVE_OPTIONS.get()
+        token = ACTIVE_OPTIONS.set(options.model_copy(update={"keylog_file": ""}) if options else None)
+        try:
+            baseline = json.loads(await self._run_command(cmd[:3] + cmd[5:], limit_lines=20, stream_limit=True))
+        finally:
+            ACTIVE_OPTIONS.reset(token)
+        if not baseline.get("success"):
+            return json.dumps(baseline)
+        already_plain = {line.split("\t", 1)[0] for line in baseline.get("data", "").splitlines()}
+        evidence = [line for line in payload.get("data", "").splitlines() if line.split("\t", 1)[0].isdigit()]
+        evidence = [line for line in evidence if line.split("\t", 1)[0] not in already_plain]
+        payload["data"] = {
+            "decrypted": bool(evidence),
+            "status": "application_data_observed" if evidence else "unconfirmed",
+            "evidence_frames": [int(line.split("\t", 1)[0]) for line in evidence],
+            "message": (
+                "Decoded HTTP application data observed with this key log."
+                if evidence
+                else "No decoded HTTP/1, HTTP/2 or HTTP/3 messages observed; the key may be wrong, "
+                "the capture incomplete, or the application protocol unsupported."
+            ),
+        }
+        return json.dumps(payload)
 
     async def decrypt_tls_traffic(
-        self, pcap_file: str, keylog_file: str, display_filter: str = "", limit: int = 100
+        self, pcap_file: str, keylog_file: str, display_filter: str = "", limit: int = 100, offset: int = 0
     ) -> str:
         """Decrypt TLS and extract decrypted HTTP/application data."""
         validation = self._validate_file(pcap_file)
@@ -260,6 +332,22 @@ class ExtractionMixin(_ClientProtocol):
             "http.response.code",
             "-e",
             "http.content_type",
+            "-e",
+            "http2.headers.method",
+            "-e",
+            "http2.headers.path",
+            "-e",
+            "http2.headers.authority",
+            "-e",
+            "http2.headers.status",
+            "-e",
+            "http3.headers.method",
+            "-e",
+            "http3.headers.path",
+            "-e",
+            "http3.headers.authority",
+            "-e",
+            "http3.headers.status",
             "-E",
             "header=y",
             "-E",
@@ -268,12 +356,24 @@ class ExtractionMixin(_ClientProtocol):
         if display_filter:
             cmd.extend(["-Y", display_filter])
         else:
-            cmd.extend(["-Y", "http"])
-        cmd.extend(["-c", str(limit)])
-        return await self._run_command(cmd)
+            cmd.extend(["-Y", "http or http2 or http3"])
+        if limit < 1 or offset < 0:
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {"type": "InvalidParameter", "message": "limit must be positive and offset non-negative"},
+                }
+            )
+        raw = await self._run_command(cmd, limit_lines=limit, offset_lines=offset, stream_limit=True)
+        payload = json.loads(raw)
+        if payload.get("success") and len(str(payload.get("data", "")).strip().splitlines()) <= 1:
+            payload["warnings"] = [
+                "No decoded HTTP/1, HTTP/2 or HTTP/3 rows observed; this is not proof of successful decryption."
+            ]
+        return json.dumps(payload)
 
     async def decrypt_wpa_traffic(
-        self, pcap_file: str, wpa_keys: list[str], display_filter: str = "", limit: int = 100
+        self, pcap_file: str, wpa_keys: list[str], display_filter: str = "", limit: int = 100, offset: int = 0
     ) -> str:
         """Decrypt WPA/WPA2 traffic using passphrase keys."""
         validation = self._validate_file(pcap_file)
@@ -293,7 +393,8 @@ class ExtractionMixin(_ClientProtocol):
 
         cmd = [self.tshark_path, "-r", pcap_file, "-o", "wlan.enable_decryption:TRUE"]
         for key in wpa_keys:
-            cmd.extend(["-o", f'uat:80211_keys:"wpa-pwd:{key}",1'])
+            escaped_key = key.replace("\\", "\\\\").replace('"', '\\"')
+            cmd.extend(["-o", f'uat:80211_keys:"wpa-pwd","{escaped_key}"'])
 
         cmd.extend(
             [
@@ -321,11 +422,26 @@ class ExtractionMixin(_ClientProtocol):
         )
         if display_filter:
             cmd.extend(["-Y", display_filter])
-        cmd.extend(["-c", str(limit)])
-        return await self._run_command(cmd)
+        if limit < 1 or offset < 0:
+            return json.dumps(
+                {"success": False, "error": {"type": "InvalidParameter", "message": "Invalid pagination"}}
+            )
+        raw = await self._run_command(cmd, limit_lines=limit, offset_lines=offset, stream_limit=True)
+        payload = json.loads(raw)
+        if payload.get("success"):
+            payload["warnings"] = [
+                "Command success alone is not proof of WPA decryption; compare decoded data with a no-key baseline."
+            ]
+        return json.dumps(payload)
 
     async def extract_with_decode_as(
-        self, pcap_file: str, decode_rules: list[str], fields: list[str], display_filter: str = "", limit: int = 100
+        self,
+        pcap_file: str,
+        decode_rules: list[str],
+        fields: list[str],
+        display_filter: str = "",
+        limit: int = 100,
+        offset: int = 0,
     ) -> str:
         """Extract fields with decode-as rules applied."""
         validation = self._validate_file(pcap_file)
@@ -356,11 +472,20 @@ class ExtractionMixin(_ClientProtocol):
         cmd.extend(["-E", "header=y", "-E", "separator=\t"])
         if display_filter:
             cmd.extend(["-Y", display_filter])
-        cmd.extend(["-c", str(limit)])
-        return await self._run_command(cmd)
+        if limit < 1 or offset < 0:
+            return json.dumps(
+                {"success": False, "error": {"type": "InvalidParameter", "message": "Invalid pagination"}}
+            )
+        return await self._run_command(cmd, limit_lines=limit, offset_lines=offset, stream_limit=True)
 
     async def extract_with_prefs(
-        self, pcap_file: str, prefs: list[str], fields: list[str], display_filter: str = "", limit: int = 100
+        self,
+        pcap_file: str,
+        prefs: list[str],
+        fields: list[str],
+        display_filter: str = "",
+        limit: int = 100,
+        offset: int = 0,
     ) -> str:
         """Extract fields with protocol preference overrides."""
         validation = self._validate_file(pcap_file)
@@ -391,8 +516,11 @@ class ExtractionMixin(_ClientProtocol):
         cmd.extend(["-E", "header=y", "-E", "separator=\t"])
         if display_filter:
             cmd.extend(["-Y", display_filter])
-        cmd.extend(["-c", str(limit)])
-        return await self._run_command(cmd)
+        if limit < 1 or offset < 0:
+            return json.dumps(
+                {"success": False, "error": {"type": "InvalidParameter", "message": "Invalid pagination"}}
+            )
+        return await self._run_command(cmd, limit_lines=limit, offset_lines=offset, stream_limit=True)
 
     async def extract_kerberos(self, pcap_file: str, limit: int = 100) -> str:
         """Extract Kerberos authentication data."""

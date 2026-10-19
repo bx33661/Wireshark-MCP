@@ -70,7 +70,8 @@ class TestServiceResponseTime:
     @pytest.mark.asyncio
     async def test_http_srt(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.get_service_response_time("test.pcap", protocol="http")
-        assert "-z http,tree" in result
+        assert "COUNT(http.time)http.time" in result
+        assert "AVG(http.time)http.time" in result
 
 
 class AggregateClient(MockTSharkClient):
@@ -479,8 +480,7 @@ class TestIoGraphFilterConsolidation:
             )
         )
         assert result["success"]
-        assert '"tcp"' in result["data"]
-        assert '"dns"' in result["data"]
+        assert "io,stat,2,tcp,dns" in result["data"]
         assert "io,stat,2" in result["data"]
 
     @pytest.mark.asyncio

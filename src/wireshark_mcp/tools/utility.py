@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .envelope import normalize_tool_result, parse_tool_result, success_response
+from .envelope import error_response, normalize_tool_result, parse_tool_result, success_response
 
 if TYPE_CHECKING:
     from mcp.server import MCPServer
@@ -64,6 +65,9 @@ def register_utility_tools(mcp: MCPServer, client: TSharkClient) -> None:
         ring_buffer: str = "",
     ) -> str:
         """Capture live network traffic. capture_filter: BPF syntax. ring_buffer: "filesize:1024,files:5"."""
+        target = Path(output_file)
+        pattern = target.stem + "_*" + target.suffix
+        before = {p: p.stat().st_mtime_ns for p in target.parent.glob(pattern)} if ring_buffer else {}
         res = await client.capture_packets(
             interface, output_file, duration_seconds, packet_count, capture_filter, ring_buffer=ring_buffer
         )
@@ -75,7 +79,15 @@ def register_utility_tools(mcp: MCPServer, client: TSharkClient) -> None:
         if os.path.exists(output_file):
             return success_response(f"Capture saved to {output_file}\n{wrapped['data']}")
 
-        return success_response(f"Capture completed but file not found:\n{wrapped['data']}")
+        if ring_buffer:
+            files = [
+                str(p)
+                for p in sorted(target.parent.glob(pattern))
+                if p not in before or p.stat().st_mtime_ns != before[p]
+            ]
+            if files:
+                return success_response("Ring capture saved to:\n" + "\n".join(files))
+        return error_response("Capture completed but no output file was created.", "OutputMissing")
 
     @mcp.tool()
     async def wireshark_filter_save(input_file: str, output_file: str, display_filter: str) -> str:

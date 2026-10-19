@@ -27,18 +27,19 @@ class PacketsMixin(_ClientProtocol):
         if display_filter:
             cmd.extend(["-Y", display_filter])
 
-        if limit > 0:
+        if limit > 0 and not display_filter:
             cmd.extend(["-c", str(limit + offset)])
 
         result = await self._run_command(cmd)
 
-        if offset > 0:
+        if offset > 0 or (limit > 0 and display_filter):
             ok, text = self._unwrap(result)
             if ok:
                 try:
                     packets = json.loads(text)
                     if isinstance(packets, list):
-                        return self._ok(json.dumps(packets[offset:]))
+                        selected = packets[offset : offset + limit] if limit > 0 else packets[offset:]
+                        return self._ok(json.dumps(selected))
                 except json.JSONDecodeError:
                     pass
 
@@ -53,6 +54,13 @@ class PacketsMixin(_ClientProtocol):
         custom_columns: list[str] | None = None,
     ) -> str:
         """Get summary list of packets (like Wireshark's top pane)."""
+        if limit < 0 or offset < 0:
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": {"type": "InvalidParameter", "message": "limit and offset must be non-negative"},
+                }
+            )
         validation = self._validate_file(pcap_file)
         if not validation["success"]:
             return json.dumps(validation)

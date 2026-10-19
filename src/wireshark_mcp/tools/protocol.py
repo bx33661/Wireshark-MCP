@@ -16,6 +16,7 @@ from ..tshark.client import TSharkClient
 from .bluetooth import make_ble_protocol_handlers
 from .envelope import ProtocolHandler, normalize_tool_result, parse_tool_result, success_response
 from .formatting import CRIT, INFO, OK, WARN
+from .stats import resolve_aggregate_scan_policy
 
 logger = logging.getLogger("wireshark_mcp")
 
@@ -38,16 +39,21 @@ def make_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]]:
             ("Keep-Alive", "tcp.analysis.keep_alive"),
         ]
 
-        async def _count_check(display_filter: str) -> int:
-            raw = await client.get_packet_list(pcap_file, limit=10000, display_filter=display_filter)
-            wrapped = parse_tool_result(raw)
-            if not wrapped["success"]:
-                return -1
-            data = wrapped.get("data", "")
-            if isinstance(data, str):
-                lines = [ln for ln in data.strip().splitlines() if ln.strip()]
-                return max(0, len(lines) - 1)
-            return 0
+        row_limit, timeout = resolve_aggregate_scan_policy()
+        semaphore = asyncio.Semaphore(3)
+
+        async def _count_check(display_filter: str) -> tuple[int, bool]:
+            async with semaphore:
+                result = await client.stream_fields(
+                    pcap_file,
+                    ["frame.number"],
+                    lambda _: None,
+                    display_filter=display_filter,
+                    max_rows=row_limit,
+                    timeout=timeout,
+                )
+            complete = bool(result.get("success")) and "cut short" not in str(result.get("stderr", "")).lower()
+            return result.get("rows", 0), complete
 
         counts = await asyncio.gather(*[_count_check(f) for _, f in checks])
 
@@ -59,9 +65,9 @@ def make_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]]:
         )
 
         results: list[str] = []
-        for (name, _), count in zip(checks, counts, strict=True):
-            if count < 0:
-                results.append(f"  [-] {name}: N/A (filter not applicable)")
+        for (name, _), (count, complete) in zip(checks, counts, strict=True):
+            if not complete:
+                results.append(f"  [-] {name}: at least {count} packets (partial or failed scan)")
                 continue
             severity = OK
             if count > 0:

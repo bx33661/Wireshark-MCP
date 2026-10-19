@@ -48,23 +48,41 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
     report: list[str] = []
     report.append("## Quick Analysis\n")
 
-    # All phases are independent — run concurrently
+    # Bound concurrent full-file scans to keep large-capture memory predictable.
+    semaphore = asyncio.Semaphore(3)
+
+    async def limited(coro: Any) -> Any:
+        async with semaphore:
+            return await _safe_run(coro, "")
+
+    file_info_raw, phs_raw = await asyncio.gather(
+        _safe_run(client.get_file_info(pcap_file), ""),
+        _safe_run(client.get_protocol_stats(pcap_file), ""),
+    )
+    hierarchy = _extract_data(phs_raw) if phs_raw else ""
+    protocols = {
+        parts[0]
+        for line in (hierarchy or "").splitlines()
+        if len(parts := line.split()) > 1 and parts[1].startswith("frames:")
+    }
+    # When the hierarchy is unavailable, preserve all checks rather than treating
+    # an unknown protocol set as evidence that the traffic is absent.
+    known = bool(protocols)
+    endpoint_type = "ipv6" if "ipv6" in protocols and "ip" not in protocols else "ip"
     (
-        file_info_raw,
-        phs_raw,
         endpoints_raw,
         conv_raw,
         http_hosts_raw,
         dns_raw,
         expert_raw,
     ) = await asyncio.gather(
-        _safe_run(client.get_file_info(pcap_file), ""),
-        _safe_run(client.get_protocol_stats(pcap_file), ""),
-        _safe_run(client.get_endpoints(pcap_file, "ip"), ""),
-        _safe_run(client.get_conversations(pcap_file, "tcp"), ""),
-        _safe_run(client.extract_fields(pcap_file, ["http.host"], "http.request", limit=500), ""),
-        _safe_run(client.extract_fields(pcap_file, ["dns.qry.name"], "dns.flags.response == 0", limit=500), ""),
-        _safe_run(client.get_expert_info(pcap_file), ""),
+        limited(client.get_endpoints(pcap_file, endpoint_type)),
+        limited(client.get_conversations(pcap_file, "tcp")) if not known or "tcp" in protocols else asyncio.sleep(0, result=""),
+        limited(client.extract_fields(pcap_file, ["http.host"], "http.request", limit=500))
+        if not known or "http" in protocols else asyncio.sleep(0, result=""),
+        limited(client.extract_fields(pcap_file, ["dns.qry.name"], "dns.flags.response == 0", limit=500))
+        if not known or "dns" in protocols else asyncio.sleep(0, result=""),
+        limited(client.get_expert_info(pcap_file)),
     )
 
     # Phase 1: File Info
@@ -142,11 +160,11 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
         }
         found_any = False
         for keyword, icon in anomaly_keywords.items():
-            if keyword in expert_data:
+            if keyword.lower() in expert_data.lower():
                 report.append(f"{icon} {keyword}")
                 found_any = True
         if not found_any:
-            report.append(f"{OK} No notable anomalies")
+            report.append(f"{OK} No selected expert alerts; use TCP health for packet counts.")
     else:
         report.append("No expert info available")
 

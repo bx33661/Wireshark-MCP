@@ -39,15 +39,58 @@ class WiresharkSuiteClient(
 ):
     """Production-grade Wireshark CLI suite wrapper with validation and error handling."""
 
-    VALID_ENDPOINT_TYPES = {"eth", "ip", "ipv6", "tcp", "udp", "sctp", "wlan"}
-    VALID_EXPORT_PROTOCOLS = {"http", "smb", "tftp", "imf", "dicom"}
-    VALID_STREAM_PROTOCOLS = {"tcp", "udp", "tls", "http", "http2"}
+    VALID_ENDPOINT_TYPES = {
+        "bluetooth",
+        "bpv7",
+        "dccp",
+        "dnp3",
+        "eth",
+        "fc",
+        "fddi",
+        "ilnp",
+        "ip",
+        "ipv6",
+        "ipx",
+        "jxta",
+        "ltp",
+        "mptcp",
+        "ncp",
+        "opensafety",
+        "rsvp",
+        "sctp",
+        "sll",
+        "tcp",
+        "tr",
+        "udp",
+        "usb",
+        "wlan",
+        "wpan",
+        "zbee_nwk",
+    }
+    VALID_EXPORT_PROTOCOLS = {"http", "smb", "tftp", "imf", "dicom", "ftp-data", "x509af"}
+    VALID_STREAM_PROTOCOLS = {
+        "tcp",
+        "udp",
+        "tls",
+        "http",
+        "http2",
+        "quic",
+        "dtls",
+        "dccp",
+        "mp2t",
+        "mpeg-pes",
+        "sip",
+        "usbcom",
+        "websocket",
+    }
 
     _ALLOWED_BINARIES = {name for tool in WIRESHARK_TOOL_ORDER for name in (tool, f"{tool}.exe")}
     _TOOL_ENV_VARS = WIRESHARK_TOOL_ENV_VARS
     MAX_STDOUT_BYTES = 16 * 1024 * 1024
     MAX_STREAM_STDOUT_BYTES = 50 * 1024 * 1024
     MAX_STDERR_BYTES = 1024 * 1024
+    MAX_PAGE_SCAN_LINES = 10_000_000
+    STREAM_PAGINATION_FILE_BYTES = 32 * 1024 * 1024
 
     @staticmethod
     def _is_capture_short_read(binary: str, returncode: int | None, stderr: str) -> bool:
@@ -218,7 +261,7 @@ class WiresharkSuiteClient(
             truncated = False
             stdout_exceeded = False
             read_lines = 0
-            total_stdout_bytes = 0
+            page_bytes = 0
 
             stderr_task = (
                 asyncio.create_task(self._read_stream_bounded(proc.stderr, self.MAX_STDERR_BYTES, proc))
@@ -234,16 +277,25 @@ class WiresharkSuiteClient(
                     line_bytes = await stdout_stream.readline()
                     if not line_bytes:
                         break
-                    total_stdout_bytes += len(line_bytes)
-                    if total_stdout_bytes > self.MAX_STDOUT_BYTES:
-                        truncated = True
+                    read_lines += 1
+                    if read_lines > self.MAX_PAGE_SCAN_LINES:
                         stdout_exceeded = True
                         with contextlib.suppress(ProcessLookupError):
                             proc.kill()
                         break
-                    read_lines += 1
+                    # Discard skipped rows immediately: offsets consume scan
+                    # time, not retained memory or the returned-page budget.
+                    if read_lines <= offset_lines:
+                        continue
                     if read_lines > target_lines:
                         truncated = True
+                        with contextlib.suppress(ProcessLookupError):
+                            proc.kill()
+                        break
+                    page_bytes += len(line_bytes)
+                    if page_bytes > self.MAX_STDOUT_BYTES:
+                        truncated = True
+                        stdout_exceeded = True
                         with contextlib.suppress(ProcessLookupError):
                             proc.kill()
                         break
@@ -263,13 +315,12 @@ class WiresharkSuiteClient(
                 stderr_bytes, stderr_exceeded = await stderr_task
 
             error = stderr_bytes.decode("utf-8", errors="replace")
-            windowed = lines[offset_lines:] if offset_lines > 0 else lines
-            final_output = "\n".join(windowed)
+            final_output = "\n".join(lines)
             if truncated:
                 final_output += (
                     f"\n\n[Showing {limit_lines}/{read_lines} lines. Next: offset={offset_lines + limit_lines}]"
                 )
-            raw_to_cache = "\n".join(lines) if not truncated and not stdout_exceeded else None
+            raw_to_cache = "\n".join(lines) if not offset_lines and not truncated and not stdout_exceeded else None
             return final_output, error, truncated, raw_to_cache, (stdout_exceeded or stderr_exceeded)
 
         stdout_pipe = getattr(proc, "stdout", None)
@@ -320,6 +371,12 @@ class WiresharkSuiteClient(
         timeout, and cancellation. Callers only keep their aggregate state.
         Streamed results intentionally bypass the raw-output cache.
         """
+        from ..analysis_context import command_options
+
+        try:
+            cmd = command_options(self, cmd)
+        except ValueError as exc:
+            return {"success": False, "error": {"type": "InvalidParameter", "message": str(exc)}}
         binary = self._get_binary_name(cmd[0]) if cmd else ""
         if binary not in self._ALLOWED_BINARIES:
             return {
@@ -501,16 +558,29 @@ class WiresharkSuiteClient(
         stream_limit: bool = False,
     ) -> str:
         """Run command with error handling, validation, timeout, and caching."""
+        from ..analysis_context import command_options
+
+        try:
+            cmd = command_options(self, cmd)
+        except ValueError as exc:
+            return json.dumps({"success": False, "error": {"type": "InvalidParameter", "message": str(exc)}})
         pcap_file = None
         if "-r" in cmd:
             r_idx = cmd.index("-r")
             if r_idx + 1 < len(cmd):
                 pcap_file = cmd[r_idx + 1]
 
+        # Small requested pages must not materialize all stdout of a large pcap.
+        # Preserve the complete-result cache for inexpensive paging on small files.
+        if pcap_file and limit_lines > 0 and not stream_limit:
+            with contextlib.suppress(OSError):
+                stream_limit = Path(pcap_file).stat().st_size >= self.STREAM_PAGINATION_FILE_BYTES
+
         # The cache stores the full, unpaginated stdout keyed by the command only.
         # Pagination is applied *after* retrieval so different offset/limit values
         # over the same command never pollute one another.
-        if pcap_file:
+        cacheable = not any(arg.startswith(("tls.keylog_file:", "uat:80211_keys:")) for arg in cmd)
+        if pcap_file and cacheable:
             cached = self._cache.get(pcap_file, cmd)
             if cached is not None:
                 logger.debug("Cache hit for: %s", self._redact_command(cmd[:4]))
@@ -625,7 +695,7 @@ class WiresharkSuiteClient(
 
             # The stdout-only cache cannot retain the short-read warning. Do not
             # turn a second read of an incomplete capture into an unqualified hit.
-            if pcap_file and raw_to_cache is not None and proc.returncode == 0:
+            if pcap_file and cacheable and raw_to_cache is not None and proc.returncode == 0:
                 self._cache.put(pcap_file, cmd, raw_to_cache)
 
             stderr_note = error if (error and not truncated) else ""
