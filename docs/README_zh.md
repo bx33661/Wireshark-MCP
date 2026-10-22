@@ -29,6 +29,7 @@
 | 准备发布 | [发布清单](release-checklist.md) |
 | 安装、发现与使用抓包分析 Skill | [Skills 指南](skills_zh.md) |
 | 评估 Agent 流量分析行为 | [Agent 评测套件](agent-evaluation_zh.md) |
+| 查看各分析路径上的 Agent 评测得分 | [Agent 评测结果](agent-evaluation-results_zh.md) |
 | 对比 MCP 与原生 tshark | [分析路径对照基准](analysis-path-benchmark_zh.md) |
 | 查看已发布内容与后续计划 | [更新日志](../CHANGELOG.md) · [功能路线图](../ROADMAP_zh.md) |
 | 报告安全问题 | [安全策略](../SECURITY.md) |

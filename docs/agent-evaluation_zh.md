@@ -2,6 +2,8 @@
 
 评测分三层：**Skill 结构正确、分析引擎执行正确、Agent 行为正确**。格式校验和单元测试通过，不等于加载 Skill 后模型更准确。没有独立实测数据时，不发布效果提升结论。
 
+已发布的结果：[Agent 评测结果](agent-evaluation-results_zh.md)（Haiku，完整矩阵两轮）。
+
 ## 独立运行
 
 对 `evals/agent-traffic-analysis/scenarios.json` 中的每个场景，分别运行 `without-skill`、`with-skill`、`tshark-cli`，每种至少三次全新上下文。固定模型、推理设置、工具 profile、时间/输出预算、tshark 与插件版本、操作系统、代码与 Skill 修订。真实抓包由 `tests/fixtures/generate_pcaps.py` 生成；`synthetic://` 场景必须注入所述失败或观察条件。

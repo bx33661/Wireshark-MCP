@@ -46,7 +46,7 @@ Exit criterion: numeric aggregation and pagination have real-tshark tests, deter
 
 ## Next — 3.2 evidence-first findings (release prepared)
 
-- [ ] Publish the full 20-scenario × 3-path × 3-run Agent evaluation matrix with harness-bound traces.
+- [x] Publish the full 20-scenario × 3-path × 3-run Agent evaluation matrix with harness-bound traces: [Haiku results](docs/agent-evaluation-results.md), two runs; a stronger-model run remains open.
 - [x] Persist investigation case files (inputs, executed queries, findings, analyst verdicts) so long investigations survive context resets.
 - [x] Define one finding schema shared by security and anomaly tools: severity, confidence, evidence frames, filters, streams, and caveats.
 - [x] Produce Markdown and JSON reports from the same finding data rather than maintaining two independent renderers.
