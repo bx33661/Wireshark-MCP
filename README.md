@@ -125,7 +125,7 @@ Write findings to report.md.
 | **Decrypt & Dissection** | TLS/WPA decrypt, decryption check, decode-as, protocol preferences | 5 |
 | **Forensics & Enrichment** | TLS fingerprints, file signature scan, GeoIP | 3 |
 | **File Ops, Capture & Suite** | Live capture, interfaces, merge, filter-save, editcap trim/split/dedup/time-shift, frame extract, text2pcap, capabilities | 11 |
-| **Capture Index** (optional `[index]` extra) | `wireshark_index`: one tshark pass into a local DuckDB file; `wireshark_aggregate` reuses it, plus read-only SQL over packets and flows | 1 |
+| **Capture Index** (optional `[index]` extra) | `wireshark_index`: one tshark pass into a local DuckDB file; `wireshark_aggregate` and `wireshark_extract_fields` reuse it. Read-only SQL, multi-capture sets, first-seen timelines, capture/window diffs and Parquet export | 1 |
 
 One tool covers 25 protocols rather than 25 tools covering one each: `wireshark_analyze_protocol` takes a `protocol` argument (`tls_handshakes`, `mqtt`, `modbus`, `s7comm`, `zigbee`, `wifi`, `rtp`, `kerberos`, …) and applies the right fields and display filter for it. The field names are the point — `s7comm.param.item.dbnum` is not something a caller should have to guess, and a wrong guess returns an empty result that reads like a clean capture.
 

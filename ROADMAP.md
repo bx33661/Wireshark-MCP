@@ -66,15 +66,16 @@ Exit criterion: authenticated remote deployment is reproducible and the supporte
 
 ## Later — 4.0 capture index engine
 
-Release order is 3.2 → 3.3 → 4.0. The index core was built early and ships with 3.2 as the optional `[index]` extra.
+The index core was built early and ships with 3.2 as the optional `[index]` extra. The remaining engine items below were then built ahead of 3.3.
 
 - [x] **DuckDB capture index (core):** one tshark pass per capture, `wireshark_index` (build/status/query/drop), `wireshark_aggregate` reuses a fresh index with tshark-identical answers and reports `coverage.source`; 100 MB / 1 GB benchmark published.
-- Multi-capture collections: one index across several files with a `capture_id` column.
-- Index-backed diff and timeline for two captures or two display-filter windows, returning only the differences and preserving exact frame numbers and relative times for incident response (moved from 3.2).
-- Parquet export for use outside the server.
-- Route `wireshark_extract_fields`, the endpoint, conversation and protocol-hierarchy statistics, and suitable detection tools through the index.
-- Push grouping down into DuckDB SQL, with the tshark equivalence tests kept as the gate.
-- Add a 10 GB benchmark tier.
+- [x] Capture sets: `more_files` stacks several per-capture indexes with a `capture_id` column and a `captures` table, so files are indexed once and combined at query time.
+- [x] Index-backed `timeline` (first and last sighting of hosts, conversations, protocols, DNS/TLS/HTTP names and fingerprints) and `diff` of two captures or two display-filter windows, returning only new and gone items with exact frame numbers and relative times.
+- [x] Parquet export of packets, flows and captures into the index directory.
+- [x] `wireshark_extract_fields` answers from the index with byte-identical tshark output.
+- [x] Grouping pushed down into DuckDB SQL behind exactness gates, with the tshark equivalence tests as the gate.
+- [x] 10 GB benchmark tier.
+- Route the endpoint, conversation and protocol-hierarchy statistics and suitable detection tools through the index, each behind its own equivalence harness against parsed tshark tap output.
 
 Exit criterion: capture-wide questions on multi-gigabyte captures and capture sets are answered from the index with results proven equal to the tshark path.
 

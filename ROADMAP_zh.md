@@ -66,15 +66,16 @@
 
 ## 后续：4.0 抓包索引引擎
 
-发布顺序为 3.2 → 3.3 → 4.0。索引核心已提前完成，随 3.2 作为可选 `[index]` 扩展发布。
+索引核心已提前完成，随 3.2 作为可选 `[index]` 扩展发布。下面其余的引擎项随后也在 3.3 之前完成。
 
 - [x] **DuckDB 抓包索引（核心）：** 每个抓包一次 tshark 解析；`wireshark_index`（build/status/query/drop）；`wireshark_aggregate` 复用新鲜索引，答案与 tshark 一致，并标明 `coverage.source`；已发布 100 MB / 1 GB 基准。
-- 多抓包集合：一个索引覆盖多个文件，带 `capture_id` 列。
-- 基于索引的 diff 与时间线：比较两个抓包或两个过滤时间窗，只返回差异，并为事件响应保留准确帧号和相对时间（自 3.2 移入）。
-- Parquet 导出，供服务器之外使用。
-- 让 `wireshark_extract_fields`、端点、会话、协议层次统计以及合适的检测工具走索引。
-- 把分组下推到 DuckDB SQL，并以 tshark 一致性测试作为门槛。
-- 增加 10 GB 基准档。
+- [x] 抓包集合：`more_files` 把多个单抓包索引叠在一起，带 `capture_id` 列和 `captures` 表；每个文件只索引一次，查询时组合。
+- [x] 基于索引的 `timeline`（主机、会话、协议、DNS/TLS/HTTP 名称与指纹的首次和末次出现）以及两个抓包或两个过滤时间窗的 `diff`，只返回新增和消失的条目，保留准确帧号和相对时间。
+- [x] 把包、会话和抓包信息导出为 Parquet，写入索引目录。
+- [x] `wireshark_extract_fields` 由索引回答，输出与 tshark 逐字节相同。
+- [x] 分组下推到 DuckDB SQL，带精确性门槛，并以 tshark 一致性测试作为门槛。
+- [x] 增加 10 GB 基准档。
+- 让端点、会话、协议层次统计以及合适的检测工具走索引，每个都要先有对照 tshark tap 输出的一致性测试。
 
 完成标准：多 GB 抓包与抓包集合上的全量问题由索引回答，且结果被证明与 tshark 路径一致。
 
