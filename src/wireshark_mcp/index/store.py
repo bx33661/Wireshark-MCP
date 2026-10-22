@@ -208,19 +208,16 @@ def _load_index(tsv: Path, db_path: Path, fields: list[str], meta: dict[str, Any
     import duckdb
 
     exported_rows = max(_count_lines(tsv) - 1, 0)
-    columns = "{" + ", ".join(f"'{field}': 'VARCHAR'" for field in fields) + "}"
+    # Column names come from INDEX_FIELDS and are quoted as SQL string literals.
+    columns = "{" + ", ".join("'" + field.replace("'", "''") + "': 'VARCHAR'" for field in fields) + "}"
+    read_options = (
+        "delim = '\t', header = true, quote = '', escape = '', auto_detect = false, "
+        "null_padding = true, ignore_errors = true, max_line_size = 16777216"
+    )
+    load_sql = f"CREATE TABLE packets AS SELECT * FROM read_csv(?, {read_options}, columns = {columns})"  # nosec B608
     connection = duckdb.connect(str(db_path))
     try:
-        connection.execute(
-            f"""
-            CREATE TABLE packets AS
-            SELECT * FROM read_csv(
-                ?, delim = '\t', header = true, quote = '', escape = '', auto_detect = false,
-                columns = {columns}, null_padding = true, ignore_errors = true, max_line_size = 16777216
-            )
-            """,
-            [str(tsv)],
-        )
+        connection.execute(load_sql, [str(tsv)])
         row = connection.execute("SELECT count(*) FROM packets").fetchone()
         packets = int(row[0]) if row else 0
         connection.execute(_FLOWS_SQL)
@@ -441,7 +438,8 @@ class CaptureIndexStore:
     ) -> dict[str, Any]:
         """Feed matching rows (tshark text, '' for absent) to ``consumer`` in capture order."""
         select = ", ".join(f"COALESCE({_quote_ident(field)}, '')" for field in fields)
-        sql = f"SELECT {select} FROM packets WHERE {where_sql}"
+        # Identifiers are quoted and where_sql comes from filter_sql with bound params.
+        sql = f"SELECT {select} FROM packets WHERE {where_sql}"  # nosec B608
         connection = self._connect(handle)
         timer = self._with_deadline(connection, timeout)
         rows = 0
