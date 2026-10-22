@@ -8,6 +8,10 @@ SQL. Anything that could print differently falls back to tshark: an index
 built by another tshark version, rows the build could not parse, and values
 holding quotes, backslashes or line/field separators, whose escaping is
 version dependent.
+
+SQL here interpolates only quoted identifiers, module constants and
+``filter_sql`` output, whose literal values are bound parameters; that is what
+the ``nosec B608`` markers assert.
 """
 
 from __future__ import annotations
@@ -30,13 +34,13 @@ def _q(name: str) -> str:
 def window_sql(fields: list[str], where_sql: str) -> str:
     select = ", ".join(f"COALESCE({_q(field)}, '')" for field in fields)
     return (
-        f"SELECT {select}, count(*) OVER () FROM packets WHERE {where_sql} "
+        f"SELECT {select}, count(*) OVER () FROM packets WHERE {where_sql} "  # nosec B608
         f'ORDER BY TRY_CAST("frame.number" AS BIGINT) LIMIT ? OFFSET ?'
     )
 
 
 def count_sql(where_sql: str) -> str:
-    return f"SELECT count(*) FROM packets WHERE {where_sql}"
+    return f"SELECT count(*) FROM packets WHERE {where_sql}"  # nosec B608
 
 
 def render(

@@ -205,11 +205,11 @@ _PKT_TYPED_COLUMNS = """
 """
 
 # Stored in every index file (schema version 1).
-_PKT_VIEW_SQL = f"CREATE VIEW pkt AS SELECT {_PKT_TYPED_COLUMNS} * FROM packets"
+_PKT_VIEW_SQL = f"CREATE VIEW pkt AS SELECT {_PKT_TYPED_COLUMNS} * FROM packets"  # nosec B608
 
 # The query-time view over the stacked captures puts capture_id first.
 _PKT_TEMP_VIEW_SQL = (
-    f"CREATE TEMP VIEW pkt AS SELECT capture_id, {_PKT_TYPED_COLUMNS} * EXCLUDE (capture_id) FROM packets"
+    f"CREATE TEMP VIEW pkt AS SELECT capture_id, {_PKT_TYPED_COLUMNS} * EXCLUDE (capture_id) FROM packets"  # nosec B608
 )
 
 
@@ -449,8 +449,8 @@ class CaptureIndexStore:
                 alias = f"c{position}"
                 connection.execute(f"ATTACH {_sql_string(str(handle.path))} AS {alias} (READ_ONLY)")
                 label = _sql_string(handle.label)
-                packets.append(f"SELECT {label} AS capture_id, * FROM {alias}.packets")
-                flows.append(f"SELECT {label} AS capture_id, * FROM {alias}.flows")
+                packets.append(f"SELECT {label} AS capture_id, * FROM {alias}.packets")  # nosec B608
+                flows.append(f"SELECT {label} AS capture_id, * FROM {alias}.flows")  # nosec B608
                 captures.append((handle.label, str(handle.capture), handle.meta.get("capture_sha256"), handle.packets))
             connection.execute("CREATE TEMP VIEW packets AS " + " UNION ALL BY NAME ".join(packets))
             connection.execute("CREATE TEMP VIEW flows AS " + " UNION ALL BY NAME ".join(flows))
@@ -509,7 +509,7 @@ class CaptureIndexStore:
         connection = self._connect(handles, sandbox=False)
         timer = self._with_deadline(connection, timeout)
         try:
-            connection.execute(f"CREATE TEMP TABLE selected AS SELECT * FROM pkt WHERE {where_sql}", params)
+            connection.execute(f"CREATE TEMP TABLE selected AS SELECT * FROM pkt WHERE {where_sql}", params)  # nosec B608
             statements = {
                 "packets": "SELECT * FROM selected ORDER BY capture_id, frame",
                 "flows": (
@@ -523,7 +523,7 @@ class CaptureIndexStore:
             for table, select in statements.items():
                 target = work / f"{table}.parquet"
                 connection.execute(f"COPY ({select}) TO {_sql_string(str(target))} (FORMAT parquet, COMPRESSION zstd)")
-                row = connection.execute(f"SELECT count(*) FROM ({select})").fetchone()
+                row = connection.execute(f"SELECT count(*) FROM ({select})").fetchone()  # nosec B608
                 files[table] = {
                     "path": str(final / target.name),
                     "rows": int(row[0]) if row else 0,

@@ -5,6 +5,10 @@ protocols, DNS names, TLS server names, HTTP hosts and user agents, JA3/JA4
 fingerprints — and record for each entity the first and last frame it appeared
 in. Frame numbers and relative times are the capture's own, so every row points
 at packets the tshark tools can open for evidence.
+
+SQL here interpolates only quoted identifiers, module constants and
+``filter_sql`` output, whose literal values are bound parameters; that is what
+the ``nosec B608`` markers assert.
 """
 
 from __future__ import annotations
@@ -51,7 +55,7 @@ def _entities_sql(kinds: list[str], source: str) -> str:
     for kind in kinds:
         values = _KINDS[kind][1]
         parts.append(
-            f"SELECT '{kind}' AS kind, unnest(list_filter(list_distinct({values}), lambda v: COALESCE(v, '') <> '')) "
+            f"SELECT '{kind}' AS kind, unnest(list_filter(list_distinct({values}), lambda v: COALESCE(v, '') <> '')) "  # nosec B608
             f"AS item, capture_id, frame, rel, epoch FROM {source}"
         )
     return "\nUNION ALL\n".join(parts)
@@ -67,7 +71,7 @@ def _selected_sql(where_sql: str) -> str:
         FROM pkt p
         LEFT JOIN flows f ON f.capture_id = p.capture_id AND f.transport = p.transport AND f.stream = p.stream
         WHERE {where_sql}
-    """
+    """  # nosec B608
 
 
 _PROFILE_SQL = """
@@ -121,7 +125,7 @@ def timeline_sql(kinds: list[str], where_sql: str) -> str:
         FROM ranked
         WHERE position <= {TIMELINE_ITEMS_PER_KIND}
         ORDER BY first, kind, item
-    """
+    """  # nosec B608
 
 
 def render_timeline(rows: list[tuple[Any, ...]], kinds: list[str], with_capture: bool) -> dict[str, Any]:
@@ -173,7 +177,7 @@ def diff_sql(kinds: list[str], baseline: Side, compare: Side) -> tuple[str, list
         UNION ALL
         SELECT '', NULL, 'packets', (SELECT count(*) FROM base_selected), (SELECT count(*) FROM cmp_selected), NULL, NULL
         ORDER BY 1, 3, 6
-    """
+    """  # nosec B608
     return sql, [baseline.capture_id, *baseline.params, compare.capture_id, *compare.params]
 
 

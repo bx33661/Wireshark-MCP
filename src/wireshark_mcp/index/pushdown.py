@@ -15,6 +15,10 @@ instead. The gates are:
 
 The tshark equivalence tests in ``tests/test_capture_index.py`` are the gate
 for this module: every aggregate case runs through it and must match tshark.
+
+SQL here interpolates only quoted identifiers, module constants and
+``filter_sql`` output, whose literal values are bound parameters; that is what
+the ``nosec B608`` markers assert.
 """
 
 from __future__ import annotations
@@ -90,9 +94,9 @@ class _Query:
                 f"CASE WHEN rel_text <> '' THEN floor(TRY_CAST(rel_text AS DOUBLE) / {_sql_double(self.bucket)}) "
                 f"* {_sql_double(self.bucket)} END AS k0"
             )
-            inner = f"SELECT *, {rel} AS rel_text FROM packets WHERE {self.where_sql}"
+            inner = f"SELECT *, {rel} AS rel_text FROM packets WHERE {self.where_sql}"  # nosec B608
         else:
-            inner = f"SELECT * FROM packets WHERE {self.where_sql}"
+            inner = f"SELECT * FROM packets WHERE {self.where_sql}"  # nosec B608
         offset = 1 if self.bucket > 0 else 0
         for position, field in enumerate(self.group_fields):
             columns.append(f"{_text(field)} AS k{position + offset}")
@@ -102,7 +106,7 @@ class _Query:
             columns.append(f"{_text(field)} AS n{position}")
         if self.bucket <= 0:
             columns.append("TRUE AS g")
-        return f"SELECT {', '.join(columns)} FROM ({inner})"
+        return f"SELECT {', '.join(columns)} FROM ({inner})"  # nosec B608
 
     def grouped_rows(self) -> str:
         """Rows that join a group: invalid times are skipped, as in the accumulator."""
@@ -139,7 +143,7 @@ class _Query:
             checks.append(
                 f"bool_or(len({d}) > 1) FILTER (WHERE g) AS damb{position}" if ambiguous else f"false AS damb{position}"
             )
-        return f"WITH selected AS ({self.selected()}) SELECT {', '.join(checks)} FROM selected"
+        return f"WITH selected AS ({self.selected()}) SELECT {', '.join(checks)} FROM selected"  # nosec B608
 
     def groups(self) -> str:
         keys = ", ".join(self.keys)
@@ -160,7 +164,7 @@ class _Query:
         group_by = f" GROUP BY {keys}" if keys else ""
         select_keys = f"{keys}, " if keys else ""
         return (
-            f"WITH selected AS ({self.selected()}), grouped AS ({self.grouped_rows()}) "
+            f"WITH selected AS ({self.selected()}), grouped AS ({self.grouped_rows()}) "  # nosec B608
             f"SELECT {select_keys}{', '.join(metrics)} FROM grouped{group_by} LIMIT {MAX_AGGREGATE_GROUPS}"
         )
 
@@ -169,7 +173,7 @@ class _Query:
         select_keys = f"{keys}, " if keys else ""
         group_by = f" GROUP BY {keys}" if keys else ""
         return (
-            f"WITH selected AS ({self.selected()}), grouped AS ({self.grouped_rows()}) "
+            f"WITH selected AS ({self.selected()}), grouped AS ({self.grouped_rows()}) "  # nosec B608
             f"SELECT {select_keys}count(DISTINCT item) FROM "
             f"(SELECT {select_keys}unnest(d{position}) AS item FROM grouped){group_by}"
         )
