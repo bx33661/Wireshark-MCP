@@ -1,0 +1,709 @@
+{
+  "schema_version": 2,
+  "benchmark": "capture-index-vs-tshark",
+  "scope": "wireshark_aggregate latency and answer accuracy; not Agent accuracy or tokens.",
+  "environment": {
+    "platform": "Linux-6.18.44-fc-v140-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "tshark": "TShark (Wireshark) 4.2.2 (Git v4.2.2 packaged as 4.2.2-1.1build3).",
+    "duckdb": "1.5.6",
+    "cpu_count": 4,
+    "scan_policy_env": {
+      "WIRESHARK_MCP_AGGREGATE_SCAN_LIMIT": "10000000",
+      "WIRESHARK_MCP_AGGREGATE_TIMEOUT": "600"
+    }
+  },
+  "tiers": {
+    "100MB": {
+      "capture_bytes": 100000166,
+      "packets": 156557,
+      "seed": 3101,
+      "tshark_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "packet_count": 156557
+          },
+          "expected": {
+            "packet_count": 156557
+          },
+          "error": null,
+          "elapsed_ms": [
+            5729.0
+          ],
+          "median_ms": 5729.0
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 12607
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 12607
+          },
+          "error": null,
+          "elapsed_ms": [
+            4981.2
+          ],
+          "median_ms": 4981.2
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "dns_query_count": 12726
+          },
+          "expected": {
+            "dns_query_count": 12726
+          },
+          "error": null,
+          "elapsed_ms": [
+            4683.5
+          ],
+          "median_ms": 4683.5
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            4669.7
+          ],
+          "median_ms": 4669.7
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "frame_bytes": 97495230.0
+          },
+          "expected": {
+            "frame_bytes": 97495230.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            4346.2
+          ],
+          "median_ms": 4346.2
+        }
+      },
+      "index_build": {
+        "elapsed_ms": 7453.0,
+        "export_seconds": 5.662,
+        "load_seconds": 1.635,
+        "index_bytes": 13119488,
+        "indexed_packets": 156557,
+        "flows": 156536
+      },
+      "index_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "packet_count": 156557
+          },
+          "expected": {
+            "packet_count": 156557
+          },
+          "error": null,
+          "elapsed_ms": [
+            47.4,
+            47.6,
+            56.1
+          ],
+          "median_ms": 47.6
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 12607
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 12607
+          },
+          "error": null,
+          "elapsed_ms": [
+            72.8,
+            90.9,
+            59.9
+          ],
+          "median_ms": 72.8
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "dns_query_count": 12726
+          },
+          "expected": {
+            "dns_query_count": 12726
+          },
+          "error": null,
+          "elapsed_ms": [
+            61.0,
+            65.0,
+            70.0
+          ],
+          "median_ms": 65.0
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            97.9,
+            89.0,
+            94.0
+          ],
+          "median_ms": 94.0
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "frame_bytes": 97495230.0
+          },
+          "expected": {
+            "frame_bytes": 97495230.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            81.2,
+            83.8,
+            88.4
+          ],
+          "median_ms": 83.8
+        }
+      },
+      "index_features": {
+        "timeline": {
+          "passed": true,
+          "elapsed_ms": 850.3,
+          "selected_packets": 156557
+        },
+        "diff_halves": {
+          "passed": true,
+          "elapsed_ms": 884.8,
+          "selected_packets": {
+            "baseline": 78423,
+            "compare": 78134
+          }
+        },
+        "export_parquet": {
+          "passed": true,
+          "elapsed_ms": 850.3,
+          "files": {
+            "packets": {
+              "rows": 156557,
+              "bytes": 6661728
+            },
+            "flows": {
+              "rows": 156536,
+              "bytes": 2443525
+            },
+            "captures": {
+              "rows": 1,
+              "bytes": 1263
+            }
+          }
+        },
+        "extract_fields": {
+          "passed": true,
+          "elapsed_ms": 208.6
+        }
+      },
+      "summary": {
+        "tshark_all_passed": true,
+        "index_all_passed": true,
+        "tshark_median_total_ms": 24409.6,
+        "index_median_total_ms": 363.2,
+        "speedup": 67.2,
+        "break_even_questions": 1.55,
+        "note": null
+      }
+    },
+    "1000MB": {
+      "capture_bytes": 1000000318,
+      "packets": 1561889,
+      "seed": 3101,
+      "tshark_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "packet_count": 1561889
+          },
+          "expected": {
+            "packet_count": 1561889
+          },
+          "error": null,
+          "elapsed_ms": [
+            52129.2
+          ],
+          "median_ms": 52129.2
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 124712
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 124712
+          },
+          "error": null,
+          "elapsed_ms": [
+            47417.2
+          ],
+          "median_ms": 47417.2
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "dns_query_count": 125069
+          },
+          "expected": {
+            "dns_query_count": 125069
+          },
+          "error": null,
+          "elapsed_ms": [
+            40922.9
+          ],
+          "median_ms": 40922.9
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            46253.5
+          ],
+          "median_ms": 46253.5
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "frame_bytes": 975010070.0
+          },
+          "expected": {
+            "frame_bytes": 975010070.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            47620.7
+          ],
+          "median_ms": 47620.7
+        }
+      },
+      "index_build": {
+        "elapsed_ms": 67661.2,
+        "export_seconds": 58.269,
+        "load_seconds": 8.98,
+        "index_bytes": 146812928,
+        "indexed_packets": 1561889,
+        "flows": 1560287
+      },
+      "index_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "packet_count": 1561889
+          },
+          "expected": {
+            "packet_count": 1561889
+          },
+          "error": null,
+          "elapsed_ms": [
+            74.4,
+            67.6,
+            64.4
+          ],
+          "median_ms": 67.6
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 124712
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 124712
+          },
+          "error": null,
+          "elapsed_ms": [
+            68.4,
+            86.5,
+            64.6
+          ],
+          "median_ms": 68.4
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "dns_query_count": 125069
+          },
+          "expected": {
+            "dns_query_count": 125069
+          },
+          "error": null,
+          "elapsed_ms": [
+            95.4,
+            113.7,
+            116.4
+          ],
+          "median_ms": 113.7
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            117.5,
+            112.5,
+            115.4
+          ],
+          "median_ms": 115.4
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "frame_bytes": 975010070.0
+          },
+          "expected": {
+            "frame_bytes": 975010070.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            227.2,
+            202.8,
+            209.2
+          ],
+          "median_ms": 209.2
+        }
+      },
+      "index_features": {
+        "timeline": {
+          "passed": true,
+          "elapsed_ms": 2356.5,
+          "selected_packets": 1561889
+        },
+        "diff_halves": {
+          "passed": true,
+          "elapsed_ms": 4033.3,
+          "selected_packets": {
+            "baseline": 780462,
+            "compare": 781427
+          }
+        },
+        "export_parquet": {
+          "passed": true,
+          "elapsed_ms": 8772.8,
+          "files": {
+            "packets": {
+              "rows": 1561889,
+              "bytes": 64817148
+            },
+            "flows": {
+              "rows": 1560287,
+              "bytes": 23312476
+            },
+            "captures": {
+              "rows": 1,
+              "bytes": 1271
+            }
+          }
+        },
+        "extract_fields": {
+          "passed": true,
+          "elapsed_ms": 303.0
+        }
+      },
+      "summary": {
+        "tshark_all_passed": true,
+        "index_all_passed": true,
+        "tshark_median_total_ms": 234343.5,
+        "index_median_total_ms": 574.3,
+        "speedup": 408.1,
+        "break_even_questions": 1.45,
+        "note": null
+      }
+    },
+    "10000MB": {
+      "capture_bytes": 10000000004,
+      "packets": 15627345,
+      "seed": 3101,
+      "tshark_path": {
+        "packet_count": {
+          "passed": false,
+          "source": null,
+          "observed": null,
+          "expected": {
+            "packet_count": 15627345
+          },
+          "error": "{\"type\": \"LimitExceeded\", \"message\": \"Streamed stdout exceeded 52428800 bytes\"}",
+          "elapsed_ms": [
+            246351.1
+          ],
+          "median_ms": 246351.1
+        },
+        "primary_source": {
+          "passed": false,
+          "source": null,
+          "observed": null,
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 1249233
+          },
+          "error": "{\"type\": \"LimitExceeded\", \"message\": \"Streamed stdout exceeded 52428800 bytes\"}",
+          "elapsed_ms": [
+            74908.0
+          ],
+          "median_ms": 74908.0
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "dns_query_count": 1251403
+          },
+          "expected": {
+            "dns_query_count": 1251403
+          },
+          "error": null,
+          "elapsed_ms": [
+            581041.7
+          ],
+          "median_ms": 581041.7
+        },
+        "literal_user_agent": {
+          "passed": false,
+          "source": null,
+          "observed": null,
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": "{\"type\": \"LimitExceeded\", \"message\": \"Streamed stdout exceeded 52428800 bytes\"}",
+          "elapsed_ms": [
+            164128.1
+          ],
+          "median_ms": 164128.1
+        },
+        "numeric_frame_bytes": {
+          "passed": false,
+          "source": null,
+          "observed": null,
+          "expected": {
+            "frame_bytes": 9749962460.0
+          },
+          "error": "{\"type\": \"LimitExceeded\", \"message\": \"Streamed stdout exceeded 52428800 bytes\"}",
+          "elapsed_ms": [
+            99329.7
+          ],
+          "median_ms": 99329.7
+        }
+      },
+      "index_build": {
+        "elapsed_ms": 683655.1,
+        "export_seconds": 622.445,
+        "load_seconds": 58.283,
+        "index_bytes": 1721774080,
+        "indexed_packets": 15627345,
+        "flows": 15516534
+      },
+      "index_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "packet_count": 15627345
+          },
+          "expected": {
+            "packet_count": 15627345
+          },
+          "error": null,
+          "elapsed_ms": [
+            77.6,
+            67.3,
+            76.9
+          ],
+          "median_ms": 76.9
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 1249233
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 1249233
+          },
+          "error": null,
+          "elapsed_ms": [
+            203.8,
+            118.2,
+            121.5
+          ],
+          "median_ms": 121.5
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "dns_query_count": 1251403
+          },
+          "expected": {
+            "dns_query_count": 1251403
+          },
+          "error": null,
+          "elapsed_ms": [
+            597.4,
+            598.3,
+            502.9
+          ],
+          "median_ms": 597.4
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            377.3,
+            354.9,
+            362.1
+          ],
+          "median_ms": 362.1
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "index",
+          "pushdown": true,
+          "observed": {
+            "frame_bytes": 9749962460.0
+          },
+          "expected": {
+            "frame_bytes": 9749962460.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            1095.0,
+            1042.1,
+            1195.0
+          ],
+          "median_ms": 1095.0
+        }
+      },
+      "index_features": {
+        "timeline": {
+          "passed": true,
+          "elapsed_ms": 21478.8,
+          "selected_packets": 15627345
+        },
+        "diff_halves": {
+          "passed": true,
+          "elapsed_ms": 33289.4,
+          "selected_packets": {
+            "baseline": 7814214,
+            "compare": 7813131
+          }
+        },
+        "export_parquet": {
+          "passed": true,
+          "elapsed_ms": 95817.4,
+          "files": {
+            "packets": {
+              "rows": 15627345,
+              "bytes": 644549110
+            },
+            "flows": {
+              "rows": 15516534,
+              "bytes": 235177154
+            },
+            "captures": {
+              "rows": 1,
+              "bytes": 1283
+            }
+          }
+        },
+        "extract_fields": {
+          "passed": true,
+          "elapsed_ms": 903.3
+        }
+      },
+      "summary": {
+        "tshark_all_passed": false,
+        "index_all_passed": true,
+        "tshark_median_total_ms": 1165758.6,
+        "index_median_total_ms": 2252.9,
+        "speedup": 517.4,
+        "break_even_questions": 2.94,
+        "note": "The tshark path failed at least one scenario (see errors); speed-up compares failed calls."
+      }
+    }
+  },
+  "peak_rss_bytes": {
+    "self": 6889037824,
+    "children": 13277687808
+  }
+}

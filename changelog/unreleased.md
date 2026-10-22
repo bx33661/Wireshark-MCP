@@ -10,7 +10,7 @@ Capture index engine (the 4.0 roadmap items, built ahead of 3.3). All of it live
 - **Parquet export.** `action="export"` writes `packets.parquet`, `flows.parquet` and `captures.parquet` under the index directory, optionally filtered.
 - **SQL pushdown for `wireshark_aggregate`.** Grouping, distinct counts, numeric metrics and time buckets run inside DuckDB when exactness gates prove the result equals the streaming accumulator; otherwise rows stream as before. `coverage.pushdown` reports which happened.
 - **`wireshark_extract_fields` on the index.** A fresh index built by the same tshark answers with byte-identical output; anything that could print differently goes to tshark.
-- **10 GB benchmark tier** in `scripts/benchmark_capture_index.py`, which now also times timeline, diff, export and extract_fields.
+- **10 GB benchmark tier** in `scripts/benchmark_capture_index.py`, which now also times timeline, diff, export and extract_fields. On a 10 GB capture the index answers all five aggregate questions in 0.08–1.1 s; the tshark path fails four of them on the stdout ceiling and needs 581 s for the fifth. At 1 GB the index is 408× faster ([results](../docs/benchmarks/capture-index-2026-10-22.json)).
 - Query connections are now in-memory DuckDB sessions with each index attached read-only before external access is disabled and the configuration locked. Index files keep schema version 1, so 3.2 indexes stay valid.
 
 ## 中文
@@ -23,5 +23,5 @@ Capture index engine (the 4.0 roadmap items, built ahead of 3.3). All of it live
 - **Parquet 导出。** `action="export"` 在索引目录下写出 `packets.parquet`、`flows.parquet` 和 `captures.parquet`，可加过滤器。
 - **`wireshark_aggregate` 的 SQL 下推。** 当精确性门槛证明结果与流式累加器一致时，分组、去重计数、数值指标和时间桶在 DuckDB 中计算；否则照旧流式处理。`coverage.pushdown` 标明走了哪条路。
 - **`wireshark_extract_fields` 走索引。** 由同一 tshark 构建的新鲜索引给出逐字节相同的输出；任何可能输出不同的情况都交给 tshark。
-- **10 GB 基准档**加入 `scripts/benchmark_capture_index.py`，该脚本现在也测量时间线、diff、导出和 extract_fields。
+- **10 GB 基准档**加入 `scripts/benchmark_capture_index.py`，该脚本现在也测量时间线、diff、导出和 extract_fields。10 GB 抓包上索引在 0.08–1.1 秒内答出全部五个聚合问题；tshark 路径有四个因 stdout 上限失败，第五个用了 581 秒。1 GB 上索引快 408 倍（[结果](../docs/benchmarks/capture-index-2026-10-22.json)）。
 - 查询连接改为内存中的 DuckDB 会话：先只读挂载各索引文件，再关闭外部访问并锁定配置。索引文件仍为 schema 版本 1，3.2 建好的索引继续有效。

@@ -68,7 +68,7 @@ Every view gains a leading `capture_id` column: the capture's file name, with `~
 | `protocol` | each `frame.protocols` layer |
 | `dns_name`, `tls_sni`, `http_host`, `user_agent`, `ja3`, `ja4` | the field values |
 
-The result is a column list plus `items` rows: kind, value, packets, first frame, first relative time, first absolute time (UTC), last frame and last relative time, plus `first_capture_id` and `last_capture_id` over a capture set. Items are in first-seen order, up to 20 per kind and 60 in total; `kinds` always gives the complete count per kind. Narrow with `display_filter` (for example a `frame.time_relative` window, or `ip.addr == 10.0.0.5`) to see the rest. Frame numbers are the capture's own, ready for `wireshark_get_packet_details`.
+The result is a column list plus `items` rows: kind, value, packets, first frame, first relative time, first absolute time (UTC), last frame and last relative time, plus `first_capture_id` and `last_capture_id` over a capture set. Items are ordered by first sighting (captures in the order given, `pcap_file` first, then frame number), up to 20 per kind and 60 in total; `kinds` always gives the complete count per kind. Narrow with `display_filter` (for example a `frame.time_relative` window, or `ip.addr == 10.0.0.5`) to see the rest. Frame numbers are the capture's own, ready for `wireshark_get_packet_details`.
 
 ## Diff
 
@@ -107,7 +107,7 @@ Indexed fields cover frame timing and length, Ethernet, VLAN, IPv4/IPv6, TCP (po
 
 ## SQL queries
 
-`action="query"` runs exactly one `SELECT` (or `WITH … SELECT`) and returns at most 200 rows; aggregate in SQL for anything larger. Each index file is attached read-only to an in-memory connection; then DuckDB's external access is disabled and its configuration locked, with extension loading off and a 2 GB memory limit, so a query cannot read other files, write, attach databases or reach the network. Queries are interrupted after 60 seconds; timeline, diff and export after 600.
+`action="query"` runs exactly one `SELECT` (or `WITH … SELECT`) and returns at most 200 rows; aggregate in SQL for anything larger. Each index file is attached read-only to an in-memory connection; then DuckDB's external access is disabled and its configuration locked, with extension loading off and a 2 GB memory limit, so a query cannot read other files, write, attach databases or reach the network. Queries are interrupted after 60 seconds; timeline, diff and export after 600. Work that outgrows the memory limit spills into a private directory under `<index dir>/.spill/`, removed when the query ends.
 
 Treat SQL results like aggregate results: they rank and locate. Confirm a conclusion with the frame numbers they return and the packet tools.
 
@@ -134,18 +134,29 @@ The intermediate export is written next to the index and removed after the build
 
 ## Benchmark
 
-Measured with `scripts/benchmark_capture_index.py` on the deterministic synthetic captures from the analysis-path benchmark (Linux, 4 vCPU, tshark 4.2.2, DuckDB 1.5.6). Each answer was checked against facts recorded while the capture was written; all passed on both paths. The tshark path used a raised scan policy so 1 GB finishes; with the default 30 s timeout it fails, as published in [the 3.1 benchmark](analysis-path-benchmark.md).
+Measured with `scripts/benchmark_capture_index.py` on the deterministic synthetic captures from the analysis-path benchmark (Linux, 4 vCPU, tshark 4.2.2, DuckDB 1.5.6, 2026-10-22). Each answer was checked against facts recorded while the capture was written. The tshark path used the widest scan policy the server allows (10,000,000 rows, 600 s).
 
-| Capture | Packets | tshark aggregate (median per call) | Index build | Index file | Indexed aggregate (median per call) | Speed-up | Break-even |
-|---------|--------:|-----------------------------------:|------------:|-----------:|------------------------------------:|---------:|-----------:|
-| 100 MB | 156,557 | 4.7 s | 8.2 s | 13 MB | 0.05–0.37 s | 21× | 2nd question |
-| 1 GB | 1,561,889 | 52.6 s | 79.6 s (70.4 s tshark, 8.8 s DuckDB) | 147 MB | 0.2–3.6 s | 27× | 2nd question |
+| Capture | Packets | tshark aggregate (per call) | Index build | Index file | Indexed aggregate (per call, median) | Speed-up | Break-even |
+|---------|--------:|----------------------------:|------------:|-----------:|-------------------------------------:|---------:|-----------:|
+| 100 MB | 156,557 | 4.3–5.7 s | 7.5 s | 13 MB | 0.05–0.09 s | 67× | 2nd question |
+| 1 GB | 1,561,889 | 41–52 s | 68 s (58 s tshark, 9 s DuckDB) | 147 MB | 0.07–0.21 s | 408× | 2nd question |
+| 10 GB | 15,627,345 | 4 of 5 fail; DNS count 581 s | 684 s (622 s tshark, 58 s DuckDB) | 1.7 GB | 0.08–1.1 s | — | 1st question |
+
+At 10 GB the tshark path cannot answer four of the five questions at all: each stops with `LimitExceeded` when tshark's field stream passes the server's 50 MB stdout ceiling, after 75–246 s. The one it answers (DNS query count, a filtered scan) takes 581 s of its 600 s budget. The index answers all five correctly, with grouping pushed down to DuckDB in every case.
 
 Per-call figures cover the five scenarios of the analysis-path benchmark (packet count, top source, DNS query count, distinct user agents, byte sum). Speed-up is the ratio of the five medians summed.
 
-Raw results: [`docs/benchmarks/capture-index-2026-10-19.json`](benchmarks/capture-index-2026-10-19.json).
+The other index features on the same captures, one timed call each:
 
-The build costs about as much as two tshark aggregate calls, so the index pays off from the second capture-wide question on the same file. The indexed path currently streams matching rows into the same Python accumulator the tshark path uses; pushing grouping into DuckDB is the obvious next step if larger captures need it.
+| Capture | timeline | diff of the two halves | Parquet export (all packets) | extract_fields (100 rows, filtered) |
+|---------|---------:|-----------------------:|-----------------------------:|------------------------------------:|
+| 100 MB | 0.9 s | 0.9 s | 0.9 s | 0.2 s |
+| 1 GB | 2.4 s | 4.0 s | 8.8 s | 0.3 s |
+| 10 GB | 21.5 s | 33.3 s | 95.8 s (645 MB packets file) | 0.9 s |
+
+The synthetic captures are a worst case for timeline and diff: nearly every packet starts a new flow, so the 10 GB capture has five million distinct conversations to profile.
+
+Raw results: [`docs/benchmarks/capture-index-2026-10-22.json`](benchmarks/capture-index-2026-10-22.json) (this run) and [`docs/benchmarks/capture-index-2026-10-19.json`](benchmarks/capture-index-2026-10-19.json) (3.2 index core, before pushdown).
 
 ## Not yet
 
