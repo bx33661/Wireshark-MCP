@@ -266,6 +266,7 @@ class CaptureIndexStore:
         self._build_timeout = build_timeout or resolve_index_timeout()
         self._locks: dict[Path, asyncio.Lock] = {}
         self._version: str | None = None
+        self._spill_dirs: dict[int, Path] = {}
 
     @property
     def index_dir(self) -> Path:
@@ -430,7 +431,7 @@ class CaptureIndexStore:
         return True
 
     # ── queries ──────────────────────────────────────────────────────────
-    def _connect(self, handles: Sequence[IndexHandle], *, sandbox: bool = True) -> Any:
+    def _connect(self, handles: Sequence[IndexHandle], *, sandbox: bool = True, ordered: bool = True) -> Any:
         """One sandboxed connection with ``packets``/``pkt``/``flows``/``captures`` over every handle.
 
         Each index file is attached read-only, the views are stacked with a
@@ -443,7 +444,14 @@ class CaptureIndexStore:
         config.pop("enable_external_access")
         config.pop("lock_configuration")
         connection = duckdb.connect(":memory:", config=config)
+        # Large captures spill past the memory limit into a private directory, removed on close.
+        spill = self._index_dir / ".spill" / uuid.uuid4().hex
+        spill.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self._spill_dirs[id(connection)] = spill
         try:
+            connection.execute(f"SET temp_directory = {_sql_string(str(spill))}")
+            if not ordered:
+                connection.execute("SET preserve_insertion_order = false")
             packets, flows, captures = [], [], []
             for position, handle in enumerate(handles):
                 alias = f"c{position}"
@@ -464,9 +472,15 @@ class CaptureIndexStore:
                 connection.execute("SET enable_external_access = false")
                 connection.execute("SET lock_configuration = true")
         except Exception:
-            connection.close()
+            self._close(connection)
             raise
         return connection
+
+    def _close(self, connection: Any) -> None:
+        connection.close()
+        spill = self._spill_dirs.pop(id(connection), None)
+        if spill is not None:
+            shutil.rmtree(spill, ignore_errors=True)
 
     @staticmethod
     def _with_deadline(connection: Any, timeout: float) -> threading.Timer:
@@ -481,17 +495,17 @@ class CaptureIndexStore:
         """Run server-built SQL over ``handles`` and return every row."""
         import duckdb
 
-        connection = self._connect(handles)
+        connection = self._connect(handles, ordered=False)
         timer = self._with_deadline(connection, timeout)
         try:
             return list(connection.execute(sql, params or []).fetchall())
         except duckdb.Error as exc:
             if timer.finished.is_set():
                 raise CaptureIndexError("TimeoutError", f"Index query timed out after {timeout} seconds") from exc
-            raise
+            raise CaptureIndexError("QueryError", "Index query failed", str(exc)) from exc
         finally:
             timer.cancel()
-            connection.close()
+            self._close(connection)
 
     def export_parquet(
         self, handles: Sequence[IndexHandle], where_sql: str, params: list[Any], name: str, *, timeout: float
@@ -509,8 +523,6 @@ class CaptureIndexStore:
         connection = self._connect(handles, sandbox=False)
         timer = self._with_deadline(connection, timeout)
         try:
-            # Spill to the work directory rather than fail on large captures.
-            connection.execute(f"SET temp_directory = {_sql_string(str(work / '.spill'))}")
             selected = f"SELECT * FROM pkt WHERE {where_sql}"  # nosec B608
             # Insertion order is preserved, so packets come out by capture, then frame, without a sort.
             statements = {
@@ -534,7 +546,6 @@ class CaptureIndexStore:
                     "rows": int(written[0]) if written else 0,
                     "bytes": target.stat().st_size,
                 }
-            shutil.rmtree(work / ".spill", ignore_errors=True)
         except Exception as exc:
             shutil.rmtree(work, ignore_errors=True)
             if timer.finished.is_set():
@@ -542,7 +553,7 @@ class CaptureIndexStore:
             raise
         finally:
             timer.cancel()
-            connection.close()
+            self._close(connection)
         if final.exists():
             shutil.rmtree(final)
         os.replace(work, final)
@@ -591,7 +602,7 @@ class CaptureIndexStore:
             raise
         finally:
             timer.cancel()
-            connection.close()
+            self._close(connection)
         return {"success": True, "rows": rows}
 
     def run_sql(self, handles: Sequence[IndexHandle], sql: str, *, max_rows: int, timeout: float) -> dict[str, Any]:
@@ -629,4 +640,4 @@ class CaptureIndexStore:
         finally:
             if timer is not None:
                 timer.cancel()
-            connection.close()
+            self._close(connection)

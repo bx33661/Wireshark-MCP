@@ -128,9 +128,12 @@ async def _time_features(server: Any, capture: Path, facts: dict[str, Any]) -> d
     results: dict[str, Any] = {}
     for name, (tool, arguments) in calls.items():
         started = time.perf_counter()
-        raw = await server.call_tool(tool, {"pcap_file": str(capture), **arguments})
+        try:
+            raw = await server.call_tool(tool, {"pcap_file": str(capture), **arguments})
+            payload = json.loads(raw.content[0].text)
+        except Exception as exc:  # recorded, not raised: one failing feature must not lose the run
+            payload = {"success": False, "error": str(exc)[:300]}
         elapsed = (time.perf_counter() - started) * 1000
-        payload = json.loads(raw.content[0].text)
         entry: dict[str, Any] = {
             "passed": bool(payload.get("success")) and payload.get("coverage", {}).get("source") == "index",
             "elapsed_ms": round(elapsed, 1),
@@ -249,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
             _run_tier(size, args.work_dir, args.tshark_iterations, args.index_iterations)
         )
         print(json.dumps(report["tiers"][f"{size}MB"]["summary"]), file=sys.stderr, flush=True)
+        if args.output:  # keep finished tiers even if a later one fails
+            args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     report["peak_rss_bytes"] = _peak_rss()
 
     text = json.dumps(report, indent=2, ensure_ascii=False)

@@ -6,11 +6,11 @@ import asyncio
 import dataclasses
 import hashlib
 import re
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..index import INSTALL_HINT, duckdb_available
-from ..index.compare import Side, available_kinds, diff_sql, render_diff, render_timeline, timeline_sql
+from ..index import INSTALL_HINT, compare, duckdb_available
 from ..index.filter_sql import TranslatedFilter, UnsupportedFilter, translate_filter
 from ..index.store import CaptureIndexError, CaptureIndexStore, IndexHandle
 from .envelope import envelope_response, error_response
@@ -174,31 +174,34 @@ def register_index_tools(mcp: MCPServer, client: TSharkClient, store: CaptureInd
             return envelope_response({"action": "status", **reports[0]})
         return envelope_response({"action": "status", "captures": reports})
 
+    def runner(handles: list[IndexHandle]) -> compare.Run:
+        """Run server-built SQL over ``handles``, all calls sharing one analysis deadline."""
+        deadline = time.monotonic() + ANALYSIS_TIMEOUT_SECONDS
+
+        def run(sql: str, params: list[Any]) -> list[tuple[Any, ...]]:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise CaptureIndexError("TimeoutError", f"Index analysis exceeded {ANALYSIS_TIMEOUT_SECONDS} seconds")
+            return store.fetch(handles, sql, params, timeout=remaining)
+
+        return run
+
     async def timeline(handles: list[IndexHandle], display_filter: str) -> str:
         try:
             translated = _translate(display_filter, handles)
         except UnsupportedFilter as exc:
             return error_response(f"display_filter cannot run on the index: {exc}", "InvalidParameter")
-        kinds = available_kinds(set.intersection(*(set(h.columns) for h in handles)))
+        kinds = compare.available_kinds(set.intersection(*(set(h.columns) for h in handles)))
+        side = compare.Side([h.label for h in handles], translated.sql, translated.params)
         try:
-            rows = await asyncio.to_thread(
-                store.fetch,
-                handles,
-                timeline_sql(kinds, translated.sql),
-                translated.params,
-                timeout=ANALYSIS_TIMEOUT_SECONDS,
-            )
+            result = await asyncio.to_thread(compare.timeline, runner(handles), kinds, side)
         except CaptureIndexError as exc:
             return _error(exc)
-        data = {
-            "action": "timeline",
-            "display_filter": display_filter,
-            **render_timeline(rows, kinds, len(handles) > 1),
-        }
+        data = {"action": "timeline", "display_filter": display_filter, **result}
         return envelope_response(data, truncated=data["truncated"], coverage=_coverage(handles))
 
     async def diff(handles: list[IndexHandle], display_filter: str, compare_filter: str) -> str:
-        baseline, compare = handles[0], handles[-1]
+        baseline, other = handles[0], handles[-1]
         if len(handles) == 1 and display_filter.strip() == compare_filter.strip():
             return error_response(
                 "diff needs a second capture in more_files or a compare_filter that differs from display_filter.",
@@ -209,21 +212,22 @@ def register_index_tools(mcp: MCPServer, client: TSharkClient, store: CaptureInd
             cmp_filter = _translate(compare_filter, handles)
         except UnsupportedFilter as exc:
             return error_response(f"filter cannot run on the index: {exc}", "InvalidParameter")
-        kinds = available_kinds(set.intersection(*(set(h.columns) for h in handles)))
-        sql, params = diff_sql(
-            kinds,
-            Side(baseline.label, base_filter.sql, base_filter.params),
-            Side(compare.label, cmp_filter.sql, cmp_filter.params),
-        )
+        kinds = compare.available_kinds(set.intersection(*(set(h.columns) for h in handles)))
         try:
-            rows = await asyncio.to_thread(store.fetch, handles, sql, params, timeout=ANALYSIS_TIMEOUT_SECONDS)
+            result = await asyncio.to_thread(
+                compare.diff,
+                runner(handles),
+                kinds,
+                compare.Side([baseline.label], base_filter.sql, base_filter.params),
+                compare.Side([other.label], cmp_filter.sql, cmp_filter.params),
+            )
         except CaptureIndexError as exc:
             return _error(exc)
         data = {
             "action": "diff",
             "baseline": {"capture_id": baseline.label, "display_filter": display_filter},
-            "compare": {"capture_id": compare.label, "display_filter": compare_filter},
-            **render_diff(rows, kinds),
+            "compare": {"capture_id": other.label, "display_filter": compare_filter},
+            **result,
         }
         return envelope_response(data, truncated=data["truncated"], coverage=_coverage(handles))
 

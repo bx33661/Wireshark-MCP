@@ -34,7 +34,7 @@ def _q(name: str) -> str:
 def window_sql(fields: list[str], where_sql: str) -> str:
     select = ", ".join(f"COALESCE({_q(field)}, '')" for field in fields)
     return (
-        f"SELECT {select}, count(*) OVER () FROM packets WHERE {where_sql} "  # nosec B608
+        f"SELECT {select} FROM packets WHERE {where_sql} "  # nosec B608
         f'ORDER BY TRY_CAST("frame.number" AS BIGINT) LIMIT ? OFFSET ?'
     )
 
@@ -65,17 +65,14 @@ def render(
     # Output lines are the header plus one per frame; offset/limit count lines.
     first_row = max(offset - 1, 0)
     rows_wanted = limit if offset > 0 else limit - 1
-    params: list[Any] = [*translated.params, rows_wanted + 1, first_row]
+    params: list[Any] = [*translated.params, rows_wanted, first_row]
+    # A top-N over frame order plus a separate count keeps memory flat on large captures.
     rows = store.fetch([handle], window_sql(fields, translated.sql), params, timeout=timeout)
-    if rows:
-        matched = int(rows[0][-1])
-    else:
-        (count,) = store.fetch([handle], count_sql(translated.sql), translated.params, timeout=timeout)
-        matched = int(count[0])
+    (count,) = store.fetch([handle], count_sql(translated.sql), translated.params, timeout=timeout)
+    matched = int(count[0])
 
     lines: list[str] = ["\t".join(fields)] if offset == 0 else []
-    for row in rows[:rows_wanted]:
-        values = row[:-1]
+    for values in rows:
         if any(marker in value for value in values for marker in _UNSAFE):
             return None
         lines.append("\t".join(f'"{value}"' if value else "" for value in values))
