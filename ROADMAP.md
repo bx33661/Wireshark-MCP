@@ -44,14 +44,14 @@ Exit criterion: results are reproducible, scan boundaries and limitations are ex
 
 Exit criterion: numeric aggregation and pagination have real-tshark tests, deterministic output, bounded memory, and examples in both aggregation guides.
 
-## Next — 3.2 evidence-first findings
+## Next — 3.2 evidence-first findings (release prepared)
 
 - [ ] Publish the full 20-scenario × 3-path × 3-run Agent evaluation matrix with harness-bound traces.
 - [x] Persist investigation case files (inputs, executed queries, findings, analyst verdicts) so long investigations survive context resets.
 - [x] Define one finding schema shared by security and anomaly tools: severity, confidence, evidence frames, filters, streams, and caveats.
 - [x] Produce Markdown and JSON reports from the same finding data rather than maintaining two independent renderers.
-- [ ] Add timeline helpers that preserve exact frame numbers and relative times for incident-response workflows.
-- [ ] Add comparison views for two captures or two display-filter windows without loading packet bodies into model context.
+- [x] Ship the optional DuckDB capture index core (see 4.0) alongside the finding model.
+- Timeline helpers and two-capture / two-window comparison views move to 4.0, where they are built on the index and return only the differences.
 
 Exit criterion: every automated finding can be traced back to an exact tool result and packet-level verification path.
 
@@ -70,7 +70,7 @@ Release order is 3.2 → 3.3 → 4.0. The index core was built early and ships w
 
 - [x] **DuckDB capture index (core):** one tshark pass per capture, `wireshark_index` (build/status/query/drop), `wireshark_aggregate` reuses a fresh index with tshark-identical answers and reports `coverage.source`; 100 MB / 1 GB benchmark published.
 - Multi-capture collections: one index across several files with a `capture_id` column.
-- Index-backed diff and timeline for two captures or two time windows, returning only the differences.
+- Index-backed diff and timeline for two captures or two display-filter windows, returning only the differences and preserving exact frame numbers and relative times for incident response (moved from 3.2).
 - Parquet export for use outside the server.
 - Route `wireshark_extract_fields`, the endpoint, conversation and protocol-hierarchy statistics, and suitable detection tools through the index.
 - Push grouping down into DuckDB SQL, with the tshark equivalence tests kept as the gate.

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wireshark-mcp"
-version = "3.1.0"
+version = "3.2.0"
 description = "A Model Context Protocol (MCP) server for Wireshark / tshark packet analysis"
 readme = "README.md"
 keywords = ["mcp", "wireshark", "tshark", "packet-analysis", "network", "pcap", "model-context-protocol", "llm", "security"]
