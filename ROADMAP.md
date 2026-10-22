@@ -55,18 +55,32 @@ Exit criterion: numeric aggregation and pagination have real-tshark tests, deter
 
 Exit criterion: every automated finding can be traced back to an exact tool result and packet-level verification path.
 
-## Later — 3.3 operational hardening
+## Later — 3.3 long-running jobs and operational hardening
 
+- Run index builds, full-capture aggregation, large YARA scans and multi-capture batches as MCP Tasks with progress and cancellation, instead of one bounded call.
 - Add authenticated deployment recipes and automated checks for Streamable HTTP behind a reverse proxy.
 - Add compatibility tests against the supported Wireshark/tshark version matrix.
 - Publish a machine-readable capability and compatibility document for clients and packaging systems.
 
 Exit criterion: authenticated remote deployment is reproducible and the supported platform/toolchain matrix is exercised in CI or recorded manual evidence.
 
+## Later — 4.0 capture index engine
+
+Release order is 3.2 → 3.3 → 4.0. The index core was built early and ships with 3.2 as the optional `[index]` extra.
+
+- [x] **DuckDB capture index (core):** one tshark pass per capture, `wireshark_index` (build/status/query/drop), `wireshark_aggregate` reuses a fresh index with tshark-identical answers and reports `coverage.source`; 100 MB / 1 GB benchmark published.
+- Multi-capture collections: one index across several files with a `capture_id` column.
+- Index-backed diff and timeline for two captures or two time windows, returning only the differences.
+- Parquet export for use outside the server.
+- Route `wireshark_extract_fields`, the endpoint, conversation and protocol-hierarchy statistics, and suitable detection tools through the index.
+- Push grouping down into DuckDB SQL, with the tshark equivalence tests kept as the gate.
+- Add a 10 GB benchmark tier.
+
+Exit criterion: capture-wide questions on multi-gigabyte captures and capture sets are answered from the index with results proven equal to the tshark path.
+
 ## Candidates
 
 - Pluggable local fingerprint and IOC providers with provenance and refresh metadata.
-- Optional columnar export for large offline analysis jobs.
 - Saved investigation manifests containing filters, frames, streams, and report metadata.
 - More protocol packs when a protocol has stable tshark fields and a maintainer for its test fixture.
 

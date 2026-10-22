@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+from typing import TYPE_CHECKING, Any
 
 from ._typing import FieldRowConsumer, FieldStreamResult, _ClientProtocol
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class ExtractionMixin(_ClientProtocol):
@@ -77,6 +81,31 @@ class ExtractionMixin(_ClientProtocol):
             cmd.extend(["-Y", display_filter])
         cmd.extend(["-E", "header=y", "-E", "separator=/t", "-E", "aggregator=,", "-E", "quote=d"])
         return await self._stream_field_rows(cmd, consumer, max_rows=max_rows, timeout=timeout)
+
+    async def export_fields_to_file(
+        self,
+        pcap_file: str,
+        fields: list[str],
+        dest: Path,
+        *,
+        timeout: int,
+        max_bytes: int,
+    ) -> dict[str, Any]:
+        """Write unquoted tab-separated field rows for every packet to ``dest``.
+
+        The capture index loads this file in bulk. Quoting is off because tshark
+        does not escape embedded quotes; the loader treats tabs as the only
+        delimiter, which matches how streamed rows are split.
+        """
+        validation = self._validate_file(pcap_file)
+        if not validation["success"]:
+            return validation
+
+        cmd = [self.tshark_path, "-n", "-r", pcap_file, "-T", "fields"]
+        for field in fields:
+            cmd.extend(["-e", field])
+        cmd.extend(["-E", "header=y", "-E", "separator=/t", "-E", "aggregator=,", "-E", "quote=n"])
+        return await self._run_to_file(cmd, dest, timeout=timeout, max_bytes=max_bytes)
 
     async def export_objects(self, pcap_file: str, protocol: str, dest_dir: str) -> str:
         """Export Objects (--export-objects protocol,dest_dir)."""

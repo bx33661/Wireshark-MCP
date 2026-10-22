@@ -11,7 +11,8 @@ not a new tool. Rolled back to 22,500: the BLE analyses were folded into
 wireshark_analyze_protocol values (52 tools, 22,130 bytes), so the earlier
 deltas are no longer needed. Raised to 23,000 in 3.2 for wireshark_case
 (about 580 bytes with its one-line action grammar), the only tool that keeps
-investigation state.
+investigation state. Raised to 23,500 when the optional DuckDB index joined
+3.2: wireshark_index adds about 550 bytes (54 tools, 23,259 bytes).
 """
 
 import asyncio
@@ -25,7 +26,7 @@ from wireshark_mcp.mcp_app import WiresharkMCP, cap_result_text
 from wireshark_mcp.server import _build_server
 from wireshark_mcp.tool_annotations import OUTPUT_PATH_PARAMS, WRITE_TOOLS
 
-MAX_WIRE_BYTES = 23_000
+MAX_WIRE_BYTES = 23_500
 REPO_ROOT = Path(__file__).parent.parent
 
 

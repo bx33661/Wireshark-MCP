@@ -31,7 +31,7 @@ jobs:
     - name: Install dev dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[dev]
+        pip install .[dev,index]
         python scripts/sync_skills.py
         python scripts/sync_skills.py --check --require-installed
 
@@ -39,10 +39,10 @@ jobs:
       run: python scripts/check_plugin_package.py
 
     - name: Ruff lint
-      run: ruff check src/ tests/ scripts/sync_skills.py scripts/evaluate_agent_traffic.py scripts/compare_agent_traffic.py scripts/check_skill_package.py scripts/check_skill_installation.py scripts/check_agent_matrix.py scripts/check_plugin_package.py scripts/smoke_plugin_runtime.py skills/tshark-cli-analysis/scripts/
+      run: ruff check src/ tests/ scripts/sync_skills.py scripts/evaluate_agent_traffic.py scripts/compare_agent_traffic.py scripts/check_skill_package.py scripts/check_skill_installation.py scripts/check_agent_matrix.py scripts/check_plugin_package.py scripts/smoke_plugin_runtime.py scripts/benchmark_capture_index.py skills/tshark-cli-analysis/scripts/
 
     - name: Ruff format check
-      run: ruff format --check src/ tests/ scripts/sync_skills.py scripts/evaluate_agent_traffic.py scripts/compare_agent_traffic.py scripts/check_skill_package.py scripts/check_skill_installation.py scripts/check_agent_matrix.py scripts/check_plugin_package.py scripts/smoke_plugin_runtime.py skills/tshark-cli-analysis/scripts/
+      run: ruff format --check src/ tests/ scripts/sync_skills.py scripts/evaluate_agent_traffic.py scripts/compare_agent_traffic.py scripts/check_skill_package.py scripts/check_skill_installation.py scripts/check_agent_matrix.py scripts/check_plugin_package.py scripts/smoke_plugin_runtime.py scripts/benchmark_capture_index.py skills/tshark-cli-analysis/scripts/
 
     - name: Type check
       run: mypy --package wireshark_mcp --ignore-missing-imports --no-namespace-packages
@@ -106,7 +106,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[dev]
+        pip install .[dev,index]
         python scripts/sync_skills.py
         python scripts/sync_skills.py --check --require-installed
 
@@ -122,6 +122,7 @@ jobs:
         pytest tests/test_client.py -k "real_tshark" -v
         pytest tests/test_field_names.py -v
         pytest tests/test_real_pcap.py -v
+        pytest tests/test_capture_index.py -v
         python scripts/check_skill_installation.py --require-engine --output installed-skill-smoke.json
         python -m pip install uv
         python scripts/check_plugin_package.py --build plugin-smoke.zip
@@ -143,7 +144,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[dev]
+        pip install .[dev,index]
         python scripts/sync_skills.py
         python scripts/sync_skills.py --check --require-installed
 
@@ -161,6 +162,7 @@ jobs:
         pytest tests/test_client.py -k "real_tshark" -v
         pytest tests/test_field_names.py -v
         pytest tests/test_real_pcap.py -v
+        pytest tests/test_capture_index.py -v
         python scripts/check_skill_installation.py --require-engine --output installed-skill-smoke.json
         wireshark-mcp doctor --format json
 

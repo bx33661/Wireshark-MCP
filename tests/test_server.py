@@ -76,7 +76,7 @@ async def test_server_negotiates_the_mcp_v2_protocol() -> None:
         assert client.protocol_version == LATEST_PROTOCOL_VERSION
         assert client.server_info is not None
         assert client.server_info.version == wireshark_mcp.__version__
-        assert len((await client.list_tools()).tools) == 53
+        assert len((await client.list_tools()).tools) == 54
 
 
 @pytest.mark.asyncio
@@ -93,7 +93,7 @@ async def test_real_stdio_subprocess_handshake() -> None:
         assert client.server_info is not None
         assert client.server_info.version == wireshark_mcp.__version__
         tools = await client.list_tools()
-        assert len(tools.tools) == 53
+        assert len(tools.tools) == 54
 
 
 def test_server_advertises_capture_analysis_instructions():

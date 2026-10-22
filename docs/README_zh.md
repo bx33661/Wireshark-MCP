@@ -17,6 +17,7 @@
 | 写出更可靠的流量分析任务 | [提示词示例](prompt-engineering_zh.md) |
 | 计算全量计数与分布 | [聚合指南](aggregation_zh.md) |
 | 理解检测发现并保存调查案卷 | [发现模型与调查案卷](findings-and-cases_zh.md) |
+| 大抓包只解析一次，再用 DuckDB 查询 | [抓包索引](capture-index_zh.md) |
 
 ## 维护项目
 
