@@ -509,26 +509,32 @@ class CaptureIndexStore:
         connection = self._connect(handles, sandbox=False)
         timer = self._with_deadline(connection, timeout)
         try:
-            connection.execute(f"CREATE TEMP TABLE selected AS SELECT * FROM pkt WHERE {where_sql}", params)  # nosec B608
+            # Spill to the work directory rather than fail on large captures.
+            connection.execute(f"SET temp_directory = {_sql_string(str(work / '.spill'))}")
+            selected = f"SELECT * FROM pkt WHERE {where_sql}"  # nosec B608
+            # Insertion order is preserved, so packets come out by capture, then frame, without a sort.
             statements = {
-                "packets": "SELECT * FROM selected ORDER BY capture_id, frame",
+                "packets": (selected, params),
                 "flows": (
-                    "SELECT f.* FROM flows f SEMI JOIN (SELECT DISTINCT capture_id, transport, stream FROM selected) s "
-                    "ON f.capture_id = s.capture_id AND f.transport = s.transport AND f.stream = s.stream "
-                    "ORDER BY f.capture_id, f.transport, f.stream"
+                    "SELECT f.* FROM flows f SEMI JOIN (SELECT DISTINCT capture_id, transport, stream "  # nosec B608
+                    f"FROM ({selected})) s ON f.capture_id = s.capture_id AND f.transport = s.transport "
+                    "AND f.stream = s.stream ORDER BY f.capture_id, f.transport, f.stream",
+                    params,
                 ),
-                "captures": "SELECT * FROM captures ORDER BY capture_id",
+                "captures": ("SELECT * FROM captures ORDER BY capture_id", []),
             }
             files: dict[str, Any] = {}
-            for table, select in statements.items():
+            for table, (select, arguments) in statements.items():
                 target = work / f"{table}.parquet"
-                connection.execute(f"COPY ({select}) TO {_sql_string(str(target))} (FORMAT parquet, COMPRESSION zstd)")
-                row = connection.execute(f"SELECT count(*) FROM ({select})").fetchone()  # nosec B608
+                written = connection.execute(
+                    f"COPY ({select}) TO {_sql_string(str(target))} (FORMAT parquet, COMPRESSION zstd)", arguments
+                ).fetchone()
                 files[table] = {
                     "path": str(final / target.name),
-                    "rows": int(row[0]) if row else 0,
+                    "rows": int(written[0]) if written else 0,
                     "bytes": target.stat().st_size,
                 }
+            shutil.rmtree(work / ".spill", ignore_errors=True)
         except Exception as exc:
             shutil.rmtree(work, ignore_errors=True)
             if timer.finished.is_set():

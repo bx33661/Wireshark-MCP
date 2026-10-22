@@ -687,6 +687,8 @@ async def test_export_writes_parquet_into_the_index_directory(
     packets = duckdb.sql(f"SELECT capture_id, count(*) FROM '{files['packets']['path']}' GROUP BY ALL ORDER BY 1")
     assert packets.fetchall() == [("merged.pcap", 29), ("plaintext_credentials.pcap", 3)]
     assert files["packets"]["rows"] == 32
+    order = duckdb.sql(f"SELECT capture_id, frame FROM '{files['packets']['path']}'").fetchall()
+    assert order == sorted(order, key=lambda row: (row[0] != "merged.pcap", row[1]))  # capture order, then frame
     flows = duckdb.sql(f"SELECT DISTINCT transport FROM '{files['flows']['path']}'").fetchall()
     assert flows == [("tcp",)]
     columns = {
