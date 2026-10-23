@@ -1,0 +1,398 @@
+{
+  "schema_version": 1,
+  "benchmark": "capture-index-vs-tshark",
+  "scope": "wireshark_aggregate latency and answer accuracy; not Agent accuracy or tokens.",
+  "environment": {
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "tshark": "TShark (Wireshark) 4.2.2 (Git v4.2.2 packaged as 4.2.2-1.1build3).",
+    "duckdb": "1.5.6",
+    "cpu_count": 4,
+    "scan_policy_env": {
+      "WIRESHARK_MCP_AGGREGATE_SCAN_LIMIT": "10000000",
+      "WIRESHARK_MCP_AGGREGATE_TIMEOUT": "600"
+    }
+  },
+  "tiers": {
+    "100MB": {
+      "capture_bytes": 100000166,
+      "packets": 156557,
+      "seed": 3101,
+      "tshark_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "packet_count": 156557
+          },
+          "expected": {
+            "packet_count": 156557
+          },
+          "error": null,
+          "elapsed_ms": [
+            4584.0
+          ],
+          "median_ms": 4584.0
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 12607
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 12607
+          },
+          "error": null,
+          "elapsed_ms": [
+            4670.8
+          ],
+          "median_ms": 4670.8
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "dns_query_count": 12726
+          },
+          "expected": {
+            "dns_query_count": 12726
+          },
+          "error": null,
+          "elapsed_ms": [
+            4374.1
+          ],
+          "median_ms": 4374.1
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            5354.0
+          ],
+          "median_ms": 5354.0
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "frame_bytes": 97495230.0
+          },
+          "expected": {
+            "frame_bytes": 97495230.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            4587.8
+          ],
+          "median_ms": 4587.8
+        }
+      },
+      "index_build": {
+        "elapsed_ms": 8182.8,
+        "export_seconds": 6.293,
+        "load_seconds": 1.742,
+        "index_bytes": 13119488,
+        "indexed_packets": 156557,
+        "flows": 156536
+      },
+      "index_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "packet_count": 156557
+          },
+          "expected": {
+            "packet_count": 156557
+          },
+          "error": null,
+          "elapsed_ms": [
+            212.3,
+            198.2,
+            241.0
+          ],
+          "median_ms": 212.3
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 12607
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 12607
+          },
+          "error": null,
+          "elapsed_ms": [
+            297.9,
+            253.6,
+            238.2
+          ],
+          "median_ms": 253.6
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "dns_query_count": 12726
+          },
+          "expected": {
+            "dns_query_count": 12726
+          },
+          "error": null,
+          "elapsed_ms": [
+            54.2,
+            52.7,
+            51.4
+          ],
+          "median_ms": 52.7
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            218.7,
+            206.4,
+            213.9
+          ],
+          "median_ms": 213.9
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "frame_bytes": 97495230.0
+          },
+          "expected": {
+            "frame_bytes": 97495230.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            336.2,
+            484.1,
+            373.3
+          ],
+          "median_ms": 373.3
+        }
+      },
+      "summary": {
+        "all_passed": true,
+        "tshark_median_total_ms": 23570.7,
+        "index_median_total_ms": 1105.8,
+        "speedup": 21.3,
+        "break_even_questions": 1.82
+      }
+    },
+    "1000MB": {
+      "capture_bytes": 1000000318,
+      "packets": 1561889,
+      "seed": 3101,
+      "tshark_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "packet_count": 1561889
+          },
+          "expected": {
+            "packet_count": 1561889
+          },
+          "error": null,
+          "elapsed_ms": [
+            56885.2
+          ],
+          "median_ms": 56885.2
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 124712
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 124712
+          },
+          "error": null,
+          "elapsed_ms": [
+            53706.5
+          ],
+          "median_ms": 53706.5
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "dns_query_count": 125069
+          },
+          "expected": {
+            "dns_query_count": 125069
+          },
+          "error": null,
+          "elapsed_ms": [
+            48577.8
+          ],
+          "median_ms": 48577.8
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            52432.3
+          ],
+          "median_ms": 52432.3
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "tshark",
+          "observed": {
+            "frame_bytes": 975010070.0
+          },
+          "expected": {
+            "frame_bytes": 975010070.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            51449.5
+          ],
+          "median_ms": 51449.5
+        }
+      },
+      "index_build": {
+        "elapsed_ms": 79587.7,
+        "export_seconds": 70.376,
+        "load_seconds": 8.823,
+        "index_bytes": 146550784,
+        "indexed_packets": 1561889,
+        "flows": 1560287
+      },
+      "index_path": {
+        "packet_count": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "packet_count": 1561889
+          },
+          "expected": {
+            "packet_count": 1561889
+          },
+          "error": null,
+          "elapsed_ms": [
+            1874.0,
+            1617.7,
+            1595.2
+          ],
+          "median_ms": 1617.7
+        },
+        "primary_source": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 124712
+          },
+          "expected": {
+            "primary_source": "10.255.0.53",
+            "primary_source_packets": 124712
+          },
+          "error": null,
+          "elapsed_ms": [
+            2300.8,
+            2239.5,
+            2219.9
+          ],
+          "median_ms": 2239.5
+        },
+        "dns_query_count": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "dns_query_count": 125069
+          },
+          "expected": {
+            "dns_query_count": 125069
+          },
+          "error": null,
+          "elapsed_ms": [
+            202.2,
+            195.7,
+            203.1
+          ],
+          "median_ms": 202.2
+        },
+        "literal_user_agent": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "distinct_http_user_agents": 3
+          },
+          "expected": {
+            "distinct_http_user_agents": 3
+          },
+          "error": null,
+          "elapsed_ms": [
+            2060.1,
+            2199.6,
+            2030.6
+          ],
+          "median_ms": 2060.1
+        },
+        "numeric_frame_bytes": {
+          "passed": true,
+          "source": "index",
+          "observed": {
+            "frame_bytes": 975010070.0
+          },
+          "expected": {
+            "frame_bytes": 975010070.0
+          },
+          "error": null,
+          "elapsed_ms": [
+            3427.2,
+            3620.5,
+            3692.5
+          ],
+          "median_ms": 3620.5
+        }
+      },
+      "summary": {
+        "all_passed": true,
+        "tshark_median_total_ms": 263051.3,
+        "index_median_total_ms": 9740.0,
+        "speedup": 27.0,
+        "break_even_questions": 1.57
+      }
+    }
+  },
+  "peak_rss_bytes": {
+    "self": 1279160320,
+    "children": 1481932800
+  }
+}

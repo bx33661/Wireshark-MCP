@@ -42,7 +42,7 @@ ssh -L 8080:127.0.0.1:8080 user@analysis-host
 从 GitHub Container Registry 拉取官方多平台镜像：
 
 ```sh
-docker pull ghcr.io/bx33661/wireshark-mcp:3.1.0
+docker pull ghcr.io/bx33661/wireshark-mcp:3.2.0
 ```
 
 只读挂载抓包并限制允许访问的目录：
@@ -52,7 +52,7 @@ docker run --rm -p 127.0.0.1:8080:8080 \
   -v "$PWD/captures:/captures:ro" \
   -v "$PWD/results:/results" \
   -e WIRESHARK_MCP_ALLOWED_DIRS=/captures,/results \
-  ghcr.io/bx33661/wireshark-mcp:3.1.0
+  ghcr.io/bx33661/wireshark-mcp:3.2.0
 ```
 
 镜像默认以非 root 用户运行，通过 8080 端口提供 Streamable HTTP，并使用

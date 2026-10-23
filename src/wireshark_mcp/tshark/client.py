@@ -492,6 +492,101 @@ class WiresharkSuiteClient(
                 },
             }
 
+    async def _run_to_file(
+        self,
+        cmd: list[str],
+        dest: Path,
+        *,
+        timeout: int,
+        max_bytes: int,
+    ) -> dict[str, Any]:
+        """Run one allowlisted command with stdout written straight to ``dest``.
+
+        Used for bulk exports (the capture index) where piping every line through
+        Python would dominate the cost. The file is bounded by polling its size;
+        stderr is drained in the background with the usual ceiling.
+        """
+        binary = self._get_binary_name(cmd[0]) if cmd else ""
+        if binary not in self._ALLOWED_BINARIES:
+            return {
+                "success": False,
+                "error": {"type": "SecurityError", "message": f"Execution of '{binary}' is not allowed"},
+            }
+
+        process_kwargs: dict[str, Any] = {"stderr": subprocess.PIPE, "stdin": subprocess.DEVNULL}
+        if sys.platform == "win32":
+            create_no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            if create_no_window:
+                process_kwargs["creationflags"] = create_no_window
+
+        with dest.open("wb") as handle:
+            try:
+                proc = await asyncio.create_subprocess_exec(*cmd, stdout=handle, **process_kwargs)
+            except Exception as exc:
+                logger.exception("File export execution failed: %s", self._redact_command(cmd))
+                return {
+                    "success": False,
+                    "error": {"type": "ExecutionError", "message": "Command execution failed", "details": str(exc)},
+                }
+            stderr_task = (
+                asyncio.create_task(self._read_stream_bounded(proc.stderr, self.MAX_STDERR_BYTES, proc))
+                if proc.stderr is not None
+                else None
+            )
+
+            async def stop() -> None:
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+                with contextlib.suppress(Exception):
+                    await proc.wait()
+                if stderr_task is not None and not stderr_task.done():
+                    stderr_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await stderr_task
+
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + timeout
+            try:
+                while proc.returncode is None:
+                    with contextlib.suppress(asyncio.TimeoutError):
+                        await asyncio.wait_for(proc.wait(), timeout=0.5)
+                    if dest.stat().st_size > max_bytes:
+                        await stop()
+                        return {
+                            "success": False,
+                            "error": {"type": "LimitExceeded", "message": f"Export exceeded {max_bytes} bytes"},
+                        }
+                    if proc.returncode is None and loop.time() > deadline:
+                        await stop()
+                        return {
+                            "success": False,
+                            "error": {"type": "TimeoutError", "message": f"Command timed out after {timeout} seconds"},
+                        }
+            except asyncio.CancelledError:
+                await stop()
+                raise
+
+        stderr = ""
+        if stderr_task is not None:
+            stderr_bytes, _ = await stderr_task
+            stderr = stderr_bytes.decode("utf-8", errors="replace")
+        bytes_written = dest.stat().st_size
+        if proc.returncode != 0 and not (
+            self._is_capture_short_read(binary, proc.returncode, stderr) and bytes_written
+        ):
+            return {
+                "success": False,
+                "error": {
+                    "type": "ExecutionError",
+                    "message": f"Command failed with exit code {proc.returncode}",
+                    "details": self._redact_diagnostics(stderr, cmd),
+                },
+            }
+        result: dict[str, Any] = {"success": True, "bytes_written": bytes_written}
+        if stderr:
+            result["stderr"] = self._redact_diagnostics(stderr, cmd)
+        return result
+
     async def _run_command(
         self,
         cmd: list[str],

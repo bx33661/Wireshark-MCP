@@ -20,6 +20,7 @@ from mcp.types import ToolAnnotations
 WRITE_TOOLS: frozenset[str] = frozenset(
     {
         "wireshark_capture",
+        "wireshark_case",  # writes its own case files under the allowed root
         "wireshark_editcap_deduplicate",
         "wireshark_editcap_split",
         "wireshark_editcap_time_shift",
@@ -38,6 +39,10 @@ WRITE_TOOLS: frozenset[str] = frozenset(
 # path, and is deliberately absent.
 OUTPUT_PATH_PARAMS: frozenset[str] = frozenset({"output_file", "output_prefix", "dest_dir"})
 
+# Tools that only write the server's own cache (the capture index under
+# WIRESHARK_MCP_INDEX_DIR): not read-only, but never touch caller files.
+CACHE_WRITE_TOOLS: frozenset[str] = frozenset({"wireshark_index"})
+
 # Live capture observes an interface outside the capture file supplied by the caller.
 OPEN_WORLD_TOOLS: frozenset[str] = frozenset({"wireshark_capture"})
 
@@ -50,6 +55,8 @@ def annotations_for(tool_name: str) -> ToolAnnotations:
     dropped from the wire payload, which keeps the prompt prefix smaller.
     """
     writes = tool_name in WRITE_TOOLS
+    if tool_name in CACHE_WRITE_TOOLS:
+        return ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
     return ToolAnnotations(
         read_only_hint=not writes,
         destructive_hint=True if writes else None,

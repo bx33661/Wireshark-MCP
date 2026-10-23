@@ -281,3 +281,45 @@ def test_unavailable_metric_is_missing_not_zero_or_failure() -> None:
     result = MODULE.score_run(scenario, run, trace)
     assert result["passed"]
     assert "peak_rss_bytes" not in result["metrics"]
+
+
+def test_supporting_evidence_of_other_types_counts_only_when_true() -> None:
+    scenario = next(item for item in _manifest()["scenarios"] if item["id"] == "T03_dns_query_count")
+    run = {
+        "scenario_id": scenario["id"],
+        "conclusion": "confirmed",
+        "facts": {"dns_query_count": 27},
+        "coverage": {"status": "complete"},
+        "evidence": [
+            {"type": "aggregate", "query": "wireshark_aggregate(...)"},
+            {"type": "frame", "query": "wireshark_aggregate(...)", "value": 1},
+        ],
+        "answer": "27 queries",
+    }
+    trace = _trace_for(scenario, run)
+    assert MODULE.score_run(scenario, run, trace)["passed"] is True
+
+    trace["calls"][1]["observations"]["frames"] = []
+    assert MODULE.score_run(scenario, run, trace)["passed"] is False
+
+    only_support = {**run, "evidence": [dict(run["evidence"][1])]}
+    trace = _trace_for(scenario, only_support)
+    failures = MODULE.score_run(scenario, only_support, trace)["failures"]
+    assert any("evidence anchors of type" in failure for failure in failures)
+
+
+def test_scenarios_may_accept_more_than_one_conclusion() -> None:
+    scenario = next(item for item in _manifest()["scenarios"] if item["id"] == "T17_changed_capture")
+    assert scenario["acceptable_conclusions"] == ["unresolved", "confirmed"]
+    run = {
+        "scenario_id": scenario["id"],
+        "conclusion": "confirmed",
+        "facts": scenario["expected_facts"],
+        "coverage": {"status": "complete"},
+        "evidence": [{"type": "query", "query": "sha256 after.pcap"}],
+        "answer": "The capture changed; earlier results cannot be reused.",
+    }
+    assert MODULE.score_run(scenario, run, _trace_for(scenario, run))["passed"] is True
+    rejected = {**run, "conclusion": "no_match"}
+    failures = MODULE.score_run(scenario, rejected, _trace_for(scenario, rejected))["failures"]
+    assert any("conclusion expected" in failure for failure in failures)

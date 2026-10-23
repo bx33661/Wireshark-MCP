@@ -4,7 +4,7 @@ from typing import Any
 
 from ..tshark.client import TSharkClient
 from .envelope import envelope_response, normalize_tool_result, parse_tool_result
-from .findings import Finding, FindingEvidence, mask_secret
+from .findings import Finding, FindingEvidence, finalize_findings, mask_secret
 from .formatting import CRIT, OK
 
 
@@ -166,7 +166,9 @@ def make_security_tools(client: TSharkClient) -> list[tuple[str, Any]]:
 
         return envelope_response(
             data={
-                "findings": [finding],
+                "findings": finalize_findings(
+                    "wireshark_extract_credentials", pcap_file, [finding], "cleartext_credentials"
+                ),
                 "summary": "\n".join(summary_lines),
             },
             scope={"pcap_file": pcap_file},

@@ -83,7 +83,7 @@ def make_ics_handlers(client: TSharkClient) -> dict[str, ProtocolHandler]:
         write_result = await client.extract_fields(
             pcap_file,
             write_fields,
-            display_filter="modbus.func_code in {5 6 15 16}",
+            display_filter="modbus.func_code in {5, 6, 15, 16}",
             limit=limit,
         )
         write_wrapped = parse_tool_result(write_result)

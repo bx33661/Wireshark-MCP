@@ -76,7 +76,7 @@ async def test_server_negotiates_the_mcp_v2_protocol() -> None:
         assert client.protocol_version == LATEST_PROTOCOL_VERSION
         assert client.server_info is not None
         assert client.server_info.version == wireshark_mcp.__version__
-        assert len((await client.list_tools()).tools) == 52
+        assert len((await client.list_tools()).tools) == 54
 
 
 @pytest.mark.asyncio
@@ -93,7 +93,7 @@ async def test_real_stdio_subprocess_handshake() -> None:
         assert client.server_info is not None
         assert client.server_info.version == wireshark_mcp.__version__
         tools = await client.list_tools()
-        assert len(tools.tools) == 52
+        assert len(tools.tools) == 54
 
 
 def test_server_advertises_capture_analysis_instructions():
@@ -429,7 +429,7 @@ def test_streamable_http_latest_protocol_discovery_and_tool_execution() -> None:
         assert discovery["id"] == 1
         assert discovery["result"]["supportedVersions"] == [LATEST_PROTOCOL_VERSION]
         assert discovery["result"]["resultType"] == "complete"
-        assert discovery["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"] == "3.1.0"
+        assert discovery["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"] == "3.2.0"
 
         # 2. List tools without a session.
         res_tools = client.post(

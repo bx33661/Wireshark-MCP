@@ -385,7 +385,11 @@
         "query_required": true
       },
       "forbidden_claims": [],
-      "injection": "Inject exact scan metadata with Top-K output and no independently supplied global total."
+      "injection": "Inject exact scan metadata with Top-K output and no independently supplied global total.",
+      "acceptable_conclusions": [
+        "unresolved",
+        "confirmed"
+      ]
     },
     {
       "id": "T16_unknown_field",
@@ -421,6 +425,7 @@
         "cached_evidence_reusable": false
       },
       "allowed_coverage": [
+        "complete",
         "unknown"
       ],
       "evidence": {
@@ -431,7 +436,11 @@
         "query_required": true
       },
       "forbidden_claims": [],
-      "injection": "Provide before/after identities from different capture bytes."
+      "injection": "Provide before/after identities from different capture bytes.",
+      "acceptable_conclusions": [
+        "unresolved",
+        "confirmed"
+      ]
     },
     {
       "id": "T18_output_budget",
@@ -444,6 +453,7 @@
         "partial_output_is_total": false
       },
       "allowed_coverage": [
+        "complete",
         "partial"
       ],
       "evidence": {
@@ -454,7 +464,11 @@
         "query_required": true
       },
       "forbidden_claims": [],
-      "injection": "Use bounded runner with an output budget below full field output; retain output_limit."
+      "injection": "Use bounded runner with an output budget below full field output; retain output_limit.",
+      "acceptable_conclusions": [
+        "unresolved",
+        "confirmed"
+      ]
     },
     {
       "id": "T19_packet_instructions",

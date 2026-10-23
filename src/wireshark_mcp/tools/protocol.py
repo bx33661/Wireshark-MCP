@@ -14,7 +14,8 @@ from typing import Any
 
 from ..tshark.client import TSharkClient
 from .bluetooth import make_ble_protocol_handlers
-from .envelope import ProtocolHandler, normalize_tool_result, parse_tool_result, success_response
+from .envelope import ProtocolHandler, envelope_response, normalize_tool_result, parse_tool_result, success_response
+from .findings import Finding, FindingConstraints, FindingEvidence, finalize_findings
 from .formatting import CRIT, INFO, OK, WARN
 
 logger = logging.getLogger("wireshark_mcp")
@@ -81,70 +82,113 @@ def make_protocol_tools(client: TSharkClient) -> list[tuple[str, Any]]:
 
     async def wireshark_detect_arp_spoofing(pcap_file: str) -> str:
         """[ARP] Detect potential ARP spoofing (duplicate IP-MAC, gratuitous floods, reply storms)."""
+        limit = 5000
         arp_result = await client.extract_fields(
             pcap_file,
-            ["arp.src.hw_mac", "arp.src.proto_ipv4", "arp.dst.proto_ipv4", "arp.opcode"],
+            ["arp.src.hw_mac", "arp.src.proto_ipv4", "arp.dst.proto_ipv4", "arp.opcode", "frame.number"],
             display_filter="arp",
-            limit=5000,
+            limit=limit,
         )
         wrapped = parse_tool_result(arp_result)
         if not wrapped["success"]:
             return normalize_tool_result(wrapped)
-
-        data = wrapped.get("data", "")
-        if not isinstance(data, str) or len(data.strip()) < 20:
-            return success_response("No ARP traffic found in this capture.")
+        truncated = wrapped.get("truncated") is True
 
         ip_to_macs: dict[str, set[str]] = {}
         mac_to_ips: dict[str, set[str]] = {}
+        first_frame: dict[tuple[str, str], int] = {}
         arp_reply_count = 0
         gratuitous_count = 0
+        total = 0
 
-        lines = data.strip().splitlines()
+        data = wrapped.get("data", "")
+        lines = data.strip().splitlines() if isinstance(data, str) else []
         for line in lines[1:]:
-            parts = line.split("\t")
-            if len(parts) >= 4:
-                mac = parts[0].strip().strip('"')
-                src_ip = parts[1].strip().strip('"')
-                dst_ip = parts[2].strip().strip('"')
-                opcode = parts[3].strip().strip('"')
+            parts = [part.strip().strip('"') for part in line.split("\t")]
+            if len(parts) < 4:
+                continue
+            total += 1
+            mac, src_ip, dst_ip, opcode = parts[:4]
+            frame = parts[4] if len(parts) > 4 else ""
+            if mac and src_ip:
+                ip_to_macs.setdefault(src_ip, set()).add(mac)
+                mac_to_ips.setdefault(mac, set()).add(src_ip)
+                if frame.isdigit():
+                    first_frame.setdefault((src_ip, mac), int(frame))
+            if opcode == "2":
+                arp_reply_count += 1
+            if src_ip == dst_ip:
+                gratuitous_count += 1
 
-                if mac and src_ip:
-                    ip_to_macs.setdefault(src_ip, set()).add(mac)
-                    mac_to_ips.setdefault(mac, set()).add(src_ip)
-
-                if opcode == "2":
-                    arp_reply_count += 1
-
-                if src_ip == dst_ip:
-                    gratuitous_count += 1
-
-        results: list[str] = []
-        results.append(f"Total ARP packets: {len(lines) - 1}")
-        results.append(f"ARP replies: {arp_reply_count}")
-        results.append(f"Gratuitous ARP: {gratuitous_count}")
-
+        constraints = FindingConstraints(scanned=total, limit=limit, truncated=truncated)
+        findings: list[Finding] = []
         suspicious_ips = {ip: macs for ip, macs in ip_to_macs.items() if len(macs) > 1}
-        if suspicious_ips:
-            results.append(f"\n{CRIT} {len(suspicious_ips)} IP(s) have multiple MAC addresses!")
-            for ip, macs in suspicious_ips.items():
-                results.append(f"  IP {ip} -> MACs: {', '.join(sorted(macs))}")
-        else:
-            results.append(f"\n{OK} No IP-to-MAC conflicts detected.")
-
-        multi_ip_macs = {mac: ips for mac, ips in mac_to_ips.items() if len(ips) > 3}
-        if multi_ip_macs:
-            results.append(f"\n{INFO} {len(multi_ip_macs)} MAC(s) claim many IPs (possible router or scanner):")
-            for mac, ips in multi_ip_macs.items():
-                results.append(f"  MAC {mac} -> {len(ips)} IPs")
-
+        for ip, macs in sorted(suspicious_ips.items()):
+            findings.append(
+                Finding(
+                    observation=f"IP {ip} was claimed by {len(macs)} MAC addresses: {', '.join(sorted(macs))}.",
+                    severity="high",
+                    # Failover pairs (VRRP/HSRP) and DHCP reassignment produce the same pattern.
+                    confidence="candidate",
+                    category="arp_spoofing",
+                    evidence=[
+                        FindingEvidence(
+                            frame=first_frame.get((ip, mac)),
+                            protocol="ARP",
+                            filter=f"arp.src.proto_ipv4 == {ip} && arp.src.hw_mac == {mac}",
+                            description=f"{mac} claims {ip}",
+                        )
+                        for mac in sorted(macs)
+                    ],
+                    constraints=constraints,
+                    next_steps=[
+                        "Check whether the MACs belong to a known failover pair or a DHCP lease change.",
+                        "Compare timing: a spoofer usually answers right after the legitimate host.",
+                    ],
+                )
+            )
         if arp_reply_count > 100:
-            results.append(f"\n{WARN} High ARP reply count ({arp_reply_count}), possible ARP storm.")
+            findings.append(
+                Finding(
+                    observation=f"High ARP reply count ({arp_reply_count}); possible ARP storm or poisoning attempt.",
+                    severity="medium",
+                    confidence="candidate",
+                    category="arp_spoofing",
+                    evidence=[FindingEvidence(protocol="ARP", filter="arp.opcode == 2", value=str(arp_reply_count))],
+                    constraints=constraints,
+                    next_steps=["Group replies by arp.src.hw_mac with wireshark_aggregate to find the sender."],
+                )
+            )
+        finalize_findings("wireshark_detect_arp_spoofing", pcap_file, findings)
 
+        results: list[str] = [
+            f"Total ARP packets: {total}",
+            f"ARP replies: {arp_reply_count}",
+            f"Gratuitous ARP: {gratuitous_count}",
+        ]
+        if not total:
+            results.insert(0, "No ARP traffic found in this capture.")
+        if suspicious_ips:
+            results.append(f"{CRIT} {len(suspicious_ips)} IP(s) have multiple MAC addresses!")
+        elif total:
+            results.append(f"{OK} No IP-to-MAC conflicts detected.")
+        multi_ip_macs = {mac: ips for mac, ips in mac_to_ips.items() if len(ips) > 3}
+        for mac, ips in multi_ip_macs.items():
+            results.append(f"{INFO} MAC {mac} claims {len(ips)} IPs (possible router or scanner)")
+        if arp_reply_count > 100:
+            results.append(f"{WARN} High ARP reply count ({arp_reply_count}), possible ARP storm.")
         if gratuitous_count > 10:
-            results.append(f"\n{INFO} Gratuitous ARP count is elevated ({gratuitous_count}).")
+            results.append(f"{INFO} Gratuitous ARP count is elevated ({gratuitous_count}).")
 
-        return success_response("\n".join(results))
+        return envelope_response(
+            data={"findings": findings, "summary": "\n".join(results)},
+            scope={"pcap_file": pcap_file, "filter": "arp"},
+            coverage={"status": "partial" if truncated else "complete", "scanned": total, "limit": limit},
+            truncated=truncated or None,
+            warnings=[f"ARP rows hit the limit of {limit}; conflicts later in the capture may be missing."]
+            if truncated
+            else None,
+        )
 
     return [
         ("wireshark_analyze_tcp_health", wireshark_analyze_tcp_health),

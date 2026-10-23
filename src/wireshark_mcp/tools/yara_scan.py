@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from ..tshark.client import TSharkClient
-from .envelope import error_response, parse_tool_result, success_response
+from .envelope import envelope_response, error_response, parse_tool_result, success_response
+from .findings import Finding, FindingEvidence, Severity, finalize_findings
 from .formatting import CRIT, INFO, OK, WARN
 
 logger = logging.getLogger("wireshark_mcp")
@@ -74,6 +75,14 @@ def _severity_icon(severity: str) -> str:
     return mapping.get(severity.lower(), INFO)
 
 
+def _finding_severity(value: str) -> Severity:
+    """Map free-form rule metadata onto the shared severity scale."""
+    lowered = str(value).lower()
+    if lowered in ("info", "low", "medium", "high", "critical"):
+        return lowered  # type: ignore[return-value]
+    return "medium"
+
+
 def make_yara_tools(client: TSharkClient) -> list[tuple[str, Any]]:
     """Build YARA scanning tools."""
 
@@ -123,6 +132,7 @@ def make_yara_tools(client: TSharkClient) -> list[tuple[str, Any]]:
                 return success_response(f"{OK} No files exported from {protocol} traffic — nothing to scan.")
 
             results: list[str] = []
+            findings: list[Finding] = []
             total_matches = 0
             severity_counts: dict[str, int] = {}
             scan_errors = 0
@@ -146,6 +156,27 @@ def make_yara_tools(client: TSharkClient) -> list[tuple[str, Any]]:
                             category = match.meta.get("category", "unknown")
                             description = match.meta.get("description", match.rule)
 
+                        findings.append(
+                            Finding(
+                                observation=f"YARA rule {match.rule} matched exported {protocol} object {fpath.name}.",
+                                severity=_finding_severity(severity),
+                                # A signature hit is strong but rules can be broad; confirm by
+                                # reviewing the object and the stream that carried it.
+                                confidence="likely",
+                                evidence=[
+                                    FindingEvidence(
+                                        protocol=protocol.upper(),
+                                        field="yara.rule",
+                                        value=f"{fpath.name}: {match.rule}",
+                                        description=str(description),
+                                    )
+                                ],
+                                next_steps=[
+                                    f"Locate the {protocol} transfer that carried {fpath.name} and follow its stream.",
+                                ],
+                                details={"file": fpath.name, "rule": match.rule, "category": category},
+                            )
+                        )
                         icon = _severity_icon(severity)
                         results.append(f"{icon} {fpath.name} | {match.rule} | {description} | {severity} | {category}")
                         total_matches += 1
@@ -176,7 +207,16 @@ def make_yara_tools(client: TSharkClient) -> list[tuple[str, Any]]:
             else:
                 output.append(f"\nExported files saved to: {export_dir}")
 
-            return success_response("\n".join(output))
+            finalize_findings("wireshark_yara_scan", pcap_file, findings, "yara_match")
+            return envelope_response(
+                data={"findings": findings, "summary": "\n".join(output)},
+                scope={"pcap_file": pcap_file, "protocol": protocol},
+                coverage={
+                    "status": "partial" if scan_errors else "complete",
+                    "files": len(files),
+                    "scan_errors": scan_errors,
+                },
+            )
 
         finally:
             if use_temp and os.path.exists(export_dir):

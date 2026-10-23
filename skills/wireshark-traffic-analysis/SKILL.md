@@ -40,7 +40,7 @@ For BLE, TLS/QUIC/HTTP2, or industrial traffic, load only the relevant section o
 
 Keep compact investigation state when the work spans many calls: question; capture identity and scope; queries and results already obtained; supported/rejected explanations; unresolved gap; next discriminating query. Reuse results only while the capture, filter, and decoding settings are unchanged.
 
-For multiple files or resumed work, use [investigation-state.md](references/investigation-state.md). Frame and stream numbers are local to a file; timestamps, interfaces, NAT roles, and decode settings must be reconciled before joining observations. Reopening a file does not validate cached results after the file changes.
+For multiple files or resumed work, use [investigation-state.md](references/investigation-state.md). When `wireshark_case` is available, keep that state in a case file: record each detector result whose findings matter and set verdicts as evidence settles them. Frame and stream numbers are local to a file; timestamps, interfaces, NAT roles, and decode settings must be reconciled before joining observations. Reopening a file does not validate cached results after the file changes.
 
 Keep each query proportional to the decision: aggregate before detailed extraction; select only needed fields/layers; start with a bounded evidence sample. Expand when the next page or broader scope could change the conclusion. A preview is not a global count. Record skipped checks as unresolved, not negative. Switching backend needs an available, task-appropriate CLI path and must preserve scope and decoding semantics.
 

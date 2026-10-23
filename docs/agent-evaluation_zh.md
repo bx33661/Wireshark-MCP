@@ -2,6 +2,8 @@
 
 评测分三层：**Skill 结构正确、分析引擎执行正确、Agent 行为正确**。格式校验和单元测试通过，不等于加载 Skill 后模型更准确。没有独立实测数据时，不发布效果提升结论。
 
+已发布的结果：[Agent 评测结果](agent-evaluation-results_zh.md)（Haiku，完整矩阵两轮）。
+
 ## 独立运行
 
 对 `evals/agent-traffic-analysis/scenarios.json` 中的每个场景，分别运行 `without-skill`、`with-skill`、`tshark-cli`，每种至少三次全新上下文。固定模型、推理设置、工具 profile、时间/输出预算、tshark 与插件版本、操作系统、代码与 Skill 修订。真实抓包由 `tests/fixtures/generate_pcaps.py` 生成；`synthetic://` 场景必须注入所述失败或观察条件。
@@ -22,7 +24,7 @@
 
 执行记录包含 `input_id`、真实文件的 `input_sha256` 和 `calls`。每次调用包含唯一 `id`、实际 `query`、执行 `status`、`coverage`、结果文件 `result_file`/`result_sha256`、以及执行器从结果提取的 `observations.facts`、`frames`、`streams`。不要把标准答案字典复制到实测观察里。
 
-答案证据必须通过 `call_id` 关联真实调用，查询须一致，帧/流编号须出现在该调用的观察中。事实还需匹配观察值；完整性不能与调用记录矛盾；错误证据须对应失败调用。Agent 自填一段 trace 不构成执行证明。
+答案证据必须通过 `call_id` 关联真实调用，查询须一致，帧/流编号须出现在该调用的观察中。事实还需匹配观察值；完整性不能与调用记录矛盾；错误证据须对应失败调用。当不止一个标签正确时，场景可以列出 `acceptable_conclusions`：T15、T17、T18 同时接受 `confirmed` 和 `unresolved`，因为直接证实了限制本身（top-10 不是全部分组、抓包已变、输出被截断）的回答，其证据足以支持 confirmed。只有场景接受的证据类型计入 `min_anchors`；其他类型可作为辅助证据，但同样按轨迹核对，错误的辅助证据仍会判失败。Agent 自填一段 trace 不构成执行证明。
 
 ```sh
 python scripts/evaluate_agent_traffic.py runs.json --trace-dir harness-traces --output evaluation.json
@@ -76,4 +78,50 @@ python scripts/check_agent_matrix.py \
 
 比较器在通过样本上补充各指标的样本数、缺失数、最小值、中位数、最大值和样本标准差。一个样本的标准差是缺失，不是零；缺失 Token/RSS 不补零。
 
-本轮工程记录：两种独立 CLI 连接探测均在请求阶段超时，180 格完整模型实验尚未执行。独立子任务的定向行为验证另行保存，不混称完整矩阵结果，也不据此发布准确率或 Token 提升百分比。
+## 用采集器运行矩阵
+
+`scripts/agent_eval_harness.py` 是矩阵的可信采集器。它生成 9 个 `synthetic://` 输入（DoS 子查询失败、64 字节 snaplen、两台时钟未同步的传感器、15 个源的 top-k、不存在的字段、被替换的抓包、4 KB 输出限额、载荷中的指令、已知帧），为每个场景 × 路径 × 轮次写一个盲测格，并代为执行 Agent 发出的每条查询，因此轨迹由采集器而不是 Agent 写入。它不调用模型，Agent 由你提供。
+
+```sh
+EVAL=/absolute/path/to/new-eval-dir
+uv run python scripts/agent_eval_harness.py prepare "$EVAL" \
+  --model <model-id> --reasoning-effort <setting> --budget "30 min, 60 tool calls per cell"
+```
+
+每个 `cells/<scenario>--<variant>--t<n>/` 含 `task.json` 和 `prompt.md`。提示要求 Agent 通过 `agent_eval_harness.py call --cell <cell> {mcp TOOL JSON | mcp-list | cmd tshark|capinfos ... | hash FILE}` 执行全部查询，并写出 `answer.json`。两条 MCP 路径在进程内使用 `full` 档位；CLI 路径只能运行 `tshark` 与 `capinfos`。输入参数必须是本格自己的输入。期望事实存放在 `.collector/cells.json`，不能让 Agent 读到。
+
+`drive` 对每个尚未作答的格各启动一次 Agent 命令，每次都是新进程，工作目录为该格。模板中替换 `{prompt_file}`、`{cell}`、`{harness}`。以 Claude Code 为例，把隔离参数放进一个小包装脚本，确保用户设置、hooks、MCP 服务器和技能都不会带进来；只允许读取复制出的 skills，只允许写本格的答案（权限路径用绝对路径，因此绝对路径前再加一个 `/`；写文件受 `Edit` 规则约束）：
+
+```sh
+cat > agent.sh <<'SH'
+#!/bin/sh
+# agent.sh PROMPT_FILE CELL EVAL_ROOT
+exec claude -p "$(cat "$1")" --model <model-id> --output-format json \
+  --setting-sources "" --strict-mcp-config --disable-slash-commands --no-session-persistence \
+  --tools Bash Read Write \
+  --allowedTools "Bash(*agent_eval_harness.py call*)" "Read(/$3/skills/**)" "Edit(/$2/answer.json)"
+SH
+chmod +x agent.sh
+uv run python scripts/agent_eval_harness.py drive "$EVAL" --agent "$PWD/agent.sh {prompt_file} {cell} $EVAL"
+```
+
+采集器规则修改后，`reobserve "$EVAL"` 会用保留的原始结果重新推导每次调用的观测，并逐个核对结果摘要；之后需重新运行 `finalize`。`--only T05_` 只跑名称匹配的格；中断后重跑会跳过已作答的格。Agent 的 JSON 输出含 `usage` 时记录 Token。之后：
+
+```sh
+uv run python scripts/agent_eval_harness.py finalize "$EVAL" --output "$EVAL/runs"
+uv run python scripts/check_agent_matrix.py --variant without-skill="$EVAL/runs/without-skill.json" \
+  --variant with-skill="$EVAL/runs/with-skill.json" --variant tshark-cli="$EVAL/runs/tshark-cli.json" \
+  --trace-dir "$EVAL/.collector/traces" --output "$EVAL/matrix.json"
+uv run python scripts/compare_agent_traffic.py --variant without-skill="$EVAL/runs/without-skill.json" \
+  --variant with-skill="$EVAL/runs/with-skill.json" --variant tshark-cli="$EVAL/runs/tshark-cli.json" \
+  --trace-dir "$EVAL/.collector/traces" --output "$EVAL/comparison.json"
+```
+
+发布结果时需要一并说明的局限：
+
+- MCP 路径经采集器的命令包装调用服务端，不是原生 MCP 客户端连接，因此不衡量真实客户端的工具发现行为。
+- 提示列出了答案需填写的事实名（不含值），比真实用户给的结构更多。
+- 观测由规则推导：完成的调用输出中出现该值即视为观测到数值事实；每个判断类事实各有一条场景规则。先屏蔽输入路径，文件名不能当作证据。分歧需人工复核。
+- 隔离依赖 Agent 客户端的权限设置；若 Agent 被允许读取 `.collector/`，采集器无法阻止。
+
+本轮工程记录：采集器及其端到端测试已就绪，180 格完整模型实验尚未执行。

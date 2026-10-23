@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Protocol, TypedDict
+from typing import TYPE_CHECKING, Any, Protocol, TypedDict
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 FieldRowConsumer = Callable[[list[str]], None]
 
@@ -50,6 +53,14 @@ class _ClientProtocol(Protocol):
         max_rows: int,
         timeout: int = 30,
     ) -> FieldStreamResult: ...
+    async def _run_to_file(
+        self,
+        cmd: list[str],
+        dest: Path,
+        *,
+        timeout: int,
+        max_bytes: int,
+    ) -> dict[str, Any]: ...
     async def get_packet_list(
         self,
         pcap_file: str,

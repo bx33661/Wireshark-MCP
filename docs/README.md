@@ -16,6 +16,8 @@ Start with the page that matches the task at hand.
 | Migrate a 2.x deployment safely | [3.0 security migration](security-hardening-v3.md) |
 | Ask better packet-analysis questions | [Prompt examples](prompt-engineering.md) |
 | Compute capture-wide counts and distributions | [Aggregation guide](aggregation.md) |
+| Read detector findings and keep investigation case files | [Findings and cases](findings-and-cases.md) |
+| Index a large capture once and query it with DuckDB | [Capture index](capture-index.md) |
 
 ## Maintain the project
 
@@ -27,6 +29,7 @@ Start with the page that matches the task at hand.
 | Prepare a release | [Release checklist](release-checklist.md) |
 | Discover and use packet-analysis skills | [Skills](skills.md) |
 | Evaluate Agent packet-analysis behavior | [Agent evaluation suite](agent-evaluation.md) |
+| See how Agents scored on each analysis path | [Agent evaluation results](agent-evaluation-results.md) |
 | Compare MCP with native tshark | [Analysis-path benchmark](analysis-path-benchmark.md) |
 | Review shipped and planned work | [Changelog](../CHANGELOG.md) · [Roadmap](../ROADMAP.md) |
 | Report a vulnerability | [Security policy](../SECURITY.md) |

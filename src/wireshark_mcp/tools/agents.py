@@ -7,13 +7,24 @@ from typing import Any
 from mcp.server import MCPServer
 
 from ..tshark.client import TSharkClient
-from .envelope import parse_tool_result, success_response
-from .formatting import CRIT, INFO, OK, WARN, section, smart_truncate
+from .envelope import envelope_response, parse_tool_result
+from .findings import Finding, FindingEvidence, Severity, finalize_findings, render_findings_markdown
+from .formatting import OK, WARN, section, smart_truncate
 
 logger = logging.getLogger("wireshark_mcp")
 
 MAX_SECTION_LINES = 15
 MAX_TOTAL_CHARS = 4000
+
+# Expert-info keyword -> (severity, display filter that locates the packets).
+EXPERT_SIGNALS: dict[str, tuple[Severity, str]] = {
+    "Malformed": ("medium", "_ws.malformed"),
+    "Out-of-Order": ("low", "tcp.analysis.out_of_order"),
+    "Reassembly error": ("low", '_ws.expert.message contains "reassembl"'),
+    "Retransmission": ("info", "tcp.analysis.retransmission"),
+    "Duplicate ACK": ("info", "tcp.analysis.duplicate_ack"),
+    "Zero window": ("info", "tcp.analysis.zero_window"),
+}
 
 
 def _extract_data(result: str) -> str | None:
@@ -128,30 +139,36 @@ async def _run_quick_analysis(client: TSharkClient, pcap_file: str) -> str:
     if not http_hosts and not dns_domains:
         report.append("No HTTP/DNS hostname data found")
 
-    # Phase 6: Anomaly Summary
+    # Phase 6: Anomaly Summary — expert-info signals become findings, and the
+    # Markdown section is rendered from the same list.
     expert_data = _extract_data(expert_raw) if expert_raw else None
     report.append(f"\n{section('6. Anomalies')}")
+    findings: list[Finding] = []
     if expert_data:
-        anomaly_keywords = {
-            "Retransmission": INFO,
-            "Duplicate ACK": INFO,
-            "Out-of-Order": WARN,
-            "Malformed": CRIT,
-            "Reassembly error": WARN,
-            "Zero window": INFO,
-        }
-        found_any = False
-        for keyword, icon in anomaly_keywords.items():
+        for keyword, (severity, display_filter) in EXPERT_SIGNALS.items():
             if keyword in expert_data:
-                report.append(f"{icon} {keyword}")
-                found_any = True
-        if not found_any:
-            report.append(f"{OK} No notable anomalies")
+                findings.append(
+                    Finding(
+                        observation=f"tshark expert info reports {keyword} events.",
+                        severity=severity,
+                        confidence="confirmed",
+                        category="expert_info",
+                        evidence=[FindingEvidence(filter=display_filter, description=f"Expert info: {keyword}")],
+                        next_steps=[
+                            f"Count and locate them with wireshark_aggregate(display_filter='{display_filter}')."
+                        ],
+                    )
+                )
+        finalize_findings("wireshark_quick_analysis", pcap_file, findings)
+        report.append(render_findings_markdown(findings) if findings else f"{OK} No notable anomalies")
     else:
         report.append("No expert info available")
 
     output = "\n".join(report)
-    return success_response(smart_truncate(output, MAX_TOTAL_CHARS))
+    return envelope_response(
+        data={"report": smart_truncate(output, MAX_TOTAL_CHARS), "findings": findings},
+        scope={"pcap_file": pcap_file},
+    )
 
 
 # ── Registration ──

@@ -16,6 +16,8 @@
 | 将 2.x 部署安全迁移到 3.0 | [3.0 安全迁移](security-hardening-v3_zh.md) |
 | 写出更可靠的流量分析任务 | [提示词示例](prompt-engineering_zh.md) |
 | 计算全量计数与分布 | [聚合指南](aggregation_zh.md) |
+| 理解检测发现并保存调查案卷 | [发现模型与调查案卷](findings-and-cases_zh.md) |
+| 大抓包只解析一次，再用 DuckDB 查询 | [抓包索引](capture-index_zh.md) |
 
 ## 维护项目
 
@@ -27,6 +29,7 @@
 | 准备发布 | [发布清单](release-checklist.md) |
 | 安装、发现与使用抓包分析 Skill | [Skills 指南](skills_zh.md) |
 | 评估 Agent 流量分析行为 | [Agent 评测套件](agent-evaluation_zh.md) |
+| 查看各分析路径上的 Agent 评测得分 | [Agent 评测结果](agent-evaluation-results_zh.md) |
 | 对比 MCP 与原生 tshark | [分析路径对照基准](analysis-path-benchmark_zh.md) |
 | 查看已发布内容与后续计划 | [更新日志](../CHANGELOG.md) · [功能路线图](../ROADMAP_zh.md) |
 | 报告安全问题 | [安全策略](../SECURITY.md) |

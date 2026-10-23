@@ -102,7 +102,11 @@ def test_full_server_exposes_a_stable_tool_surface(monkeypatch) -> None:
     # are wireshark_analyze_protocol values, not tools: their Python-side aggregation
     # lives in protocol handlers, so deep protocol analysis adds enum values and
     # recommendations without touching the tool surface.
-    assert len(names) <= 52, f"tool surface grew to {len(names)}; justify or consolidate"
+    # wireshark_case (3.2) is the one deliberate addition: persistent case files are
+    # state the server owns, so no read-only tool could carry them. wireshark_index
+    # (3.2, optional DuckDB extra) is the other: it owns the index cache that
+    # wireshark_aggregate reuses.
+    assert len(names) <= 54, f"tool surface grew to {len(names)}; justify or consolidate"
 
 
 def test_every_protocol_recommendation_is_registered() -> None:

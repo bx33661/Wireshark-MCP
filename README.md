@@ -112,11 +112,11 @@ Write findings to report.md.
 
 ## Tools
 
-52 tools, each backed by real `tshark` output — organized into categories:
+54 tools, each backed by real `tshark` output — organized into categories:
 
 | Category | Highlights | Count |
 |----------|-----------|:-----:|
-| **Entry & Workflow** | `wireshark_open_file`, `wireshark_quick_analysis` | 2 |
+| **Entry & Workflow** | `wireshark_open_file`, `wireshark_quick_analysis`, `wireshark_case` (persistent investigation case files) | 3 |
 | **Packet Analysis** | Packet list, details, bytes, context, stream follow, search, file info | 8 |
 | **Data Extraction** | HTTP requests, DNS queries, arbitrary fields, object export | 4 |
 | **Statistics** | Aggregate/group/distinct/top-k/time buckets, protocol hierarchy, endpoints, conversations, I/O graph, expert info, service response time, flow graph | 8 |
@@ -125,6 +125,7 @@ Write findings to report.md.
 | **Decrypt & Dissection** | TLS/WPA decrypt, decryption check, decode-as, protocol preferences | 5 |
 | **Forensics & Enrichment** | TLS fingerprints, file signature scan, GeoIP | 3 |
 | **File Ops, Capture & Suite** | Live capture, interfaces, merge, filter-save, editcap trim/split/dedup/time-shift, frame extract, text2pcap, capabilities | 11 |
+| **Capture Index** (optional `[index]` extra) | `wireshark_index`: one tshark pass into a local DuckDB file; `wireshark_aggregate` reuses it, plus read-only SQL over packets and flows | 1 |
 
 One tool covers 25 protocols rather than 25 tools covering one each: `wireshark_analyze_protocol` takes a `protocol` argument (`tls_handshakes`, `mqtt`, `modbus`, `s7comm`, `zigbee`, `wifi`, `rtp`, `kerberos`, …) and applies the right fields and display filter for it. The field names are the point — `s7comm.param.item.dbnum` is not something a caller should have to guess, and a wrong guess returns an empty result that reads like a clean capture.
 
@@ -132,15 +133,15 @@ The server starts with only `tshark` required. Optional tools (`capinfos`, `merg
 
 ### Context cost
 
-The tool list travels in the prompt prefix of every request your client sends, so its size is a fixed per-request cost. The default surface is ~22 KB — about 9 KB of parameter schema, 5 KB of descriptions, and 3 KB of read/write annotations — and it is byte-identical across restarts so clients can cache the prefix rather than re-reading it each session.
+The tool list travels in the prompt prefix of every request your client sends, so its size is a fixed per-request cost. The default surface is ~23 KB — about 9 KB of parameter schema, 5 KB of descriptions, and 3 KB of read/write annotations — and it is byte-identical across restarts so clients can cache the prefix rather than re-reading it each session.
 
 If your client never captures live traffic or writes pcaps, `--profile` advertises less:
 
 | Profile | Tools | Payload | Drops |
 |---------|:-----:|:-------:|-------|
-| `full` (default) | 52 | ~22 KB | nothing |
-| `analysis` | 40 | ~17 KB | live capture, interface listing, all file-writing tools |
-| `core` | 32 | ~14 KB | the above, plus decryption, dissection overrides, and low-level views |
+| `full` (default) | 54 | ~23 KB | nothing |
+| `analysis` | 42 | ~18 KB | live capture, interface listing, all caller-directed file-writing tools |
+| `core` | 34 | ~15 KB | the above, plus decryption, dissection overrides, and low-level views |
 
 ```bash
 wireshark-mcp serve --profile core
@@ -154,9 +155,9 @@ Tool results are bounded too, since a result stays in the conversation for the r
 export WIRESHARK_MCP_MAX_RESULT_CHARS=16000
 ```
 
-Every tool also declares whether it reads or writes, so clients can auto-approve the 41 read-only analysis tools and still prompt for the 11 that create files (live capture, merge, filter-save, editcap, text2pcap, frame extract, object export).
+Every tool also declares whether it reads or writes, so clients can auto-approve the 41 read-only analysis tools and still prompt for the 12 that create files (live capture, merge, filter-save, editcap, text2pcap, frame extract, object export, case files). `wireshark_index` is marked non-destructive: it writes only the server's own index cache.
 
-In 3.0, those 11 tools fail closed until `WIRESHARK_MCP_ALLOWED_DIRS` names existing directories. Remote HTTP/SSE binding also stays loopback-only unless `--allow-insecure-http` is explicitly supplied behind a trusted authenticated TLS proxy. See the [3.0 security migration guide](docs/security-hardening-v3.md).
+Since 3.0, those tools fail closed until `WIRESHARK_MCP_ALLOWED_DIRS` names existing directories. Remote HTTP/SSE binding also stays loopback-only unless `--allow-insecure-http` is explicitly supplied behind a trusted authenticated TLS proxy. See the [3.0 security migration guide](docs/security-hardening-v3.md).
 
 ---
 
