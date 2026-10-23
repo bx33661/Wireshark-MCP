@@ -156,7 +156,7 @@ The other index features on the same captures, one timed call each:
 
 The synthetic captures are a worst case for timeline and diff: nearly every packet starts a new flow, so the 10 GB capture has five million distinct conversations to profile.
 
-Raw results: [`docs/benchmarks/capture-index-2026-10-22.json`](benchmarks/capture-index-2026-10-22.json) (this run) and [`docs/benchmarks/capture-index-2026-10-19.json`](benchmarks/capture-index-2026-10-19.json) (3.2 index core, before pushdown).
+Raw results: [`docs/benchmarks/capture-index-2026-10-22.json`](benchmarks/capture-index-2026-10-22.json) (this run) and [`docs/benchmarks/capture-index-2026-10-19.json`](benchmarks/capture-index-2026-10-19.json) (index core, before pushdown).
 
 ## Not yet
 

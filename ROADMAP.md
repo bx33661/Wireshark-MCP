@@ -44,7 +44,7 @@ Exit criterion: results are reproducible, scan boundaries and limitations are ex
 
 Exit criterion: numeric aggregation and pagination have real-tshark tests, deterministic output, bounded memory, and examples in both aggregation guides.
 
-## Next — 3.2 evidence-first findings (release prepared)
+## 3.2 evidence-first findings (ships in 4.0.0)
 
 - [x] Publish the full 20-scenario × 3-path × 3-run Agent evaluation matrix with harness-bound traces: [Haiku results](docs/agent-evaluation-results.md), two runs; a stronger-model run remains open.
 - [x] Persist investigation case files (inputs, executed queries, findings, analyst verdicts) so long investigations survive context resets.
@@ -57,7 +57,7 @@ Exit criterion: every automated finding can be traced back to an exact tool resu
 
 ## Next — 4.0 capture index engine (release prepared)
 
-The index core was built early and ships with 3.2 as the optional `[index]` extra. The remaining engine items below were then built ahead of 3.3.
+The index core was built first, alongside the 3.2 finding model; the remaining engine items below followed, ahead of the long-running jobs work. Everything ships together in 4.0.0 as the optional `[index]` extra.
 
 - [x] **DuckDB capture index (core):** one tshark pass per capture, `wireshark_index` (build/status/query/drop), `wireshark_aggregate` reuses a fresh index with tshark-identical answers and reports `coverage.source`; 100 MB / 1 GB benchmark published.
 - [x] Capture sets: `more_files` stacks several per-capture indexes with a `capture_id` column and a `captures` table, so files are indexed once and combined at query time.

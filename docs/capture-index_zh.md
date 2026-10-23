@@ -156,7 +156,7 @@ SQL 结果和聚合结果一样，用来排序和定位。结论要用返回的�
 
 合成抓包对 timeline 和 diff 来说是最坏情况：几乎每个包都开启一条新流，所以 10 GB 抓包有五百万个不同会话需要统计。
 
-原始结果：[`docs/benchmarks/capture-index-2026-10-22.json`](benchmarks/capture-index-2026-10-22.json)（本次）和 [`docs/benchmarks/capture-index-2026-10-19.json`](benchmarks/capture-index-2026-10-19.json)（3.2 索引核心，下推之前）。
+原始结果：[`docs/benchmarks/capture-index-2026-10-22.json`](benchmarks/capture-index-2026-10-22.json)（本次）和 [`docs/benchmarks/capture-index-2026-10-19.json`](benchmarks/capture-index-2026-10-19.json)（索引核心，下推之前）。
 
 ## 尚未支持
 
