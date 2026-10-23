@@ -1,6 +1,6 @@
 FROM python:3.12-slim-bookworm
 
-ARG WIRESHARK_MCP_VERSION=3.2.0
+ARG WIRESHARK_MCP_VERSION=4.0.0
 
 LABEL org.opencontainers.image.title="Wireshark MCP" \
       org.opencontainers.image.description="MCP server for trustworthy Wireshark and tshark packet analysis" \

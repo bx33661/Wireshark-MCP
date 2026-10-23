@@ -42,7 +42,7 @@ and 3.0 refuses a non-loopback bind unless `--allow-insecure-http` is supplied.
 Pull the official multi-platform image from GitHub Container Registry:
 
 ```sh
-docker pull ghcr.io/bx33661/wireshark-mcp:3.2.0
+docker pull ghcr.io/bx33661/wireshark-mcp:4.0.0
 ```
 
 Mount captures read-only and limit the server's allowed directories:
@@ -52,7 +52,7 @@ docker run --rm -p 127.0.0.1:8080:8080 \
   -v "$PWD/captures:/captures:ro" \
   -v "$PWD/results:/results" \
   -e WIRESHARK_MCP_ALLOWED_DIRS=/captures,/results \
-  ghcr.io/bx33661/wireshark-mcp:3.2.0
+  ghcr.io/bx33661/wireshark-mcp:4.0.0
 ```
 
 The image defaults to Streamable HTTP on port 8080 with the `analysis` profile

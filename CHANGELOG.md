@@ -5,6 +5,7 @@ Release notes are kept in separate files so each version remains easy to review 
 | Version | Date | Notes |
 |---------|------|-------|
 | Unreleased | — | [English / 中文](changelog/unreleased.md) |
+| 4.0.0 | unreleased | [Release notes / 发布说明](changelog/4.0.0.md) |
 | 3.2.0 | unreleased | [Release notes / 发布说明](changelog/3.2.0.md) |
 | 3.1.0 | 2026-10-17 | [Release notes / 发布说明](changelog/3.1.0.md) |
 | 3.0.0 | 2026-09-05 | [Release notes / 发布说明](changelog/3.0.0.md) |

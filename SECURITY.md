@@ -4,12 +4,13 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 3.x     | :white_check_mark: |
+| 4.x     | :white_check_mark: |
+| 3.x     | :x:                |
 | 2.x     | :x:                |
 | 1.x     | :x:                |
 | < 1.0   | :x:                |
 
-Security fixes are provided for the active `3.x` release line. Upgrade before reporting a problem that only reproduces on an older release.
+Security fixes are provided for the active `4.x` release line. Upgrade before reporting a problem that only reproduces on an older release.
 
 ## Reporting a Vulnerability
 

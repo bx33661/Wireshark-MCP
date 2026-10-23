@@ -55,16 +55,7 @@ Exit criterion: numeric aggregation and pagination have real-tshark tests, deter
 
 Exit criterion: every automated finding can be traced back to an exact tool result and packet-level verification path.
 
-## Later — 3.3 long-running jobs and operational hardening
-
-- Run index builds, full-capture aggregation, large YARA scans and multi-capture batches as MCP Tasks with progress and cancellation, instead of one bounded call.
-- Add authenticated deployment recipes and automated checks for Streamable HTTP behind a reverse proxy.
-- Add compatibility tests against the supported Wireshark/tshark version matrix.
-- Publish a machine-readable capability and compatibility document for clients and packaging systems.
-
-Exit criterion: authenticated remote deployment is reproducible and the supported platform/toolchain matrix is exercised in CI or recorded manual evidence.
-
-## Later — 4.0 capture index engine
+## Next — 4.0 capture index engine (release prepared)
 
 The index core was built early and ships with 3.2 as the optional `[index]` extra. The remaining engine items below were then built ahead of 3.3.
 
@@ -78,6 +69,15 @@ The index core was built early and ships with 3.2 as the optional `[index]` extr
 - Route the endpoint, conversation and protocol-hierarchy statistics and suitable detection tools through the index, each behind its own equivalence harness against parsed tshark tap output.
 
 Exit criterion: capture-wide questions on multi-gigabyte captures and capture sets are answered from the index with results proven equal to the tshark path.
+
+## Later — long-running jobs and operational hardening (after 4.0)
+
+- Run index builds, full-capture aggregation, large YARA scans and multi-capture batches as MCP Tasks with progress and cancellation, instead of one bounded call.
+- Add authenticated deployment recipes and automated checks for Streamable HTTP behind a reverse proxy.
+- Add compatibility tests against the supported Wireshark/tshark version matrix.
+- Publish a machine-readable capability and compatibility document for clients and packaging systems.
+
+Exit criterion: authenticated remote deployment is reproducible and the supported platform/toolchain matrix is exercised in CI or recorded manual evidence.
 
 ## Candidates
 
