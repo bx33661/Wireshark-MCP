@@ -1,12 +1,55 @@
-from typing import Any, Literal
+import asyncio
+import logging
+from typing import TYPE_CHECKING, Any, Literal
 
 from mcp.server import MCPServer
 
 from ..tshark.client import TSharkClient
 from .envelope import normalize_tool_result
 
+if TYPE_CHECKING:
+    from ..index.store import CaptureIndexStore
 
-def register_extract_tools(mcp: MCPServer, client: TSharkClient) -> None:
+logger = logging.getLogger("wireshark_mcp")
+INDEX_EXTRACT_TIMEOUT = 60
+
+
+async def _extract_from_index(
+    index_store: "CaptureIndexStore",
+    client: TSharkClient,
+    pcap_file: str,
+    fields: list[str],
+    display_filter: str,
+    limit: int,
+    offset: int,
+) -> str | None:
+    """tshark's exact extract_fields output rebuilt from a fresh index, or None."""
+    from ..index import fields as indexed_fields
+
+    if not client._validate_file(pcap_file)["success"]:
+        return None
+    handle = await asyncio.to_thread(index_store.lookup, pcap_file)
+    if handle is None or handle.meta.get("tshark") != await index_store.tshark_version():
+        return None
+    try:
+        return await asyncio.to_thread(
+            indexed_fields.render,
+            handle,
+            index_store,
+            fields,
+            display_filter,
+            limit,
+            offset,
+            INDEX_EXTRACT_TIMEOUT,
+        )
+    except Exception as exc:  # the tshark path stays authoritative
+        logger.warning("Index extract failed, using tshark: %s", exc)
+        return None
+
+
+def register_extract_tools(
+    mcp: MCPServer, client: TSharkClient, index_store: "CaptureIndexStore | None" = None
+) -> None:
     """Register core extract tools (always available)."""
 
     @mcp.tool()
@@ -51,6 +94,12 @@ def register_extract_tools(mcp: MCPServer, client: TSharkClient) -> None:
     ) -> str:
         """[Tabular] Extract fields as TSV. fields: comma-separated; limit/offset count lines including the header."""
         field_list = [f.strip() for f in fields.split(",")]
+        if index_store is not None:
+            indexed = await _extract_from_index(
+                index_store, client, pcap_file, field_list, display_filter, limit, offset
+            )
+            if indexed is not None:
+                return normalize_tool_result(indexed)
         return normalize_tool_result(
             await client.extract_fields(pcap_file, field_list, display_filter, limit=limit, offset=offset)
         )

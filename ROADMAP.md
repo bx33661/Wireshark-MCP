@@ -44,7 +44,7 @@ Exit criterion: results are reproducible, scan boundaries and limitations are ex
 
 Exit criterion: numeric aggregation and pagination have real-tshark tests, deterministic output, bounded memory, and examples in both aggregation guides.
 
-## Next — 3.2 evidence-first findings (release prepared)
+## 3.2 evidence-first findings (ships in 4.0.0)
 
 - [x] Publish the full 20-scenario × 3-path × 3-run Agent evaluation matrix with harness-bound traces: [Haiku results](docs/agent-evaluation-results.md), two runs; a stronger-model run remains open.
 - [x] Persist investigation case files (inputs, executed queries, findings, analyst verdicts) so long investigations survive context resets.
@@ -55,7 +55,22 @@ Exit criterion: numeric aggregation and pagination have real-tshark tests, deter
 
 Exit criterion: every automated finding can be traced back to an exact tool result and packet-level verification path.
 
-## Later — 3.3 long-running jobs and operational hardening
+## Next — 4.0 capture index engine (release prepared)
+
+The index core was built first, alongside the 3.2 finding model; the remaining engine items below followed, ahead of the long-running jobs work. Everything ships together in 4.0.0 as the optional `[index]` extra.
+
+- [x] **DuckDB capture index (core):** one tshark pass per capture, `wireshark_index` (build/status/query/drop), `wireshark_aggregate` reuses a fresh index with tshark-identical answers and reports `coverage.source`; 100 MB / 1 GB benchmark published.
+- [x] Capture sets: `more_files` stacks several per-capture indexes with a `capture_id` column and a `captures` table, so files are indexed once and combined at query time.
+- [x] Index-backed `timeline` (first and last sighting of hosts, conversations, protocols, DNS/TLS/HTTP names and fingerprints) and `diff` of two captures or two display-filter windows, returning only new and gone items with exact frame numbers and relative times.
+- [x] Parquet export of packets, flows and captures into the index directory.
+- [x] `wireshark_extract_fields` answers from the index with byte-identical tshark output.
+- [x] Grouping pushed down into DuckDB SQL behind exactness gates, with the tshark equivalence tests as the gate.
+- [x] 10 GB benchmark tier.
+- Route the endpoint, conversation and protocol-hierarchy statistics and suitable detection tools through the index, each behind its own equivalence harness against parsed tshark tap output.
+
+Exit criterion: capture-wide questions on multi-gigabyte captures and capture sets are answered from the index with results proven equal to the tshark path.
+
+## Later — long-running jobs and operational hardening (after 4.0)
 
 - Run index builds, full-capture aggregation, large YARA scans and multi-capture batches as MCP Tasks with progress and cancellation, instead of one bounded call.
 - Add authenticated deployment recipes and automated checks for Streamable HTTP behind a reverse proxy.
@@ -63,20 +78,6 @@ Exit criterion: every automated finding can be traced back to an exact tool resu
 - Publish a machine-readable capability and compatibility document for clients and packaging systems.
 
 Exit criterion: authenticated remote deployment is reproducible and the supported platform/toolchain matrix is exercised in CI or recorded manual evidence.
-
-## Later — 4.0 capture index engine
-
-Release order is 3.2 → 3.3 → 4.0. The index core was built early and ships with 3.2 as the optional `[index]` extra.
-
-- [x] **DuckDB capture index (core):** one tshark pass per capture, `wireshark_index` (build/status/query/drop), `wireshark_aggregate` reuses a fresh index with tshark-identical answers and reports `coverage.source`; 100 MB / 1 GB benchmark published.
-- Multi-capture collections: one index across several files with a `capture_id` column.
-- Index-backed diff and timeline for two captures or two display-filter windows, returning only the differences and preserving exact frame numbers and relative times for incident response (moved from 3.2).
-- Parquet export for use outside the server.
-- Route `wireshark_extract_fields`, the endpoint, conversation and protocol-hierarchy statistics, and suitable detection tools through the index.
-- Push grouping down into DuckDB SQL, with the tshark equivalence tests kept as the gate.
-- Add a 10 GB benchmark tier.
-
-Exit criterion: capture-wide questions on multi-gigabyte captures and capture sets are answered from the index with results proven equal to the tshark path.
 
 ## Candidates
 

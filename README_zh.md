@@ -125,7 +125,7 @@ wireshark-mcp install --client codex --scope project
 | **解密与解析** | TLS/WPA 解密、解密校验、decode-as、协议偏好设置 | 5 |
 | **取证与富化** | TLS 指纹、文件特征扫描、GeoIP | 3 |
 | **文件操作、抓包与套件** | 实时抓包、接口列表、合并、过滤保存、editcap 裁剪/分割/去重/时移、帧提取、text2pcap、能力查询 | 11 |
-| **抓包索引**（可选 `[index]` 扩展） | `wireshark_index`：一次 tshark 解析写入本地 DuckDB 文件；`wireshark_aggregate` 复用它，并可对包表和会话表执行只读 SQL | 1 |
+| **抓包索引**（可选 `[index]` 扩展） | `wireshark_index`：一次 tshark 解析写入本地 DuckDB 文件；`wireshark_aggregate` 和 `wireshark_extract_fields` 复用它。支持只读 SQL、多抓包集合、首次出现时间线、抓包/时间窗 diff 和 Parquet 导出 | 1 |
 
 25 种协议由一个工具覆盖，而不是 25 个工具各覆盖一种：`wireshark_analyze_protocol` 接受 `protocol` 参数（`tls_handshakes`、`mqtt`、`modbus`、`s7comm`、`zigbee`、`wifi`、`rtp`、`kerberos` 等），并为其套用正确的字段与显示过滤器。字段名正是关键——`s7comm.param.item.dbnum` 不该由调用方去猜，而猜错时返回的空结果看起来和"干净的流量"没有区别。
 

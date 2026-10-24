@@ -77,6 +77,11 @@ def _field_list(value: str) -> list[str]:
 MAX_AGGREGATE_GROUPS = 10_000
 MAX_DISTINCT_PER_GROUP = 5_000
 MAX_TOTAL_DISTINCT_ITEMS = 50_000
+AMBIGUOUS_COMMAS_WARNING = (
+    "Distinct field(s) contained comma delimiters; distinct count may combine multiple occurrences "
+    "with literal comma characters."
+)
+INVALID_NUMERIC_WARNING = "Numeric aggregation skipped invalid, non-finite, or multi-occurrence values for: "
 
 LITERAL_STRING_FIELDS = frozenset(
     {
@@ -220,15 +225,9 @@ class _AggregateAccumulator:
                 f"Aggregate hit the global distinct cardinality budget of {MAX_TOTAL_DISTINCT_ITEMS} items."
             )
         if self.ambiguous_commas:
-            warnings.append(
-                "Distinct field(s) contained comma delimiters; distinct count may combine multiple occurrences "
-                "with literal comma characters."
-            )
+            warnings.append(AMBIGUOUS_COMMAS_WARNING)
         if self.invalid_numeric_fields:
-            warnings.append(
-                "Numeric aggregation skipped invalid, non-finite, or multi-occurrence values for: "
-                + ", ".join(sorted(self.invalid_numeric_fields))
-            )
+            warnings.append(INVALID_NUMERIC_WARNING + ", ".join(sorted(self.invalid_numeric_fields)))
         return self._render_groups(), self.skipped_invalid_time, warnings
 
     def _render_groups(self) -> list[dict[str, Any]]:
@@ -303,6 +302,16 @@ def _maybe_summarize(raw_result: str, max_rows: int = 50) -> str:
     return normalize_tool_result(raw_result)
 
 
+class _PushedDownResult:
+    """Groups DuckDB already computed, behind the accumulator's ``finish`` interface."""
+
+    def __init__(self, groups: list[dict[str, Any]], skipped_invalid_time: int, warnings: list[str]) -> None:
+        self._result = (groups, skipped_invalid_time, warnings)
+
+    def finish(self) -> tuple[list[dict[str, Any]], int, list[str]]:
+        return self._result
+
+
 async def _aggregate_from_index(
     index_store: "CaptureIndexStore",
     pcap_file: str,
@@ -310,8 +319,15 @@ async def _aggregate_from_index(
     extracted_fields: list[str],
     make_accumulator: Any,
     timeout: int,
+    pushdown_arguments: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None, str | None]:
-    """Try the capture index. Returns (accumulator, stream result, reason it was not used)."""
+    """Try the capture index. Returns (accumulator, stream result, reason it was not used).
+
+    With ``pushdown_arguments`` the grouping runs in DuckDB when
+    :mod:`wireshark_mcp.index.pushdown` can prove the answer is unchanged;
+    otherwise matching rows stream into the accumulator as before.
+    """
+    from ..index import pushdown
     from ..index.filter_sql import UnsupportedFilter, translate_filter
 
     handle = await asyncio.to_thread(index_store.lookup, pcap_file)
@@ -324,6 +340,28 @@ async def _aggregate_from_index(
         translated = translate_filter(display_filter, set(handle.columns), set(handle.meta.get("protocols", [])))
     except UnsupportedFilter as exc:
         return None, None, f"filter not translatable: {exc}"
+    if pushdown_arguments is not None:
+        try:
+            pushed = await asyncio.to_thread(
+                pushdown.aggregate,
+                index_store,
+                handle,
+                translated.sql,
+                translated.params,
+                max_rows=INDEX_AGGREGATE_SCAN_LIMIT,
+                timeout=timeout,
+                **pushdown_arguments,
+            )
+        except Exception as exc:  # pushdown is an optimisation; the streaming path decides
+            logger.warning("Index pushdown failed, streaming rows instead: %s", exc)
+            pushed = None
+        if pushed is not None:
+            groups, matched, skipped, warnings = pushed
+            return (
+                _PushedDownResult(groups, skipped, warnings),
+                {"success": True, "rows": matched, "pushdown": True},
+                None,
+            )
     accumulator = make_accumulator()
     try:
         streamed = await asyncio.to_thread(
@@ -438,11 +476,22 @@ def register_stats_tools(mcp: MCPServer, client: TSharkClient, index_store: "Cap
         source = "tshark"
         effective_limit = scan_limit
         index_unused: str | None = None
-        accumulator: _AggregateAccumulator | None = None
+        accumulator: _AggregateAccumulator | _PushedDownResult | None = None
         streamed: dict[str, Any] | None = None
         if index_store is not None and client._validate_file(pcap_file)["success"]:
             accumulator, streamed, index_unused = await _aggregate_from_index(
-                index_store, pcap_file, display_filter, extracted_fields, make_accumulator, scan_timeout
+                index_store,
+                pcap_file,
+                display_filter,
+                extracted_fields,
+                make_accumulator,
+                scan_timeout,
+                {
+                    "group_fields": group_fields,
+                    "distinct_fields": distinct_fields,
+                    "numeric_operations": numeric_operations,
+                    "time_bucket_seconds": time_bucket_seconds,
+                },
             )
             if streamed is not None:
                 source = "index"
@@ -548,6 +597,7 @@ def register_stats_tools(mcp: MCPServer, client: TSharkClient, index_store: "Cap
                 "scanned": matched_packets,
                 "limit": effective_limit,
                 "source": source,
+                **({"pushdown": bool(streamed.get("pushdown"))} if source == "index" else {}),
                 **({"index_unused": index_unused} if index_unused else {}),
             },
             stderr=streamed.get("stderr"),

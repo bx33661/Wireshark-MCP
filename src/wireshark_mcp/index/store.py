@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Any
 from .schema import INDEX_FIELDS, SCHEMA_VERSION
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from ..tshark.client import TSharkClient
 
@@ -73,6 +73,10 @@ def resolve_index_timeout() -> int:
 
 def _quote_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
+
+
+def _sql_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
 
 
 def _sandbox_config() -> dict[str, Any]:
@@ -110,6 +114,7 @@ class IndexHandle:
     columns: frozenset[str]
     packets: int
     meta: dict[str, Any]
+    label: str = ""
 
 
 class CaptureIndexError(Exception):
@@ -185,9 +190,7 @@ WHERE transport IS NOT NULL AND stream IS NOT NULL
 GROUP BY transport, stream
 """
 
-_PKT_VIEW_SQL = """
-CREATE VIEW pkt AS
-SELECT
+_PKT_TYPED_COLUMNS = """
     TRY_CAST("frame.number" AS BIGINT) AS frame,
     TRY_CAST("frame.time_epoch" AS DOUBLE) AS epoch,
     TRY_CAST("frame.time_relative" AS DOUBLE) AS rel,
@@ -199,9 +202,15 @@ SELECT
     TRY_CAST(split_part(COALESCE(NULLIF("tcp.stream", ''), "udp.stream"), ',', 1) AS BIGINT) AS stream,
     TRY_CAST(split_part(COALESCE(NULLIF("tcp.srcport", ''), "udp.srcport"), ',', 1) AS INTEGER) AS sport,
     TRY_CAST(split_part(COALESCE(NULLIF("tcp.dstport", ''), "udp.dstport"), ',', 1) AS INTEGER) AS dport,
-    *
-FROM packets
 """
+
+# Stored in every index file (schema version 1).
+_PKT_VIEW_SQL = f"CREATE VIEW pkt AS SELECT {_PKT_TYPED_COLUMNS} * FROM packets"  # nosec B608
+
+# The query-time view over the stacked captures puts capture_id first.
+_PKT_TEMP_VIEW_SQL = (
+    f"CREATE TEMP VIEW pkt AS SELECT capture_id, {_PKT_TYPED_COLUMNS} * EXCLUDE (capture_id) FROM packets"  # nosec B608
+)
 
 
 def _load_index(tsv: Path, db_path: Path, fields: list[str], meta: dict[str, Any]) -> dict[str, Any]:
@@ -256,6 +265,8 @@ class CaptureIndexStore:
         self._index_dir = index_dir or resolve_index_dir()
         self._build_timeout = build_timeout or resolve_index_timeout()
         self._locks: dict[Path, asyncio.Lock] = {}
+        self._version: str | None = None
+        self._spill_dirs: dict[int, Path] = {}
 
     @property
     def index_dir(self) -> Path:
@@ -317,6 +328,7 @@ class CaptureIndexStore:
             columns=frozenset(meta.get("fields", [])),
             packets=int(meta.get("packets", 0)),
             meta=meta,
+            label=capture.name,
         )
 
     # ── build ────────────────────────────────────────────────────────────
@@ -400,6 +412,12 @@ class CaptureIndexStore:
         finally:
             shutil.rmtree(work, ignore_errors=True)
 
+    async def tshark_version(self) -> str:
+        """The running tshark's version line, read once per store."""
+        if self._version is None:
+            self._version = await self._tshark_version()
+        return self._version
+
     async def _tshark_version(self) -> str:
         raw = await self._client._run_command([self._client.tshark_path, "--version"], limit_lines=1)
         ok, output = self._client._unwrap(raw)
@@ -413,10 +431,56 @@ class CaptureIndexStore:
         return True
 
     # ── queries ──────────────────────────────────────────────────────────
-    def _connect(self, handle: IndexHandle) -> Any:
+    def _connect(self, handles: Sequence[IndexHandle], *, sandbox: bool = True, ordered: bool = True) -> Any:
+        """One sandboxed connection with ``packets``/``pkt``/``flows``/``captures`` over every handle.
+
+        Each index file is attached read-only, the views are stacked with a
+        ``capture_id`` column, and only then is external access switched off and
+        the configuration locked, so a query cannot attach or read anything else.
+        """
         import duckdb
 
-        return duckdb.connect(str(handle.path), read_only=True, config=_sandbox_config())
+        config = _sandbox_config()
+        config.pop("enable_external_access")
+        config.pop("lock_configuration")
+        connection = duckdb.connect(":memory:", config=config)
+        # Large captures spill past the memory limit into a private directory, removed on close.
+        spill = self._index_dir / ".spill" / uuid.uuid4().hex
+        spill.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self._spill_dirs[id(connection)] = spill
+        try:
+            connection.execute(f"SET temp_directory = {_sql_string(str(spill))}")
+            if not ordered:
+                connection.execute("SET preserve_insertion_order = false")
+            packets, flows, captures = [], [], []
+            for position, handle in enumerate(handles):
+                alias = f"c{position}"
+                connection.execute(f"ATTACH {_sql_string(str(handle.path))} AS {alias} (READ_ONLY)")
+                label = _sql_string(handle.label)
+                packets.append(f"SELECT {label} AS capture_id, * FROM {alias}.packets")  # nosec B608
+                flows.append(f"SELECT {label} AS capture_id, * FROM {alias}.flows")  # nosec B608
+                captures.append((handle.label, str(handle.capture), handle.meta.get("capture_sha256"), handle.packets))
+            connection.execute("CREATE TEMP VIEW packets AS " + " UNION ALL BY NAME ".join(packets))
+            connection.execute("CREATE TEMP VIEW flows AS " + " UNION ALL BY NAME ".join(flows))
+            connection.execute(_PKT_TEMP_VIEW_SQL)
+            connection.execute(
+                "CREATE TEMP TABLE captures (capture_id VARCHAR, capture_path VARCHAR, capture_sha256 VARCHAR, "
+                "packets BIGINT)"
+            )
+            connection.executemany("INSERT INTO captures VALUES (?, ?, ?, ?)", captures)
+            if sandbox:
+                connection.execute("SET enable_external_access = false")
+                connection.execute("SET lock_configuration = true")
+        except Exception:
+            self._close(connection)
+            raise
+        return connection
+
+    def _close(self, connection: Any) -> None:
+        connection.close()
+        spill = self._spill_dirs.pop(id(connection), None)
+        if spill is not None:
+            shutil.rmtree(spill, ignore_errors=True)
 
     @staticmethod
     def _with_deadline(connection: Any, timeout: float) -> threading.Timer:
@@ -424,6 +488,76 @@ class CaptureIndexStore:
         timer.daemon = True
         timer.start()
         return timer
+
+    def fetch(
+        self, handles: Sequence[IndexHandle], sql: str, params: list[Any] | None = None, *, timeout: float
+    ) -> list[tuple[Any, ...]]:
+        """Run server-built SQL over ``handles`` and return every row."""
+        import duckdb
+
+        connection = self._connect(handles, ordered=False)
+        timer = self._with_deadline(connection, timeout)
+        try:
+            return list(connection.execute(sql, params or []).fetchall())
+        except duckdb.Error as exc:
+            if timer.finished.is_set():
+                raise CaptureIndexError("TimeoutError", f"Index query timed out after {timeout} seconds") from exc
+            raise CaptureIndexError("QueryError", "Index query failed", str(exc)) from exc
+        finally:
+            timer.cancel()
+            self._close(connection)
+
+    def export_parquet(
+        self, handles: Sequence[IndexHandle], where_sql: str, params: list[Any], name: str, *, timeout: float
+    ) -> dict[str, Any]:
+        """Write ``pkt``, ``flows`` and ``captures`` as Parquet under ``<index dir>/exports/<name>``.
+
+        Only server-built SQL runs here: this connection keeps file access so
+        COPY can write, which is why it never sees caller SQL.
+        """
+        exports = self._index_dir / "exports"
+        exports.mkdir(parents=True, exist_ok=True, mode=0o700)
+        final = exports / name
+        work = exports / f".{name}-{uuid.uuid4().hex}"
+        work.mkdir(mode=0o700)
+        connection = self._connect(handles, sandbox=False)
+        timer = self._with_deadline(connection, timeout)
+        try:
+            selected = f"SELECT * FROM pkt WHERE {where_sql}"  # nosec B608
+            # Insertion order is preserved, so packets come out by capture, then frame, without a sort.
+            statements = {
+                "packets": (selected, params),
+                "flows": (
+                    "SELECT f.* FROM flows f SEMI JOIN (SELECT DISTINCT capture_id, transport, stream "  # nosec B608
+                    f"FROM ({selected})) s ON f.capture_id = s.capture_id AND f.transport = s.transport "
+                    "AND f.stream = s.stream ORDER BY f.capture_id, f.transport, f.stream",
+                    params,
+                ),
+                "captures": ("SELECT * FROM captures ORDER BY capture_id", []),
+            }
+            files: dict[str, Any] = {}
+            for table, (select, arguments) in statements.items():
+                target = work / f"{table}.parquet"
+                written = connection.execute(
+                    f"COPY ({select}) TO {_sql_string(str(target))} (FORMAT parquet, COMPRESSION zstd)", arguments
+                ).fetchone()
+                files[table] = {
+                    "path": str(final / target.name),
+                    "rows": int(written[0]) if written else 0,
+                    "bytes": target.stat().st_size,
+                }
+        except Exception as exc:
+            shutil.rmtree(work, ignore_errors=True)
+            if timer.finished.is_set():
+                raise CaptureIndexError("TimeoutError", f"Parquet export timed out after {timeout} seconds") from exc
+            raise
+        finally:
+            timer.cancel()
+            self._close(connection)
+        if final.exists():
+            shutil.rmtree(final)
+        os.replace(work, final)
+        return {"directory": str(final), "files": files}
 
     def stream_rows(
         self,
@@ -440,7 +574,7 @@ class CaptureIndexStore:
         select = ", ".join(f"COALESCE({_quote_ident(field)}, '')" for field in fields)
         # Identifiers are quoted and where_sql comes from filter_sql with bound params.
         sql = f"SELECT {select} FROM packets WHERE {where_sql}"  # nosec B608
-        connection = self._connect(handle)
+        connection = self._connect([handle])
         timer = self._with_deadline(connection, timeout)
         rows = 0
         try:
@@ -468,12 +602,12 @@ class CaptureIndexStore:
             raise
         finally:
             timer.cancel()
-            connection.close()
+            self._close(connection)
         return {"success": True, "rows": rows}
 
-    def run_sql(self, handle: IndexHandle, sql: str, *, max_rows: int, timeout: float) -> dict[str, Any]:
+    def run_sql(self, handles: Sequence[IndexHandle], sql: str, *, max_rows: int, timeout: float) -> dict[str, Any]:
         """Run one read-only SELECT inside the sandbox."""
-        connection = self._connect(handle)
+        connection = self._connect(handles)
         timer: threading.Timer | None = None
         try:
             import duckdb
@@ -506,4 +640,4 @@ class CaptureIndexStore:
         finally:
             if timer is not None:
                 timer.cancel()
-            connection.close()
+            self._close(connection)

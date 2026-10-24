@@ -9,7 +9,8 @@ benchmark_analysis_paths.py) this measures:
 * the indexed path for the same scenarios,
 
 and checks every answer against the facts recorded while the capture was
-written. The tshark path runs with a raised scan policy so 1 GB captures finish
+written. It also times the 4.0 index features on each tier: timeline, a diff
+of the capture's two halves, Parquet export, and extract_fields. The tshark path runs with a raised scan policy so 1 GB captures finish
 instead of timing out; the default-policy result is already published in
 docs/benchmarks/engine-2026-10-17-1gb-default-policy.json.
 
@@ -85,16 +86,74 @@ async def _time_scenarios(
                 timings.append((time.perf_counter() - started) * 1000)
                 break
             timings.append((time.perf_counter() - started) * 1000)
-        source = recorder.last.get("coverage", {}).get("source") if error is None else None
+        coverage = recorder.last.get("coverage", {}) if error is None else {}
+        source = coverage.get("source")
         results[scenario_id] = {
             "passed": error is None and observed == facts[scenario_id] and source == expect_source,
             "source": source,
+            **({"pushdown": coverage.get("pushdown")} if source == "index" else {}),
             "observed": observed,
             "expected": facts[scenario_id],
             "error": error,
             "elapsed_ms": [round(value, 1) for value in timings],
             "median_ms": round(statistics.median(timings), 1),
         }
+    return results
+
+
+async def _time_features(server: Any, capture: Path, facts: dict[str, Any]) -> dict[str, Any]:
+    """One timed call per 4.0 index feature; each must succeed and answer from the index."""
+    count = await server.call_tool(
+        "wireshark_index",
+        {"pcap_file": str(capture), "action": "query", "sql": "SELECT max(rel) FROM pkt"},
+    )
+    duration = json.loads(count.content[0].text)["data"]["rows"][0][0]
+    half = f"{duration / 2:.6f}"
+    calls = {
+        "timeline": ("wireshark_index", {"action": "timeline"}),
+        "diff_halves": (
+            "wireshark_index",
+            {
+                "action": "diff",
+                "display_filter": f"frame.time_relative < {half}",
+                "compare_filter": f"frame.time_relative >= {half}",
+            },
+        ),
+        "export_parquet": ("wireshark_index", {"action": "export"}),
+        "extract_fields": (
+            "wireshark_extract_fields",
+            {"fields": "frame.number,ip.src,dns.qry.name", "display_filter": "dns.flags.response == 0", "limit": 100},
+        ),
+    }
+    results: dict[str, Any] = {}
+    for name, (tool, arguments) in calls.items():
+        started = time.perf_counter()
+        try:
+            raw = await server.call_tool(tool, {"pcap_file": str(capture), **arguments})
+            payload = json.loads(raw.content[0].text)
+        except Exception as exc:  # recorded, not raised: one failing feature must not lose the run
+            payload = {"success": False, "error": str(exc)[:300]}
+        elapsed = (time.perf_counter() - started) * 1000
+        entry: dict[str, Any] = {
+            "passed": bool(payload.get("success")) and payload.get("coverage", {}).get("source") == "index",
+            "elapsed_ms": round(elapsed, 1),
+        }
+        data = payload.get("data")
+        if name == "timeline" and isinstance(data, dict):
+            entry["selected_packets"] = data.get("selected_packets")
+            entry["passed"] = entry["passed"] and data.get("selected_packets") == facts["packet_count"]["packet_count"]
+        elif name == "diff_halves" and isinstance(data, dict):
+            entry["selected_packets"] = data.get("selected_packets")
+        elif name == "export_parquet" and isinstance(data, dict):
+            entry["files"] = {
+                key: {"rows": value["rows"], "bytes": value["bytes"]} for key, value in data["files"].items()
+            }
+            entry["passed"] = (
+                entry["passed"] and data["files"]["packets"]["rows"] == facts["packet_count"]["packet_count"]
+            )
+        elif not payload.get("success"):
+            entry["error"] = str(payload.get("error"))[:300]
+        results[name] = entry
     return results
 
 
@@ -115,6 +174,7 @@ async def _run_tier(size_mb: int, work_dir: Path, tshark_iterations: int, index_
     if not built.get("success"):
         raise RuntimeError(f"index build failed: {built.get('error')}")
     index_path = await _time_scenarios(server, capture, facts, index_iterations, "index")
+    features = await _time_features(server, capture, facts)
     index = built["data"]["index"]
 
     tshark_total = sum(item["median_ms"] for item in tshark_path.values())
@@ -134,12 +194,17 @@ async def _run_tier(size_mb: int, work_dir: Path, tshark_iterations: int, index_
             "flows": index.get("flows"),
         },
         "index_path": index_path,
+        "index_features": features,
         "summary": {
-            "all_passed": all(item["passed"] for item in (*tshark_path.values(), *index_path.values())),
+            "tshark_all_passed": all(item["passed"] for item in tshark_path.values()),
+            "index_all_passed": all(item["passed"] for item in (*index_path.values(), *features.values())),
             "tshark_median_total_ms": round(tshark_total, 1),
             "index_median_total_ms": round(index_total, 1),
             "speedup": round(tshark_total / index_total, 1) if index_total else None,
             "break_even_questions": round(build_ms / per_question_saving, 2) if per_question_saving > 0 else None,
+            "note": None
+            if all(item["passed"] for item in tshark_path.values())
+            else "The tshark path failed at least one scenario (see errors); speed-up compares failed calls.",
         },
     }
 
@@ -168,7 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     import duckdb
 
     report: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "benchmark": "capture-index-vs-tshark",
         "scope": "wireshark_aggregate latency and answer accuracy; not Agent accuracy or tokens.",
         "environment": {
@@ -187,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
             _run_tier(size, args.work_dir, args.tshark_iterations, args.index_iterations)
         )
         print(json.dumps(report["tiers"][f"{size}MB"]["summary"]), file=sys.stderr, flush=True)
+        if args.output:  # keep finished tiers even if a later one fails
+            args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     report["peak_rss_bytes"] = _peak_rss()
 
     text = json.dumps(report, indent=2, ensure_ascii=False)
@@ -194,7 +261,8 @@ def main(argv: list[str] | None = None) -> int:
         args.output.write_text(text + "\n", encoding="utf-8")
     else:
         print(text)
-    return 0 if all(tier["summary"]["all_passed"] for tier in report["tiers"].values()) else 1
+    # The tshark path is expected to fail where captures outgrow its scan policy; the index must not.
+    return 0 if all(tier["summary"]["index_all_passed"] for tier in report["tiers"].values()) else 1
 
 
 if __name__ == "__main__":

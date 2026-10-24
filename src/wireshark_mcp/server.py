@@ -76,7 +76,7 @@ def _build_server(*, host: str, port: int, log_level: LogLevelName, profile: str
     index_store = CaptureIndexStore(client)
     register_stats_tools(mcp, client, index_store)
     register_index_tools(mcp, client, index_store)
-    register_extract_tools(mcp, client)
+    register_extract_tools(mcp, client, index_store)
     register_agent_tools(mcp, client)
     register_advanced_tools(mcp, client)
     register_case_tools(mcp, client)

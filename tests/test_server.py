@@ -429,7 +429,7 @@ def test_streamable_http_latest_protocol_discovery_and_tool_execution() -> None:
         assert discovery["id"] == 1
         assert discovery["result"]["supportedVersions"] == [LATEST_PROTOCOL_VERSION]
         assert discovery["result"]["resultType"] == "complete"
-        assert discovery["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"] == "3.2.0"
+        assert discovery["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"] == "4.0.0"
 
         # 2. List tools without a session.
         res_tools = client.post(

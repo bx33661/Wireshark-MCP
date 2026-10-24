@@ -12,6 +12,7 @@ import pytest
 from conftest import call_tool_text
 from mcp.server import MCPServer
 
+from wireshark_mcp.index.compare import available_kinds
 from wireshark_mcp.index.filter_sql import UnsupportedFilter, translate_filter
 from wireshark_mcp.index.schema import INDEX_FIELDS
 from wireshark_mcp.index.store import CaptureIndexStore
@@ -136,6 +137,33 @@ def merged_capture(pcap_fixtures: dict[str, str], tmp_path: Path) -> str:
     return str(target)
 
 
+@pytest.fixture
+def layered_capture(tmp_path: Path) -> str:
+    """IP-in-IP and QinQ frames, so fields repeat within a packet (comma-joined values)."""
+    import struct
+
+    from fixtures.generate_pcaps import (
+        make_ethernet_frame,
+        make_ipv4_packet,
+        make_pcap_header,
+        make_pcap_packet,
+        make_tcp_packet,
+        make_udp_packet,
+    )
+
+    data = bytearray(make_pcap_header())
+    inner = make_tcp_packet("10.9.9.1", "10.9.9.2", 40000, 443, flags=0x02)
+    data.extend(make_pcap_packet(make_ethernet_frame(make_ipv4_packet("172.16.0.1", "172.16.0.2", 4, inner)), sec=10))
+    udp = make_udp_packet("10.9.9.3", "10.9.9.4", 5000, 5001, b"payload")
+    qinq = struct.pack("!HH", 100, 0x8100) + struct.pack("!HH", 200, 0x0800) + udp
+    data.extend(make_pcap_packet(make_ethernet_frame(qinq, ethertype=0x8100), sec=11, usec=500000))
+    plain = make_tcp_packet("10.9.9.1", "10.9.9.2", 40001, 443, flags=0x12)
+    data.extend(make_pcap_packet(make_ethernet_frame(plain), sec=12))
+    target = tmp_path / "layered.pcap"
+    target.write_bytes(data)
+    return str(target)
+
+
 def _servers(tmp_path: Path) -> tuple[MCPServer, MCPServer, CaptureIndexStore]:
     client = TSharkClient()
     store = CaptureIndexStore(client, index_dir=tmp_path / "index")
@@ -170,6 +198,17 @@ AGGREGATE_CASES: list[dict[str, Any]] = [
         "sort_numeric": "tcp.len",
         "group_by": "ip.src",
     },
+    {"group_by": "ip.src", "distinct": "tcp.flags,ip.ttl", "sum_fields": "tcp.len,ip.ttl", "min_fields": "ip.ttl"},
+    {"time_bucket_seconds": 0.1, "group_by": "ip.proto", "distinct": "ip.dst", "min_fields": "frame.len"},
+    {"time_bucket_seconds": 2.5, "group_by": "dns.qry.name", "distinct": "dns.a", "avg_fields": "udp.length"},
+    {"display_filter": "http", "distinct": "http.request.uri,http.host,frame.protocols"},
+    {"distinct": "frame.protocols,eth.src", "sum_fields": "ip.ttl", "max_fields": "ip.len"},
+]
+
+# The SQL pushdown must refuse these and stream rows into the accumulator instead.
+STREAMED_CASES: list[dict[str, Any]] = [
+    {"group_by": "ip.src", "max_fields": "tcp.flags"},  # hex text: float() and SQL disagree on parsing
+    {"group_by": "ip.src", "sum_fields": "frame.time_relative"},  # fractional sums depend on order
 ]
 
 
@@ -188,6 +227,55 @@ async def test_indexed_aggregate_matches_tshark(merged_capture: str, tmp_path: P
     assert from_index["success"] is True, from_index
     assert from_index["coverage"]["source"] == "index", from_index["coverage"]
     assert from_tshark["coverage"]["source"] == "tshark"
+    assert from_index["coverage"]["pushdown"] is True, from_index["coverage"]
+    assert from_index["data"] == from_tshark["data"]
+    assert from_index.get("warnings") == from_tshark.get("warnings")
+
+
+@needs_tshark
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("arguments", "warning"),
+    [
+        ({"group_by": "ip.proto", "sum_fields": "ip.ttl", "max_fields": "ip.len"}, "ip.ttl"),
+        ({"distinct": "vlan.id", "group_by": "eth.src"}, "comma delimiters"),
+        ({"group_by": "ip.src", "distinct": "ip.dst,tcp.dstport", "time_bucket_seconds": 0.5}, None),
+    ],
+)
+async def test_pushdown_matches_tshark_on_repeated_fields(
+    layered_capture: str, tmp_path: Path, arguments: dict[str, Any], warning: str | None
+) -> None:
+    indexed, plain, _ = _servers(tmp_path)
+    await _call(indexed, "wireshark_index", {"pcap_file": layered_capture})
+
+    call = {"pcap_file": layered_capture, **arguments}
+    from_index = await _call(indexed, "wireshark_aggregate", call)
+    from_tshark = await _call(plain, "wireshark_aggregate", call)
+
+    assert from_index["coverage"]["pushdown"] is True, from_index["coverage"]
+    assert from_index["data"] == from_tshark["data"]
+    assert from_index.get("warnings") == from_tshark.get("warnings")
+    if warning:
+        assert any(warning in text for text in from_index["warnings"]), from_index
+    else:
+        assert not from_index.get("warnings")
+
+
+@needs_tshark
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments", STREAMED_CASES)
+async def test_pushdown_gates_stream_rows_and_still_match(
+    merged_capture: str, tmp_path: Path, arguments: dict[str, Any]
+) -> None:
+    indexed, plain, _ = _servers(tmp_path)
+    await _call(indexed, "wireshark_index", {"pcap_file": merged_capture})
+
+    call = {"pcap_file": merged_capture, **arguments}
+    from_index = await _call(indexed, "wireshark_aggregate", call)
+    from_tshark = await _call(plain, "wireshark_aggregate", call)
+
+    assert from_index["coverage"]["source"] == "index"
+    assert from_index["coverage"]["pushdown"] is False
     assert from_index["data"] == from_tshark["data"]
     assert from_index.get("warnings") == from_tshark.get("warnings")
 
@@ -338,3 +426,353 @@ async def test_missing_duckdb_reports_the_install_hint(monkeypatch: pytest.Monke
     assert result["success"] is False
     assert result["error"]["type"] == "DependencyMissing"
     assert "wireshark-mcp[index]" in result["error"]["message"]
+
+
+@needs_tshark
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("ceiling", "arguments"),
+    [
+        ("MAX_AGGREGATE_GROUPS", {"group_by": "ip.src"}),
+        ("MAX_DISTINCT_PER_GROUP", {"group_by": "ip.proto", "distinct": "ip.dst"}),
+        ("MAX_TOTAL_DISTINCT_ITEMS", {"group_by": "ip.proto", "distinct": "ip.dst"}),
+    ],
+)
+async def test_pushdown_leaves_ceilings_to_the_accumulator(
+    merged_capture: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ceiling: str, arguments: dict[str, Any]
+) -> None:
+    """Which rows survive a ceiling depends on arrival order, so pushdown must not decide it."""
+    import wireshark_mcp.index.pushdown as pushdown
+
+    monkeypatch.setattr(pushdown, ceiling, 2)
+    indexed, _, _ = _servers(tmp_path)
+    await _call(indexed, "wireshark_index", {"pcap_file": merged_capture})
+    result = await _call(indexed, "wireshark_aggregate", {"pcap_file": merged_capture, **arguments})
+    assert result["coverage"]["source"] == "index"
+    assert result["coverage"]["pushdown"] is False
+
+
+# ── collections, timeline, diff, export ───────────────────────────────────
+
+
+@needs_tshark
+@pytest.mark.asyncio
+async def test_collection_query_labels_each_capture(pcap_fixtures: dict[str, str], tmp_path: Path) -> None:
+    indexed, _, _ = _servers(tmp_path)
+    first, second = pcap_fixtures["credentials"], pcap_fixtures["dns_tunnel"]
+    copy = tmp_path / "copy" / Path(first).name
+    copy.parent.mkdir()
+    shutil.copy(first, copy)
+
+    missing = await _call(
+        indexed, "wireshark_index", {"pcap_file": first, "more_files": second, "action": "query", "sql": "SELECT 1"}
+    )
+    assert missing["error"]["type"] == "IndexMissing"
+    assert second in missing["error"]["message"]
+
+    files = f"{second}, {copy}, {first}"  # the duplicate of pcap_file is ignored
+    built = await _call(indexed, "wireshark_index", {"pcap_file": first, "more_files": files})
+    assert built["success"] is True, built
+    assert len(built["data"]["captures"]) == 3
+
+    counts = await _call(
+        indexed,
+        "wireshark_index",
+        {
+            "pcap_file": first,
+            "more_files": files,
+            "action": "query",
+            "sql": "SELECT capture_id, count(*) AS n, min(frame) AS first FROM pkt GROUP BY ALL ORDER BY capture_id",
+        },
+    )
+    assert counts["success"] is True, counts
+    name = Path(first).name
+    assert counts["data"]["rows"] == [
+        [Path(second).name, 27, 1],
+        [name, 3, 1],
+        [f"{name}~2", 3, 1],
+    ]
+    assert [item["capture_id"] for item in counts["coverage"]["captures"]] == [name, Path(second).name, f"{name}~2"]
+
+    flows = await _call(
+        indexed,
+        "wireshark_index",
+        {
+            "pcap_file": first,
+            "more_files": files,
+            "action": "query",
+            "sql": "SELECT count(DISTINCT capture_id) FROM flows JOIN captures USING (capture_id)",
+        },
+    )
+    assert flows["data"]["rows"] == [[3]]
+
+    status = await _call(indexed, "wireshark_index", {"pcap_file": first, "more_files": second, "action": "status"})
+    assert [item["state"] for item in status["data"]["captures"]] == ["fresh", "fresh"]
+
+
+def _rows(data: dict[str, Any]) -> list[dict[str, Any]]:
+    return [dict(zip(data["columns"], item, strict=True)) for item in data["items"]]
+
+
+@needs_tshark
+@pytest.mark.asyncio
+async def test_timeline_reports_first_and_last_frames(merged_capture: str, tmp_path: Path) -> None:
+    indexed, plain, _ = _servers(tmp_path)
+    await _call(indexed, "wireshark_index", {"pcap_file": merged_capture})
+
+    result = await _call(indexed, "wireshark_index", {"pcap_file": merged_capture, "action": "timeline"})
+    assert result["success"] is True, result
+    data = result["data"]
+    events = _rows(data)
+    assert data["kinds"]["dns_name"] == 27
+    assert data["truncated"] is True and len(events) == data["items_returned"] <= 60
+    assert sum(1 for e in events if e["kind"] == "dns_name") <= 20
+    order = [(e["first_time"], e["first_frame"], e["kind"], e["value"]) for e in events]
+    assert order == sorted(order)
+    assert "first_capture_id" not in data["columns"]
+
+    # Every DNS name's first/last frame and packet count must agree with tshark.
+    expected = await _call(
+        plain,
+        "wireshark_aggregate",
+        {
+            "pcap_file": merged_capture,
+            "display_filter": "dns",
+            "group_by": "dns.qry.name",
+            "top_k": 200,
+            "min_fields": "frame.number",
+            "max_fields": "frame.number",
+        },
+    )
+    by_name = {
+        group["key"]["dns.qry.name"]: (
+            group["count"],
+            int(group["numeric"]["frame.number"]["min"]),
+            int(group["numeric"]["frame.number"]["max"]),
+        )
+        for group in expected["data"]["groups"]
+    }
+    window = await _call(
+        indexed,
+        "wireshark_index",
+        {"pcap_file": merged_capture, "action": "timeline", "display_filter": "dns"},
+    )
+    assert window["data"]["selected_packets"] == sum(count for count, _, _ in by_name.values())
+    assert set(window["data"]["kinds"]) >= {"host", "conversation", "protocol", "dns_name"}
+    assert "http_host" not in window["data"]["kinds"]
+    dns = {
+        e["value"]: (e["packets"], e["first_frame"], e["last_frame"])
+        for e in _rows(window["data"])
+        if e["kind"] == "dns_name"
+    }
+    assert len(dns) == 20
+    assert dns == {name: by_name[name] for name in dns}
+    earliest = sorted(by_name.items(), key=lambda item: item[1][1])[:20]
+    assert set(dns) == {name for name, _ in earliest}
+
+    refused = await _call(
+        indexed,
+        "wireshark_index",
+        {"pcap_file": merged_capture, "action": "timeline", "display_filter": "ip.src == 10.0.0.0/8"},
+    )
+    assert refused["error"]["type"] == "InvalidParameter"
+
+
+@needs_tshark
+@pytest.mark.asyncio
+async def test_timeline_over_a_collection_names_the_capture(pcap_fixtures: dict[str, str], tmp_path: Path) -> None:
+    indexed, _, _ = _servers(tmp_path)
+    files = {"pcap_file": pcap_fixtures["credentials"], "more_files": pcap_fixtures["dns_tunnel"]}
+    await _call(indexed, "wireshark_index", files)
+    result = await _call(indexed, "wireshark_index", {**files, "action": "timeline", "display_filter": "udp"})
+    events = _rows(result["data"])
+    assert result["data"]["columns"][-2:] == ["first_capture_id", "last_capture_id"]
+    assert {e["first_capture_id"] for e in events} == {"dns_tunnel_candidate.pcap"}
+
+
+@needs_tshark
+@pytest.mark.asyncio
+async def test_diff_returns_only_differences(
+    pcap_fixtures: dict[str, str], merged_capture: str, tmp_path: Path
+) -> None:
+    indexed, _, _ = _servers(tmp_path)
+    baseline, compare = pcap_fixtures["credentials"], merged_capture
+    await _call(indexed, "wireshark_index", {"pcap_file": baseline, "more_files": compare})
+
+    result = await _call(indexed, "wireshark_index", {"pcap_file": baseline, "more_files": compare, "action": "diff"})
+    assert result["success"] is True, result
+    data = result["data"]
+    rows = _rows(data)
+    assert data["baseline"]["capture_id"] == Path(baseline).name
+    assert data["compare"]["capture_id"] == "merged.pcap"
+    # merged.pcap contains the baseline capture, so nothing is gone and the DNS tunnel is new.
+    assert {row["change"] for row in rows} == {"new"}
+    assert data["summary"]["dns_name"]["new"] == 27
+    assert sum(1 for row in rows if row["kind"] == "dns_name") == 10
+    assert data["truncated"] is True
+    assert data["summary"]["host"]["common"] == data["summary"]["host"]["baseline"]
+    new_hosts = {row["value"] for row in rows if row["kind"] == "host"}
+    assert "8.8.8.8" in new_hosts and "192.168.1.10" not in new_hosts
+    udp_only = await _call(
+        indexed,
+        "wireshark_index",
+        {"pcap_file": baseline, "more_files": compare, "action": "diff", "compare_filter": "udp"},
+    )
+    tunnel = next(row for row in _rows(udp_only["data"]) if row["value"] == "udp 192.168.1.20 -> 8.8.8.8:53")
+    assert (tunnel["change"], tunnel["packets"], tunnel["first_frame"]) == (
+        "new",
+        27,
+        29,
+    )  # tshark -Y "udp" puts the first query at frame 29
+    kinds_in_order = [row["kind"] for row in rows]
+    assert kinds_in_order == sorted(kinds_in_order, key=available_kinds(COLUMNS).index)
+
+    windows = await _call(
+        indexed,
+        "wireshark_index",
+        {"pcap_file": compare, "action": "diff", "display_filter": "tcp", "compare_filter": "udp"},
+    )
+    assert windows["success"] is True, windows
+    assert windows["data"]["selected_packets"] == {"baseline": 29, "compare": 27}
+    gone = {row["value"] for row in _rows(windows["data"]) if row["change"] == "gone" and row["kind"] == "protocol"}
+    assert {"tcp", "http"} <= gone
+    changes = [row["change"] for row in _rows(windows["data"])]
+    assert changes == sorted(changes, key=["new", "gone"].index)
+
+    same = await _call(indexed, "wireshark_index", {"pcap_file": compare, "action": "diff"})
+    assert same["error"]["type"] == "InvalidParameter"
+
+
+@needs_tshark
+@pytest.mark.asyncio
+async def test_index_views_fit_the_default_result_cap(
+    pcap_fixtures: dict[str, str], merged_capture: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Through the real server the result cap must trim items, never empty the payload."""
+    from wireshark_mcp.server import _build_server
+
+    monkeypatch.setenv("WIRESHARK_MCP_INDEX_DIR", str(tmp_path / "index"))
+    server = _build_server(host="127.0.0.1", port=8080, log_level="ERROR")
+    files = {"pcap_file": pcap_fixtures["credentials"], "more_files": merged_capture}
+    await _call(server, "wireshark_index", files)
+    for arguments in ({"action": "timeline"}, {"action": "diff"}):
+        result = await _call(server, "wireshark_index", {**files, **arguments})
+        assert result["success"] is True
+        assert result["data"]["items"], result
+        assert result["data"]["summary" if arguments["action"] == "diff" else "kinds"]
+
+
+@needs_tshark
+@pytest.mark.asyncio
+async def test_export_writes_parquet_into_the_index_directory(
+    pcap_fixtures: dict[str, str], merged_capture: str, tmp_path: Path
+) -> None:
+    indexed, _, store = _servers(tmp_path)
+    await _call(indexed, "wireshark_index", {"pcap_file": merged_capture, "more_files": pcap_fixtures["credentials"]})
+
+    result = await _call(
+        indexed,
+        "wireshark_index",
+        {
+            "pcap_file": merged_capture,
+            "more_files": pcap_fixtures["credentials"],
+            "action": "export",
+            "display_filter": "tcp",
+        },
+    )
+    assert result["success"] is True, result
+    files = result["data"]["files"]
+    directory = Path(result["data"]["directory"])
+    assert directory.parent == store.index_dir / "exports"
+    packets = duckdb.sql(f"SELECT capture_id, count(*) FROM '{files['packets']['path']}' GROUP BY ALL ORDER BY 1")
+    assert packets.fetchall() == [("merged.pcap", 29), ("plaintext_credentials.pcap", 3)]
+    assert files["packets"]["rows"] == 32
+    order = duckdb.sql(f"SELECT capture_id, frame FROM '{files['packets']['path']}'").fetchall()
+    assert order == sorted(order, key=lambda row: (row[0] != "merged.pcap", row[1]))  # capture order, then frame
+    flows = duckdb.sql(f"SELECT DISTINCT transport FROM '{files['flows']['path']}'").fetchall()
+    assert flows == [("tcp",)]
+    columns = {
+        name for (name,) in duckdb.sql(f"SELECT name FROM parquet_schema('{files['packets']['path']}')").fetchall()
+    }
+    assert {"capture_id", "frame", "epoch", "ip.src", "dns.qry.name"} <= columns
+    captures = duckdb.sql(f"SELECT count(*) FROM '{files['captures']['path']}'").fetchone()
+    assert captures == (2,)
+
+    again = await _call(
+        indexed,
+        "wireshark_index",
+        {
+            "pcap_file": merged_capture,
+            "more_files": pcap_fixtures["credentials"],
+            "action": "export",
+            "display_filter": "tcp",
+        },
+    )
+    assert again["data"]["directory"] == str(directory)
+    assert sorted(path.name for path in directory.parent.iterdir()) == [directory.name]
+
+
+EXTRACT_CASES: list[dict[str, Any]] = [
+    {"fields": "frame.number,ip.src,ip.dst,tcp.dstport"},
+    {"fields": "ip.src,http.user_agent,http.host", "display_filter": "http"},
+    {"fields": "dns.qry.name,dns.a,dns.flags.response", "display_filter": "dns", "limit": 5},
+    {"fields": "dns.qry.name", "display_filter": "dns", "limit": 5, "offset": 5},
+    {"fields": "dns.qry.name", "display_filter": "dns", "limit": 10, "offset": 25},
+    {"fields": "frame.time_epoch,frame.time_relative,frame.len,eth.src,frame.protocols", "limit": 1},
+    {"fields": "tcp.flags,tcp.flags.syn,tcp.flags.ack", "display_filter": "tcp.flags.syn == 1", "limit": 7},
+    {"fields": "ip.src", "display_filter": "ip.src == 203.0.113.250"},
+    {"fields": "ip.src", "limit": 3, "offset": 100},
+]
+
+
+@needs_tshark
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments", EXTRACT_CASES)
+async def test_indexed_extract_fields_matches_tshark(
+    merged_capture: str, layered_capture: str, tmp_path: Path, arguments: dict[str, Any]
+) -> None:
+    from wireshark_mcp.tools.extract import register_extract_tools
+
+    client = TSharkClient()
+    store = CaptureIndexStore(client, index_dir=tmp_path / "index")
+    indexed = MCPServer("indexed")
+    register_index_tools(indexed, client, store)
+    register_extract_tools(indexed, client, store)
+    plain = MCPServer("plain")
+    register_extract_tools(plain, TSharkClient())
+
+    for capture in (merged_capture, layered_capture):
+        await _call(indexed, "wireshark_index", {"pcap_file": capture})
+        call = {"pcap_file": capture, **arguments}
+        from_index = await _call(indexed, "wireshark_extract_fields", call)
+        from_tshark = await _call(plain, "wireshark_extract_fields", call)
+        if capture == merged_capture:  # layered.pcap lacks some filtered protocols, so tshark answers there
+            assert from_index["coverage"]["source"] == "index", from_index
+        assert from_index["data"] == from_tshark["data"]
+        assert from_index.get("truncated") == from_tshark.get("truncated")
+
+
+@needs_tshark
+@pytest.mark.asyncio
+async def test_extract_fields_falls_back_when_the_index_cannot_answer(merged_capture: str, tmp_path: Path) -> None:
+    from wireshark_mcp.tools.extract import register_extract_tools
+
+    client = TSharkClient()
+    store = CaptureIndexStore(client, index_dir=tmp_path / "index")
+    mcp = MCPServer("indexed")
+    register_index_tools(mcp, client, store)
+    register_extract_tools(mcp, client, store)
+    await _call(mcp, "wireshark_index", {"pcap_file": merged_capture})
+
+    for arguments in (
+        {"fields": "ftp.request.command"},  # not indexed
+        {"fields": "ip.src", "display_filter": "ip.src == 10.0.0.0/8"},  # not translatable
+        {"fields": "http.user_agent", "display_filter": "http", "limit": 0},  # unbounded
+    ):
+        result = await _call(mcp, "wireshark_extract_fields", {"pcap_file": merged_capture, **arguments})
+        assert result["success"] is True, result
+        assert "coverage" not in result, arguments
+
+    store._version = "TShark (Wireshark) 0.0.0"  # index built by a different tshark
+    result = await _call(mcp, "wireshark_extract_fields", {"pcap_file": merged_capture, "fields": "ip.src"})
+    assert "coverage" not in result
