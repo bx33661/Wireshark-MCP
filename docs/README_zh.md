@@ -12,12 +12,14 @@
 | 预览、项目级安装、更新、卸载与备份 | [安装生命周期](installation_zh.md) |
 | 作为 Codex / Claude Code 插件安装 | [插件分发](plugin-installation_zh.md) |
 | 手动配置 MCP 客户端 | [手动配置](manual-configuration_zh.md) |
+| 查询可选扩展、环境变量和上限 | [配置参考](configuration_zh.md) |
 | 本机、SSH、WSL 或容器部署 | [部署场景](deployment-scenarios_zh.md) |
 | 将 2.x 部署安全迁移到 3.0 | [3.0 安全迁移](security-hardening-v3_zh.md) |
 | 写出更可靠的流量分析任务 | [提示词示例](prompt-engineering_zh.md) |
 | 计算全量计数与分布 | [聚合指南](aggregation_zh.md) |
 | 理解检测发现并保存调查案卷 | [发现模型与调查案卷](findings-and-cases_zh.md) |
 | 大抓包只解析一次，再用 DuckDB 查询 | [抓包索引](capture-index_zh.md) |
+| 查看支持的操作系统、客户端和 tshark 版本 | [兼容性矩阵](compatibility-matrix.md)（英文） |
 
 ## 维护项目
 
@@ -34,4 +36,4 @@
 | 查看已发布内容与后续计划 | [更新日志](../CHANGELOG.md) · [功能路线图](../ROADMAP_zh.md) |
 | 报告安全问题 | [安全策略](../SECURITY.md) |
 
-`docs/superpowers/` 保存的是历史设计与实施记录，可以帮助理解旧决策，但不代表当前 CLI 或工具面。
+已被取代的发布公告与走查报告保存在 [archive/](archive/README.md)，可以帮助理解旧决策，但不代表当前 CLI 或工具面。原始基准与评测结果在 [benchmarks/](benchmarks/)。

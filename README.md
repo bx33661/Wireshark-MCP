@@ -49,6 +49,14 @@ Claude: [calls wireshark_extract_dns_queries → wireshark_detect_dns_tunnel]
         "Found repeated high-entropy DNS queries consistent with tunneling: ..."
 ```
 
+### New in 4.0
+
+- **Capture index.** With the optional `[index]` extra, `wireshark_index` dissects a capture once into a local DuckDB file. Later `wireshark_aggregate` and `wireshark_extract_fields` calls read it with answers identical to tshark: 408× faster at 1 GB, and at 10 GB it answers questions the tshark path stops on. It also adds read-only SQL, capture sets, first-seen timelines, capture or window diffs and Parquet export. See [Capture index](docs/capture-index.md).
+- **One finding shape.** Every detector returns `data.findings` with a stable id, evidence anchors, a native `tshark` command to re-check it and candidate ATT&CK techniques.
+- **Case files.** `wireshark_case` keeps captures, recorded results, findings and analyst verdicts in a JSON case file, so a long investigation survives a context reset. See [Findings and cases](docs/findings-and-cases.md).
+
+Upgrading from 3.x needs no configuration change. Scripts that parsed the plain-text output of `wireshark_detect_beaconing`, `wireshark_detect_exfiltration`, `wireshark_detect_protocol_anomalies`, `wireshark_detect_arp_spoofing`, `wireshark_yara_scan` or `wireshark_quick_analysis` should read the JSON envelope instead. Full notes: [4.0.0 changelog](changelog/4.0.0.md).
+
 ---
 
 ## Install
@@ -75,7 +83,7 @@ See [plugin distribution](docs/plugin-installation.md) for local installation, o
 
 **Prerequisites:** Python 3.10+ and [Wireshark](https://www.wireshark.org/) with `tshark` on PATH.
 
-Wireshark MCP 3.0 uses the stable MCP Python SDK 2.x line (`mcp>=2.1.1,<3`).
+Wireshark MCP runs on the stable MCP Python SDK 2.x line (`mcp>=2.1.1,<3`).
 
 ```sh
 pip install wireshark-mcp
@@ -90,6 +98,14 @@ wireshark-mcp install --client codex --scope project
 ```
 
 The default scope is `global`. Repeat `--client` or explicitly use `--client all`. Restart the client to load configuration. See the [installation guide](docs/installation.md) for updates, removal, backups and exit codes.
+
+Optional extras add features on top of the base install: `index` (DuckDB capture index for large captures), `geoip` (GeoIP enrichment) and `yara` (YARA scanning), or `all`:
+
+```sh
+pip install 'wireshark-mcp[index]'
+```
+
+The container image and the plugin route ship without extras. Every setting, extra and limit is listed in the [configuration reference](docs/configuration.md).
 
 The project also ships MCP and full TShark CLI analysis skills; see [skill discovery and usage](docs/skills.md).
 
@@ -106,6 +122,15 @@ Analyze capture.pcap using the Wireshark MCP tools.
 Start with wireshark_open_file, then run wireshark_quick_analysis.
 Use wireshark_aggregate for any capture-wide count or distribution.
 Write findings to report.md.
+```
+
+For a large capture, or several related ones, build the index first and keep the investigation in a case file:
+
+```
+Index big.pcapng with wireshark_index, then use wireshark_aggregate and
+wireshark_index action="timeline" to find when 10.0.0.5 first appeared.
+Open a case with wireshark_case, record every detector result you rely on,
+and verify each conclusion with wireshark_get_packet_details.
 ```
 
 ---
@@ -166,7 +191,11 @@ Since 3.0, those tools fail closed until `WIRESHARK_MCP_ALLOWED_DIRS` names exis
 | Topic | Link |
 |-------|------|
 | Documentation index | [docs/README.md](docs/README.md) |
+| Configuration reference (extras, environment variables, limits) | [docs/configuration.md](docs/configuration.md) |
 | Capture-wide aggregation | [docs/aggregation.md](docs/aggregation.md) |
+| Capture index (DuckDB) | [docs/capture-index.md](docs/capture-index.md) |
+| Findings and case files | [docs/findings-and-cases.md](docs/findings-and-cases.md) |
+| Install, update and uninstall | [docs/installation.md](docs/installation.md) |
 | Platform setup (macOS/Linux/Windows) | [docs/platform-validation.md](docs/platform-validation.md) |
 | Manual client configuration | [docs/manual-configuration.md](docs/manual-configuration.md) |
 | Deployment scenarios | [docs/deployment-scenarios.md](docs/deployment-scenarios.md) |
@@ -184,9 +213,9 @@ Since 3.0, those tools fail closed until `WIRESHARK_MCP_ALLOWED_DIRS` names exis
 ## Development
 
 ```sh
-pip install -e ".[dev]"
-pytest tests/ -v
-ruff check src/ tests/
+uv sync --group dev --extra index
+uv run python -m pytest
+uv run python -m ruff check src/ tests/
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.

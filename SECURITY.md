@@ -32,6 +32,8 @@ Wireshark MCP executes `tshark` as a subprocess. Keep the following in mind:
 
 - **File reads**: Set `WIRESHARK_MCP_ALLOWED_DIRS` to restrict reads to dedicated capture and output roots. When it is unset, local read-only analysis can access files readable by the current operating-system user.
 - **File writes**: Export, merge, edit, frame extraction, live capture, text import, and YARA workflows fail closed unless `WIRESHARK_MCP_ALLOWED_DIRS` names existing directories. Prefer the `analysis` or `core` profile when writes are unnecessary.
+- **Capture index**: `wireshark_index` (optional `[index]` extra) stores packet field values, including DNS names, HTTP hosts, user agents and Kerberos/NTLM user names, in DuckDB files under `WIRESHARK_MCP_INDEX_DIR` (default `~/.wireshark-mcp/index`), with Parquet exports beside them. That directory is outside `WIRESHARK_MCP_ALLOWED_DIRS`; protect it like the captures and drop indexes you no longer need. Index SQL runs read-only with external access disabled.
+- **Case files**: `wireshark_case` writes JSON case files containing capture paths, hashes and finding values under an allowed root (or `WIRESHARK_MCP_CASE_DIR`), and fails closed without one.
 - **Credential extraction**: `wireshark_extract_credentials` scans for plaintext credentials in captures. Handle results with care.
 - **Live capture**: `wireshark_capture` requires appropriate system permissions (`wireshark` group or root).
 - **Remote transports**: Streamable HTTP and SSE do not add authentication or TLS. Non-loopback binds are refused unless `--allow-insecure-http` is explicit; only use it behind a trusted proxy that supplies both.

@@ -10,6 +10,8 @@ The index is an optional extra. Without it nothing changes.
 pip install 'wireshark-mcp[index]'
 ```
 
+The container image and the Codex / Claude Code plugin do not include the extra; see the [configuration reference](configuration.md#optional-extras) for how to add it there.
+
 ## What stays the same
 
 - **Packet evidence still comes from tshark.** The index only answers "which frames, how many, grouped how". `wireshark_get_packet_details`, `wireshark_follow_stream` and the other packet tools still dissect live.
@@ -161,4 +163,4 @@ Raw results: [`docs/benchmarks/capture-index-2026-10-22.json`](benchmarks/captur
 ## Not yet
 
 - Routing `wireshark_stats_endpoints`, `wireshark_stats_conversations`, `wireshark_stats_protocol_hierarchy` and the detection tools through the index. They return tshark's `-z` tap tables, whose layout and counting rules (for example per-layer counting of tunnelled packets) change between tshark versions, so each needs its own equivalence harness against parsed tap output before it can switch.
-- Running long builds, timelines and exports as MCP Tasks with progress and cancellation (3.3).
+- Running long builds, timelines and exports as MCP Tasks with progress and cancellation (next on the [roadmap](../ROADMAP.md)).

@@ -12,12 +12,14 @@ Start with the page that matches the task at hand.
 | Preview, scope, update or remove client registration | [Installation lifecycle](installation.md) |
 | Install as a Codex/Claude Code plugin | [Plugin distribution](plugin-installation.md) |
 | Configure an MCP client by hand | [Manual configuration](manual-configuration.md) |
+| Look up an optional extra, environment variable or limit | [Configuration reference](configuration.md) |
 | Run locally, over SSH, in WSL, or in a container | [Deployment scenarios](deployment-scenarios.md) |
 | Migrate a 2.x deployment safely | [3.0 security migration](security-hardening-v3.md) |
 | Ask better packet-analysis questions | [Prompt examples](prompt-engineering.md) |
 | Compute capture-wide counts and distributions | [Aggregation guide](aggregation.md) |
 | Read detector findings and keep investigation case files | [Findings and cases](findings-and-cases.md) |
 | Index a large capture once and query it with DuckDB | [Capture index](capture-index.md) |
+| Check supported operating systems, clients and tshark versions | [Compatibility matrix](compatibility-matrix.md) |
 
 ## Maintain the project
 
@@ -34,4 +36,4 @@ Start with the page that matches the task at hand.
 | Review shipped and planned work | [Changelog](../CHANGELOG.md) · [Roadmap](../ROADMAP.md) |
 | Report a vulnerability | [Security policy](../SECURITY.md) |
 
-Files under `docs/superpowers/` are historical design and implementation records. They explain past decisions but do not define the current CLI or tool surface.
+Superseded release announcements and walkthroughs are kept in [archive/](archive/README.md). They explain past decisions but do not describe the current CLI or tool surface. Raw benchmark and evaluation results live in [benchmarks/](benchmarks/).

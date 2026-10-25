@@ -62,6 +62,33 @@ Prefer offline PCAP analysis. Live capture needs an explicit interface and
 container-capability policy. Omit the writable results mount and use the `core`
 profile if no file-creating tool is needed.
 
+`wireshark_case` stores cases under the first allowed root, which is the
+read-only `/captures` mount here. Add `-e WIRESHARK_MCP_CASE_DIR=/results/cases`
+to keep them on the writable results volume.
+
+The image does not include the optional `[index]` extra. To use the capture
+index, build a derived image and give the index its own volume so it outlives
+the container:
+
+```dockerfile
+FROM ghcr.io/bx33661/wireshark-mcp:4.0.0
+USER root
+RUN python -m pip install --no-cache-dir "duckdb>=1.3" \
+    && mkdir /index && chown wireshark-mcp:wireshark-mcp /index
+USER wireshark-mcp
+```
+
+```sh
+docker build -t my-wireshark-mcp-index .
+docker run --rm -p 127.0.0.1:8080:8080 \
+  -v "$PWD/captures:/captures:ro" \
+  -v "$PWD/results:/results" \
+  -v wireshark-index:/index \
+  -e WIRESHARK_MCP_ALLOWED_DIRS=/captures,/results \
+  -e WIRESHARK_MCP_INDEX_DIR=/index \
+  my-wireshark-mcp-index
+```
+
 File-creating tools are disabled until `WIRESHARK_MCP_ALLOWED_DIRS` names existing
 directories. The same roots constrain reads once configured. See the
 [3.0 security migration guide](security-hardening-v3.md) before upgrading an

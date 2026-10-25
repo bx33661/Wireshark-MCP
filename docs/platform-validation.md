@@ -45,6 +45,8 @@ Expected result:
 - the MCP client can call `wireshark_open_file`, `wireshark_quick_analysis`, `wireshark_aggregate`, and a packet-level tool successfully
 - the aggregate packet counts agree with a direct tshark check on the same filter
 
+With the optional `[index]` extra installed, also run `wireshark_index` on the same capture and repeat the aggregate. The result must be identical and report `coverage.source: "index"`.
+
 ## macOS Checklist
 
 1. Install Python `3.10+`.

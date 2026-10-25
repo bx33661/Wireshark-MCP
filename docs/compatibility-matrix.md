@@ -1,6 +1,6 @@
 # Compatibility Matrix
 
-This document outlines verified operating systems, MCP clients, Wireshark/TShark versions, and transport protocols supported by Wireshark MCP 3.0.
+This document outlines verified operating systems, MCP clients, Wireshark/TShark versions, and transport protocols supported by Wireshark MCP 4.0.
 
 ## Status Definitions
 
@@ -20,6 +20,7 @@ To maintain rigorous engineering honesty, compatibility is categorized into thre
 | **Transport: `stdio`** | **CI / Locally Verified** | Default transport. Verified via subprocess pipe handshake in `test_real_stdio_subprocess_handshake`. |
 | **Transport: `Streamable HTTP`** | **Locally Verified** | Bound to loopback (`127.0.0.1`) by default. Verified via real subprocess listener and Starlette TestClient in `test_server.py`. |
 | **Transport: `HTTP + SSE`** | **Expected Compatible** | Maintained for legacy compatibility with MCP 1.x endpoints. Bound to loopback by default. |
+| **DuckDB `>=1.3` (optional `[index]` extra)** | **CI Verified** | `tests/test_capture_index.py` runs in the Linux and Windows tshark integration jobs, comparing every indexed aggregate and `extract_fields` case against the tshark path. Index files use schema version 1; indexes built by the 3.2 preview stay valid. Verified with DuckDB 1.5 and 2.0. |
 
 ---
 
@@ -44,7 +45,7 @@ Wireshark MCP interacts directly with the local system installation of `tshark`,
 | :--- | :--- | :--- | :--- |
 | **Wireshark 4.6.x** | macOS | **Locally Verified** | Tested against 4.6.6 with 5 synthetic pcap fixtures in `test_real_pcap.py`. BLE tools verified against 4.6.8 with the BLE fixtures (linktype 256 over-the-air and linktype 201 HCI H4). |
 | **Wireshark 4.6.x** | Windows Server | **CI Verified** | Pinned to 4.6.8 via Chocolatey in Windows GitHub Actions runner. |
-| **Wireshark 4.2.x** | Ubuntu Linux | **CI Verified** | Tested in Ubuntu GitHub Actions runner (`apt-get install -y tshark`). |
+| **Wireshark 4.2.x** | Ubuntu Linux | **CI Verified** | Tested in Ubuntu GitHub Actions runner (`apt-get install -y tshark`), including the capture-index equivalence tests. The 2026-10-22 index benchmarks also ran on 4.2.2. |
 | **Wireshark 4.0.x** | Linux / Windows | **Expected Compatible** | Core packet extraction and aggregation supported; field aliases mapped. |
 | **Wireshark 3.6.x** | Ubuntu 22.04 LTS | **Expected Compatible (Floor)** | Minimum supported version floor for basic display filters. BLE tools (`btle.advertising_header.*`, `btatt.handles_info`) are not verified on 3.6 — captures may return empty results. |
 | **< 3.6.0** | All | **Unsupported** | Lacks required dissector fields and modern JSON export options. |
@@ -55,7 +56,7 @@ Wireshark MCP interacts directly with the local system installation of `tshark`,
 
 | Operating System | Architecture | Verification Tier | Notes |
 | :--- | :--- | :--- | :--- |
-| **macOS 14+ (Sonoma, Sequoia)** | Apple Silicon (`arm64`) | **Locally Verified** | Homebrew `wireshark 4.6.6` + Python 3.13 verified across 461 tests. |
+| **macOS 14+ (Sonoma, Sequoia)** | Apple Silicon (`arm64`) | **Locally Verified** | Homebrew `wireshark 4.6.6` + Python 3.13, full suite verified locally at 3.0.0; CI runs the unit suite on `macos-latest` for every change. |
 | **Ubuntu / Debian** (22.04+, 24.04+) | `x86_64` | **CI Verified** | Verified in GitHub Actions with system `tshark`. |
 | **Windows 10 / 11 / Server** | `x86_64` | **CI Verified** | Verified in GitHub Actions with Chocolatey `wireshark`. |
 | **Fedora / RHEL / Rocky** | `x86_64`, `aarch64` | **Expected Compatible** | Standard `dnf install wireshark-cli` supported. |
@@ -72,4 +73,4 @@ Wireshark MCP interacts directly with the local system installation of `tshark`,
    - Dictionaries preserve top-level keys and trim internal collection lists.
    - Text fields are truncated with explicit `truncated: true` and `[Showing K/N lines]` indicators.
 3. **Evidence Anchors**:
-   Security and threat tools report findings adhering to the candidate signal contract: every candidate signal provides frame numbers, stream indexes, display filters, and sample values for reproducible investigation.
+   Security and threat tools return the shared finding shape (`data.findings`, see [Findings and cases](findings-and-cases.md)): every finding carries a stable id, frame numbers, stream indexes, display filters, sample values and native `tshark` commands that reproduce it.

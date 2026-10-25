@@ -49,6 +49,14 @@ Claude: [调用 wireshark_extract_dns_queries → wireshark_detect_dns_tunnel]
         "发现重复的高熵 DNS 查询，行为与隧道流量一致：..."
 ```
 
+### 4.0 新特性
+
+- **抓包索引。** 安装可选的 `[index]` 扩展后，`wireshark_index` 把抓包一次性解析进本地 DuckDB 文件。之后的 `wireshark_aggregate` 和 `wireshark_extract_fields` 直接读索引，结果与 tshark 完全一致：1 GB 上快 408 倍，10 GB 上 tshark 路径中途停止的问题也能答出。它还提供只读 SQL、多抓包集合、首次出现时间线、抓包/时间窗 diff 和 Parquet 导出。见 [抓包索引](docs/capture-index_zh.md)。
+- **统一的发现模型。** 所有检测工具都返回 `data.findings`，带稳定 id、证据锚点、可复核的原生 `tshark` 命令和候选 ATT&CK 技术。
+- **调查案卷。** `wireshark_case` 把抓包、记录的结果、发现和分析者结论保存在 JSON 案卷中，长时间调查在上下文重置后也能继续。见 [发现与案卷](docs/findings-and-cases_zh.md)。
+
+从 3.x 升级无需修改配置。如果脚本解析过 `wireshark_detect_beaconing`、`wireshark_detect_exfiltration`、`wireshark_detect_protocol_anomalies`、`wireshark_detect_arp_spoofing`、`wireshark_yara_scan` 或 `wireshark_quick_analysis` 的纯文本输出，请改为读取 JSON 结果。完整说明见 [4.0.0 更新日志](changelog/4.0.0.md)。
+
 ---
 
 ## 安装
@@ -75,7 +83,7 @@ claude plugin install wireshark-mcp@wireshark-mcp
 
 **前置条件：** Python 3.10+ 和 [Wireshark](https://www.wireshark.org/)（`tshark` 需在 PATH 中）。
 
-Wireshark MCP 3.0 基于稳定版 MCP Python SDK 2.x（`mcp>=2.1.1,<3`）。
+Wireshark MCP 基于稳定版 MCP Python SDK 2.x（`mcp>=2.1.1,<3`）。
 
 ```sh
 pip install wireshark-mcp
@@ -90,6 +98,14 @@ wireshark-mcp install --client codex --scope project
 ```
 
 默认 `--scope global`；`--client` 可重复，明确批量操作可用 `--client all`。重启客户端以加载配置。安装、更新、卸载、备份与退出码见 [安装指南](docs/installation_zh.md)。
+
+可选扩展在基础安装之上增加功能：`index`（面向大抓包的 DuckDB 抓包索引）、`geoip`（GeoIP 富化）、`yara`（YARA 扫描），或一次装全的 `all`：
+
+```sh
+pip install 'wireshark-mcp[index]'
+```
+
+容器镜像和插件路线不含扩展。所有设置、扩展和上限见 [配置参考](docs/configuration_zh.md)。
 
 项目同时提供 MCP 与完整 TShark CLI 分析 Skill，见 [Skill 发现与使用指南](docs/skills_zh.md)。
 
@@ -106,6 +122,15 @@ wireshark-mcp install --client codex --scope project
 先用 wireshark_open_file 打开，然后运行 wireshark_quick_analysis。
 涉及全量计数或分布时使用 wireshark_aggregate。
 将发现写入 report.md。
+```
+
+面对大抓包或多个相关抓包时，先建索引，并把调查记在案卷里：
+
+```
+用 wireshark_index 为 big.pcapng 建索引，然后用 wireshark_aggregate 和
+wireshark_index action="timeline" 找出 10.0.0.5 首次出现的时间。
+用 wireshark_case 建立案卷，记录你依赖的每个检测结果，
+并用 wireshark_get_packet_details 验证每个结论。
 ```
 
 ---
@@ -166,7 +191,11 @@ export WIRESHARK_MCP_MAX_RESULT_CHARS=16000
 | 主题 | 链接 |
 |------|------|
 | 文档索引 | [docs/README_zh.md](docs/README_zh.md) |
+| 配置参考（扩展、环境变量、上限） | [docs/configuration_zh.md](docs/configuration_zh.md) |
 | 全量聚合指南 | [docs/aggregation_zh.md](docs/aggregation_zh.md) |
+| 抓包索引（DuckDB） | [docs/capture-index_zh.md](docs/capture-index_zh.md) |
+| 发现与调查案卷 | [docs/findings-and-cases_zh.md](docs/findings-and-cases_zh.md) |
+| 安装、更新与卸载 | [docs/installation_zh.md](docs/installation_zh.md) |
 | 平台配置（macOS/Linux/Windows） | [docs/platform-validation_zh.md](docs/platform-validation_zh.md) |
 | 手动客户端配置 | [docs/manual-configuration_zh.md](docs/manual-configuration_zh.md) |
 | 部署场景 | [docs/deployment-scenarios_zh.md](docs/deployment-scenarios_zh.md) |
@@ -184,9 +213,9 @@ export WIRESHARK_MCP_MAX_RESULT_CHARS=16000
 ## 开发
 
 ```sh
-pip install -e ".[dev]"
-pytest tests/ -v
-ruff check src/ tests/
+uv sync --group dev --extra index
+uv run python -m pytest
+uv run python -m ruff check src/ tests/
 ```
 
 完整指南见 [CONTRIBUTING.md](CONTRIBUTING.md)。

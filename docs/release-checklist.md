@@ -1,6 +1,6 @@
 # Release Checklist
 
-Use this checklist before publishing a release from the active `3.x` line.
+Use this checklist before publishing a release from the active `4.x` line.
 
 ## Version Sync
 
@@ -12,6 +12,8 @@ Update these files together:
 - `.well-known/mcp/server.json`
 - `changelog/<version>.md` and the root `CHANGELOG.md` index
 - `SECURITY.md` if the supported major line changes
+- `Dockerfile` (`WIRESHARK_MCP_VERSION`) and the image tags in `docs/deployment-scenarios*.md`
+- `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`
 
 Also confirm that compatibility notes still match reality:
 
@@ -20,7 +22,7 @@ Also confirm that compatibility notes still match reality:
 
 ## Validation Commands
 
-Run the full local validation set:
+Run the full local validation set in an environment with the `index` extra installed (`uv sync --group dev --extra index`), so the capture-index and tshark-equivalence tests run instead of skipping:
 
 ```sh
 uv run python -m ruff check src/ tests/
@@ -92,10 +94,13 @@ Use [platform-validation.md](platform-validation.md) to confirm at least one man
 
 ## Publish
 
-1. Push the release commit.
-2. Tag the release.
-3. Let GitHub Actions build and publish the package.
-4. Confirm the published package version matches both registry metadata files.
+1. Merge the release PR and set the date in `changelog/<version>.md` and `CHANGELOG.md`.
+2. Tag the release commit `v<version>` and publish a GitHub Release whose body is `changelog/<version>.md`.
+3. Publishing the Release triggers `publish.yml` (PyPI, trusted publishing) and `publish-container.yml` (GHCR multi-platform image).
+4. The container build installs the version from PyPI. If it ran before the package appeared there, re-run it: `gh workflow run publish-container.yml -f version=<version>`. `publish.yml` can be re-run the same way with `-f tag=v<version>`.
+5. Confirm the published package version matches both registry metadata files.
+
+The `Container smoke` check on a release PR installs the new version from PyPI, so it fails until that version is published. That failure is expected on the release PR only.
 
 ## Post-Publish Checks
 
@@ -106,6 +111,9 @@ After publication, confirm:
 - `wireshark-mcp --version` matches the tagged release
 - `server.json` and `.well-known/mcp/server.json` match the release version
 - a clean installation can call `wireshark_open_file`, `wireshark_aggregate`, and one packet-level verification tool
+- with `pip install 'wireshark-mcp[index]'`, `wireshark_index` builds an index and the next `wireshark_aggregate` reports `coverage.source: "index"`
+- `ghcr.io/bx33661/wireshark-mcp:<version>` and `:latest` exist and `docker run … --version` prints the release version
+- the Homebrew tap (`bx33661/homebrew-wireshark-mcp`) received the formula bump; `publish.yml` only dispatches it when the `HOMEBREW_TAP_TOKEN` secret is set
 
 ## Client plugin distribution
 

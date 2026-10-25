@@ -11,9 +11,11 @@ Thank you for your interest in contributing! This guide will help you get starte
 git clone https://github.com/bx33661/Wireshark-MCP.git
 cd Wireshark-MCP
 
-# Install the locked development environment
-uv sync --group dev
+# Install the locked development environment, with the optional capture index
+uv sync --group dev --extra index
 ```
+
+Without the `index` extra the capture-index tests are skipped. Tests that call tshark need it on `PATH` (or `WIRESHARK_MCP_TSHARK_PATH`).
 
 ## Running Tests
 
@@ -52,10 +54,14 @@ src/wireshark_mcp/
 ├── server.py            # CLI, server construction, registration order
 ├── mcp_app.py           # schemas, profiles, annotations, result ceiling
 ├── profiles.py          # full / analysis / core exclusions
+├── tool_annotations.py  # read-only / destructive / cache-write hints
+├── toolchain.py         # Wireshark binary names and override variables
 ├── prompts.py           # built-in MCP analysis prompts
 ├── resources.py         # display-filter, field, and capability resources
-├── tools/               # public tool behavior and analysis semantics
+├── cases.py             # JSON case-file store behind wireshark_case (tools/case.py)
+├── tools/               # public tool behavior and analysis semantics (findings.py: shared finding shape)
 ├── tshark/              # typed Wireshark suite client mixins and cache
+├── index/               # optional DuckDB capture index: build, filter-to-SQL, pushdown, timeline/diff/export
 └── installer/           # client detection, config generation, diagnostics
 ```
 
