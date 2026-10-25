@@ -695,8 +695,8 @@ async def test_export_writes_parquet_into_the_index_directory(
         name for (name,) in duckdb.sql(f"SELECT name FROM parquet_schema('{files['packets']['path']}')").fetchall()
     }
     assert {"capture_id", "frame", "epoch", "ip.src", "dns.qry.name"} <= columns
-    captures = duckdb.sql(f"SELECT count(*) FROM '{files['captures']['path']}'").fetchone()
-    assert captures == (2,)
+    captures = duckdb.sql(f"SELECT count(*) FROM '{files['captures']['path']}'").fetchall()
+    assert captures == [(2,)]
 
     again = await _call(
         indexed,
