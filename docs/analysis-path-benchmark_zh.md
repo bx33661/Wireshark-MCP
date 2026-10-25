@@ -55,7 +55,7 @@ WIRESHARK_MCP_AGGREGATE_SCAN_LIMIT=2000000 WIRESHARK_MCP_AGGREGATE_TIMEOUT=600 \
 - 两条路径的耗时都由 tshark 的单次解析决定。10–100 MB 时 MCP 多出约 5–8%，1 GB 时约 3%，主要是 JSON 信封与 Python 逐行归约；每个隔离工作进程新建 MCP 服务约需 0.7–0.8 秒。
 - `wireshark_aggregate` 逐行流式归约，MCP 工作进程在各档位都稳定在约 74 MB。本基准的 CLI 工作进程用 `subprocess.run` 缓冲 tshark 全部输出，1 GB 时达到 533 MB；流式 shell 管道不会有这部分开销。tshark 自身在 1 GB 时两条路径都涨到约 1.48 GB，是峰值内存的主体。
 - 默认策略（30 秒超时、1,000,000 行）下，1 GB 抓包无法通过 MCP 完成：调用超时并返回错误，而不是把部分结果当成完整答案。即使延长超时，156 万个包也超过默认行数上限，会报告覆盖不完整。调大 3.1 新增的 `WIRESHARK_MCP_AGGREGATE_TIMEOUT` 和 `WIRESHARK_MCP_AGGREGATE_SCAN_LIMIT` 后，同样的查询全部完成且正确。
-- 每个查询都要重新解析整个抓包，因此在 1 GB 上问五个问题，两条路径都要约四分钟。这正是抓包索引要消除的成本；这里只是量化，尚未解决。
+- 每个查询都要重新解析整个抓包，因此在 1 GB 上问五个问题，两条路径都要约四分钟。可选的[抓包索引](capture-index_zh.md)消除了这部分成本：构建一次之后，1 GB 上同样五个问题每个都远低于一秒。
 
 以上是特定主机上合成流量的测量结果，不是性能承诺。真实抓包若包含 TLS、HTTP/2、SMB 等较重的解析器，单位字节耗时会更高。
 

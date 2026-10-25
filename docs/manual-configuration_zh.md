@@ -6,6 +6,8 @@
 - 你希望手动维护配置文件
 - 你想把自动生成的配置和当前环境做对比
 
+服务器读取的所有环境变量、可选扩展和上限，见 [配置参考](configuration_zh.md)。
+
 ## 先生成当前机器的精确配置
 
 面向 JSON 类 MCP 客户端：
@@ -38,7 +40,7 @@ wireshark-mcp serve --transport streamable-http --host 127.0.0.1 --port 8080
 export WIRESHARK_MCP_ALLOWED_DIRS=/srv/pcaps,/srv/wireshark-results
 ```
 
-这些目录必须已经存在。3.0 中，未设置该变量时所有写文件工具都会失败关闭；设置后，
+这些目录必须已经存在。自 3.0 起，未设置该变量时所有写文件工具都会失败关闭；设置后，
 它会同时约束读取和写入。详见 [3.0 安全迁移指南](security-hardening-v3_zh.md)。
 
 客户端只需离线只读分析时，可以在服务参数中启用 core profile：

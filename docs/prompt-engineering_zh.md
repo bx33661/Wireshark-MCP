@@ -55,11 +55,47 @@ Wireshark MCP 在下面这种提示方式下效果最好：
 8. 将发现写入 report.md，附上具体时间戳和修复建议
 ```
 
+## 大抓包与抓包集合
+
+需要可选的 `[index]` 扩展（见[抓包索引指南](capture-index_zh.md)）。
+
+```text
+你的任务是找出 <day1.pcapng> 和 <day2.pcapng> 之间的变化。
+
+1. 用 wireshark_index(pcap_file=<day1>, more_files=<day2>) 为两个文件建索引
+2. 以 day1 为基线、day2 为对比，运行 wireshark_index action="diff"；
+   列出新增的主机、会话、DNS 名称、TLS SNI 和 JA3/JA4
+3. 对每个新增条目，用带 display_filter 的 wireshark_index action="timeline"
+   找到它的首个帧号和时间
+4. 计数使用 wireshark_aggregate，并确认 coverage.source 为 "index"
+5. 对报告中的每个条目，用索引返回的帧号调用 wireshark_get_packet_details 确认。
+   索引用来定位证据，包级工具用来证明
+6. 把新增条目、首个帧号、时间和验证结果整理成表格写入 report.md
+```
+
+## 用案卷进行长时间调查
+
+案卷需要配置 `WIRESHARK_MCP_ALLOWED_DIRS`（见[发现模型与调查案卷](findings-and-cases_zh.md)）。
+
+```text
+调查 <file.pcap> 中疑似的信标行为，并把过程记录在案卷里。
+
+1. 用 wireshark_case action="create" 建立案卷，并写明抓包
+2. 运行 wireshark_detect_beaconing 和 wireshark_detect_dns_tunnel；用
+   wireshark_case action="record" 记录每个 JSON 结果
+3. 用 wireshark_follow_stream 或 wireshark_get_packet_details 验证每条发现，
+   再按其 id 设置结论：confirmed、dismissed 或 open，并写明理由
+4. 会话中断时，从 wireshark_case action="show" 继续
+5. 最后用 wireshark_case action="report" 生成报告并保存为 report.md
+```
+
 ## 使用技巧
 
 - 优先先调用 `wireshark_open_file`，先拿到抓包全局上下文和推荐工具
 - 客户端支持 MCP prompts 时，可用内置 `security_audit` prompt 起步；自动化初筛使用 `wireshark_quick_analysis`
 - 总量、分布、去重基数、Top-K 和时间桶使用 `wireshark_aggregate`
+- 对同一抓包要问不止一个全量问题时先建索引；第二个问题就能收回构建成本
+- 引用发现时使用其 `id`，并用它附带的 `reproduce` 命令复核
 - 分页提取用来查看逐行数据，不用于估算全量抓包
 - 不要猜测过滤器语法，直接使用 `wireshark://reference/display-filters`
 - 结论要落到准确过滤器、帧号、流索引和工具输出

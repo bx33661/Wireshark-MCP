@@ -6,6 +6,8 @@ Use this guide when:
 - you prefer to manage config files directly
 - you want to compare the generated config with your current setup
 
+Every environment variable, optional extra and limit the server reads is listed in the [configuration reference](configuration.md).
+
 ## Generate the Exact Config for This Machine
 
 For JSON-based MCP clients:
@@ -38,7 +40,7 @@ Set `WIRESHARK_MCP_ALLOWED_DIRS` in the server environment to a comma-separated 
 export WIRESHARK_MCP_ALLOWED_DIRS=/srv/pcaps,/srv/wireshark-results
 ```
 
-The directories must already exist. In 3.0, all file-creating tools fail closed
+The directories must already exist. Since 3.0, all file-creating tools fail closed
 when this variable is absent; once present, it constrains reads and writes. See
 the [3.0 security migration guide](security-hardening-v3.md).
 

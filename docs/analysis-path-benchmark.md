@@ -55,7 +55,7 @@ What the numbers show:
 - Latency is tshark's single dissection pass on both paths. MCP adds roughly 5–8% at 10–100 MB and about 3% at 1 GB, mostly JSON envelope and Python row reduction; fresh MCP server setup was about 0.7–0.8 s per isolated worker.
 - MCP's worker stayed at about 74 MB at every size because `wireshark_aggregate` streams rows into reducers. The CLI worker in this benchmark buffers tshark's whole stdout (`subprocess.run`), reaching 533 MB at 1 GB; a shell pipeline that streams would not pay that. tshark itself grew to about 1.48 GB at 1 GB on both paths, which dominates peak memory.
 - With the default policy (30 s timeout, 1,000,000 rows), a 1 GB capture does not finish through MCP: the call times out and returns an error rather than a partial answer presented as complete. Even with a longer timeout, 1.56 million packets exceed the default row ceiling and would report partial coverage. Raising `WIRESHARK_MCP_AGGREGATE_TIMEOUT` and `WIRESHARK_MCP_AGGREGATE_SCAN_LIMIT` (3.1) makes the same queries complete and correct.
-- Every query re-parses the whole capture, so five questions on 1 GB cost about four minutes on either path. This is the cost a capture index would remove; it is measured here, not solved.
+- Every query re-parses the whole capture, so five questions on 1 GB cost about four minutes on either path. The optional [capture index](capture-index.md) removes this cost: after one build, the same five questions take well under a second each at 1 GB.
 
 These are host-specific measurements on synthetic traffic, not performance guarantees. Real captures with heavier dissectors (TLS, HTTP/2, SMB) will be slower per byte.
 

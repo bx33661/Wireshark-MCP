@@ -31,6 +31,8 @@ Exit criterion: results are reproducible, scan boundaries and limitations are ex
 - [x] Project/global registration, explicit automation targets, previews, idempotent parsed config edits and recovery backups (implemented locally, publication separate).
 - [x] Local Codex/Claude Code plugin bundles and repository marketplace wiring, sharing canonical skills and locked uv launchers.
 - [ ] Publish the repository/plugin release, remote transport-specific installers and clean multi-platform client sign-off.
+- [ ] Bring the Homebrew tap formula up to the current release (it still installs 1.1.5) and make the publish workflow's tap dispatch reliable.
+- [ ] Offer the capture index in the container image and plugin launcher (both currently ship without the `[index]` extra).
 
 ## 3.1 release — deep analysis, memory bounds, and CLI skill release
 
@@ -55,9 +57,9 @@ Exit criterion: numeric aggregation and pagination have real-tshark tests, deter
 
 Exit criterion: every automated finding can be traced back to an exact tool result and packet-level verification path.
 
-## Next — 4.0 capture index engine (release prepared)
+## 4.0 release — capture index engine (released 2026-10-25)
 
-The index core was built first, alongside the 3.2 finding model; the remaining engine items below followed, ahead of the long-running jobs work. Everything ships together in 4.0.0 as the optional `[index]` extra.
+The index core was built first, alongside the 3.2 finding model; the remaining engine items below followed, ahead of the long-running jobs work. Everything shipped together in 4.0.0 as the optional `[index]` extra; see the [capture index guide](docs/capture-index.md).
 
 - [x] **DuckDB capture index (core):** one tshark pass per capture, `wireshark_index` (build/status/query/drop), `wireshark_aggregate` reuses a fresh index with tshark-identical answers and reports `coverage.source`; 100 MB / 1 GB benchmark published.
 - [x] Capture sets: `more_files` stacks several per-capture indexes with a `capture_id` column and a `captures` table, so files are indexed once and combined at query time.
@@ -66,13 +68,14 @@ The index core was built first, alongside the 3.2 finding model; the remaining e
 - [x] `wireshark_extract_fields` answers from the index with byte-identical tshark output.
 - [x] Grouping pushed down into DuckDB SQL behind exactness gates, with the tshark equivalence tests as the gate.
 - [x] 10 GB benchmark tier.
-- Route the endpoint, conversation and protocol-hierarchy statistics and suitable detection tools through the index, each behind its own equivalence harness against parsed tshark tap output.
+- Routing the endpoint, conversation and protocol-hierarchy statistics and the detection tools through the index moves to the next release.
 
 Exit criterion: capture-wide questions on multi-gigabyte captures and capture sets are answered from the index with results proven equal to the tshark path.
 
-## Later — long-running jobs and operational hardening (after 4.0)
+## Next — long-running jobs and operational hardening
 
 - Run index builds, full-capture aggregation, large YARA scans and multi-capture batches as MCP Tasks with progress and cancellation, instead of one bounded call.
+- Route the endpoint, conversation and protocol-hierarchy statistics and suitable detection tools through the index, each behind its own equivalence harness against parsed tshark tap output.
 - Add authenticated deployment recipes and automated checks for Streamable HTTP behind a reverse proxy.
 - Add compatibility tests against the supported Wireshark/tshark version matrix.
 - Publish a machine-readable capability and compatibility document for clients and packaging systems.

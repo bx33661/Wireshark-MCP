@@ -55,11 +55,47 @@ Your task is to diagnose network performance issues in <file.pcap>.
 8. Write findings to report.md with specific timestamps and recommendations
 ```
 
+## Large Captures and Capture Sets
+
+Needs the optional `[index]` extra (see the [capture index guide](capture-index.md)).
+
+```text
+Your task is to find what changed between <day1.pcapng> and <day2.pcapng>.
+
+1. Build an index for both with wireshark_index(pcap_file=<day1>, more_files=<day2>)
+2. Run wireshark_index action="diff" with day1 as baseline and day2 as comparison;
+   list new hosts, conversations, DNS names, TLS SNI and JA3/JA4 values
+3. For each new item, run wireshark_index action="timeline" with a display_filter on it
+   to get its first frame and time
+4. Use wireshark_aggregate for counts; check that coverage.source is "index"
+5. Confirm every item you report with wireshark_get_packet_details on the frame
+   numbers the index returned. The index locates evidence; packet tools prove it
+6. Write a table of new items with first frame, time and verification to report.md
+```
+
+## Long Investigations with a Case File
+
+Case files need `WIRESHARK_MCP_ALLOWED_DIRS` (see [Findings and cases](findings-and-cases.md)).
+
+```text
+Investigate suspected beaconing in <file.pcap> and keep the work in a case file.
+
+1. Create a case with wireshark_case action="create" naming the capture
+2. Run wireshark_detect_beaconing and wireshark_detect_dns_tunnel; record each JSON
+   result with wireshark_case action="record"
+3. Verify each finding with wireshark_follow_stream or wireshark_get_packet_details,
+   then set a verdict on its id: confirmed, dismissed or open, with the reason
+4. If the session is interrupted, resume from wireshark_case action="show"
+5. Finish with wireshark_case action="report" and save it as report.md
+```
+
 ## Usage Tips
 
 - Start with `wireshark_open_file` for capture-wide context and tool recommendations
 - Use the built-in `security_audit` prompt when the client exposes MCP prompts; use `wireshark_quick_analysis` for a broad tool-driven first pass
 - Use `wireshark_aggregate` for totals, distributions, distinct cardinality, top-k, and time buckets
+- Index a capture you will ask more than one capture-wide question about; the second question already pays back the build
+- Cite findings by their `id` and re-check them with the `reproduce` commands they carry
 - Use paginated extraction for individual rows, not for capture-wide estimates
 - Never guess filter syntax; use `wireshark://reference/display-filters`
 - Anchor conclusions in exact filters, frame numbers, stream indexes, and tool output

@@ -38,6 +38,14 @@ CURRENT_DOCS = (
     ROOT / "docs" / "skills_zh.md",
     ROOT / "docs" / "agent-evaluation.md",
     ROOT / "docs" / "agent-evaluation_zh.md",
+    ROOT / "docs" / "configuration.md",
+    ROOT / "docs" / "configuration_zh.md",
+    ROOT / "docs" / "capture-index.md",
+    ROOT / "docs" / "capture-index_zh.md",
+    ROOT / "docs" / "findings-and-cases.md",
+    ROOT / "docs" / "findings-and-cases_zh.md",
+    ROOT / "docs" / "compatibility-matrix.md",
+    ROOT / "docs" / "archive" / "README.md",
     *sorted((ROOT / "skills").rglob("*.md")),
 )
 

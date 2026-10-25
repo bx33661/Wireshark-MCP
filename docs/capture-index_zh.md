@@ -10,6 +10,8 @@
 pip install 'wireshark-mcp[index]'
 ```
 
+容器镜像和 Codex / Claude Code 插件不包含该扩展；如何在这两种方式中加上它，见 [配置参考](configuration_zh.md#可选扩展)。
+
 ## 不变的部分
 
 - **包级证据仍来自 tshark。** 索引只回答"哪些帧、多少、怎么分组"。`wireshark_get_packet_details`、`wireshark_follow_stream` 等包级工具依旧现场解析。
@@ -161,4 +163,4 @@ SQL 结果和聚合结果一样，用来排序和定位。结论要用返回的�
 ## 尚未支持
 
 - 让 `wireshark_stats_endpoints`、`wireshark_stats_conversations`、`wireshark_stats_protocol_hierarchy` 和检测工具走索引。它们返回 tshark 的 `-z` tap 表格，布局和计数规则（例如隧道包按层计数）随 tshark 版本变化，所以每个工具切换前都需要一套对照解析后 tap 输出的一致性测试。
-- 把长时间的构建、时间线和导出作为带进度和取消的 MCP Tasks 运行（3.3）。
+- 把长时间的构建、时间线和导出作为带进度和取消的 MCP Tasks 运行（[路线图](../ROADMAP_zh.md)中的下一项）。

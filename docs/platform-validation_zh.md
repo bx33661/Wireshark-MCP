@@ -45,6 +45,8 @@
 - MCP 客户端能成功调用 `wireshark_open_file`、`wireshark_quick_analysis`、`wireshark_aggregate` 和包级工具
 - 聚合包数与相同过滤条件下的直接 tshark 结果一致
 
+安装了可选的 `[index]` 扩展时，再对同一抓包运行 `wireshark_index` 并重复上述聚合：结果必须完全相同，且 `coverage.source` 为 `"index"`。
+
 ## macOS 验收
 
 1. 安装 Python `3.10+`。
