@@ -22,8 +22,8 @@ Which install routes include extras:
 | Route | Extras |
 |-------|--------|
 | `pip` / `uv tool install` | Whatever you name in brackets. |
-| Container image `ghcr.io/bx33661/wireshark-mcp` | None. Build a derived image to add them, see [Deployment scenarios](deployment-scenarios.md#containers). |
-| Codex / Claude Code plugin | None. The launcher runs the locked project with `--no-dev` and no extras. |
+| Container image `ghcr.io/bx33661/wireshark-mcp` | `index` (indexes go to `/index`). Build a derived image for `geoip` / `yara`, see [Deployment scenarios](deployment-scenarios.md#containers). |
+| Codex / Claude Code plugin | `index`. The launcher runs the locked project with `--no-dev --extra index`. |
 
 ## Server flags
 
@@ -41,7 +41,7 @@ Which install routes include extras:
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `WIRESHARK_MCP_ALLOWED_DIRS` | unset | Comma-separated existing directories. When set, every capture read and file write must stay inside them. When unset, reads are unrestricted (for the OS user) and every file-creating tool fails closed. |
-| `WIRESHARK_MCP_CASE_DIR` | first allowed dir + `/.wireshark-mcp-cases` | Where `wireshark_case` keeps case files. Must be inside an allowed root. |
+| `WIRESHARK_MCP_CASE_DIR` | first writable allowed dir + `/.wireshark-mcp-cases` | Where `wireshark_case` keeps case files. Must be inside an allowed root. |
 | `WIRESHARK_MCP_INDEX_DIR` | `~/.wireshark-mcp/index` | Where capture indexes, Parquet exports (`exports/`) and query spill files (`.spill/`) live. This is the server's own cache and is not restricted by `WIRESHARK_MCP_ALLOWED_DIRS`; allow roughly 15–20% of the capture size per index, plus room for the build's temporary export. |
 | `GEOIP_DB_PATH` | unset | Path to a GeoLite2 `.mmdb` file. Otherwise `~/.wireshark-mcp/geoip/GeoLite2-City.mmdb` (or `-Country`, `-ASN`) is used. |
 

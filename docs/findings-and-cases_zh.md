@@ -42,4 +42,4 @@ wireshark_case(action="list")
 
 案卷记录每个抓包的 SHA-256 与大小、每次记录的工具结果的 SHA-256、范围和覆盖情况、其中的发现（按 `id` 合并，并记下看到它的查询）、分析者结论与备注。服务端不会替案卷重跑 tshark；记录来自案卷以外抓包的结果时会给出警告。完整 JSON 可通过资源 `wireshark://cases/{case_id}` 读取。
 
-存储遵守写文件边界：案卷写入 `WIRESHARK_MCP_ALLOWED_DIRS` 第一项下的 `.wireshark-mcp-cases/`，或写入位于允许目录内的 `WIRESHARK_MCP_CASE_DIR`。未配置允许目录时工具失败关闭。案卷包含抓包路径和发现内容，请按抓包本身的敏感级别保管该目录。
+存储遵守写文件边界：案卷写入 `WIRESHARK_MCP_ALLOWED_DIRS` 中第一个可写目录（排在前面的只读证据挂载会被跳过）下的 `.wireshark-mcp-cases/`，或写入位于允许目录内的 `WIRESHARK_MCP_CASE_DIR`。未配置允许目录时工具失败关闭。案卷包含抓包路径和发现内容，请按抓包本身的敏感级别保管该目录。

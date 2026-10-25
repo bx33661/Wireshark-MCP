@@ -2,10 +2,11 @@
   "mcpServers": {
     "wireshark-mcp": {
       "command": "uv",
-      "args": ["run", "--locked", "--no-dev", "wireshark-mcp", "serve", "--transport", "stdio"],
+      "args": ["run", "--locked", "--no-dev", "--extra", "index", "wireshark-mcp", "serve", "--transport", "stdio"],
       "cwd": ".",
       "env_vars": [
         "WIRESHARK_MCP_ALLOWED_DIRS",
+        "WIRESHARK_MCP_CASE_DIR",
         "WIRESHARK_MCP_TSHARK_PATH",
         "WIRESHARK_MCP_CAPINFOS_PATH",
         "WIRESHARK_MCP_MERGECAP_PATH",

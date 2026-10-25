@@ -9,18 +9,19 @@ LABEL org.opencontainers.image.title="Wireshark MCP" \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    WIRESHARK_MCP_INDEX_DIR=/index
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends ca-certificates tshark \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir --upgrade "setuptools>=83" \
-    && python -m pip install --no-cache-dir "wireshark-mcp==${WIRESHARK_MCP_VERSION}" \
+    && python -m pip install --no-cache-dir "wireshark-mcp[index]==${WIRESHARK_MCP_VERSION}" \
     && groupadd --gid 10001 wireshark-mcp \
     && useradd --uid 10001 --gid 10001 --create-home wireshark-mcp \
-    && mkdir --parents /captures /results \
-    && chown wireshark-mcp:wireshark-mcp /captures /results
+    && mkdir --parents /captures /results /index \
+    && chown wireshark-mcp:wireshark-mcp /captures /results /index
 
 USER wireshark-mcp
 WORKDIR /captures

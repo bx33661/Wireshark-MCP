@@ -10,7 +10,7 @@ The index is an optional extra. Without it nothing changes.
 pip install 'wireshark-mcp[index]'
 ```
 
-The container image and the Codex / Claude Code plugin do not include the extra; see the [configuration reference](configuration.md#optional-extras) for how to add it there.
+The container image and the Codex / Claude Code plugin already include the extra; see the [configuration reference](configuration.md#optional-extras).
 
 ## What stays the same
 

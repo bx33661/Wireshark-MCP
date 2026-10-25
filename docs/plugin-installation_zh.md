@@ -30,16 +30,16 @@ claude plugin install wireshark-mcp@wireshark-mcp
 Codex 配置使用插件根目录作为 `cwd`：
 
 ```sh
-uv run --locked --no-dev wireshark-mcp serve --transport stdio
+uv run --locked --no-dev --extra index wireshark-mcp serve --transport stdio
 ```
 
 Claude Code 显式选择插件项目，即使会话工作目录不在插件中也使用正确依赖：
 
 ```sh
-uv run --project "${CLAUDE_PLUGIN_ROOT}" --locked --no-dev wireshark-mcp serve --transport stdio
+uv run --project "${CLAUDE_PLUGIN_ROOT}" --locked --no-dev --extra index wireshark-mcp serve --transport stdio
 ```
 
-`--locked` 在项目和锁文件不匹配时失败，不静默改锁；`--no-dev` 不安装测试/开发工具。首次环境准备日志走 stderr，stdout 留给 MCP。配置没有硬编码维护者的 Python 或 Wireshark 绝对路径。
+`--locked` 在项目和锁文件不匹配时失败，不静默改锁；`--no-dev` 不安装测试/开发工具，`--extra index` 带上抓包索引所需的 DuckDB。首次环境准备日志走 stderr，stdout 留给 MCP。配置没有硬编码维护者的 Python 或 Wireshark 绝对路径。
 
 Codex 声明转发 `WIRESHARK_MCP_ALLOWED_DIRS`、各 Wireshark 工具路径和结果限额变量；Claude 启动环境沿用客户端环境。按现有服务约束设置目录与权限：安装插件不会自动开放文件写入或抓包权限。GUI 从哪里启动，决定它能继承哪些环境变量。
 

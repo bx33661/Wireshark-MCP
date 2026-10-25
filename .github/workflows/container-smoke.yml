@@ -59,4 +59,5 @@ jobs:
           test "$(docker run --rm --platform "$PLATFORM" --entrypoint uname wireshark-mcp:ci -m)" = "$EXPECTED_MACHINE"
           docker run --rm --platform "$PLATFORM" wireshark-mcp:ci --version
           docker run --rm --platform "$PLATFORM" --entrypoint tshark wireshark-mcp:ci --version
+          docker run --rm --platform "$PLATFORM" --entrypoint python wireshark-mcp:ci -c "import duckdb"
           test "$(docker run --rm --platform "$PLATFORM" --entrypoint id wireshark-mcp:ci -u)" = "10001"

@@ -31,8 +31,8 @@ Exit criterion: results are reproducible, scan boundaries and limitations are ex
 - [x] Project/global registration, explicit automation targets, previews, idempotent parsed config edits and recovery backups (implemented locally, publication separate).
 - [x] Local Codex/Claude Code plugin bundles and repository marketplace wiring, sharing canonical skills and locked uv launchers.
 - [ ] Publish the repository/plugin release, remote transport-specific installers and clean multi-platform client sign-off.
-- [ ] Bring the Homebrew tap formula up to the current release (it still installs 1.1.5) and make the publish workflow's tap dispatch reliable.
-- [ ] Offer the capture index in the container image and plugin launcher (both currently ship without the `[index]` extra).
+- [ ] Bring the Homebrew tap formula up to the current release. The release dispatch works and opens a bump PR in the tap, but those PRs (2.0.0, 3.1.0, 4.0.0) were never merged, so the tap still installs 1.1.5.
+- [x] Offer the capture index in the container image and plugin launcher (both now ship the `[index]` extra).
 
 ## 3.1 release — deep analysis, memory bounds, and CLI skill release
 

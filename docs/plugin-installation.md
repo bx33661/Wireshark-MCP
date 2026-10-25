@@ -27,16 +27,16 @@ Refresh/restart the session and inspect the client's plugin list. Both skills co
 Codex declares the plugin root as `cwd`:
 
 ```sh
-uv run --locked --no-dev wireshark-mcp serve --transport stdio
+uv run --locked --no-dev --extra index wireshark-mcp serve --transport stdio
 ```
 
 Claude explicitly selects its own project from any session directory:
 
 ```sh
-uv run --project "${CLAUDE_PLUGIN_ROOT}" --locked --no-dev wireshark-mcp serve --transport stdio
+uv run --project "${CLAUDE_PLUGIN_ROOT}" --locked --no-dev --extra index wireshark-mcp serve --transport stdio
 ```
 
-`--locked` rejects stale metadata rather than modifying the lockfile; `--no-dev` excludes development/test dependencies. Setup logs use stderr, leaving stdout for MCP. No maintainer-specific Python/Wireshark paths are embedded.
+`--locked` rejects stale metadata rather than modifying the lockfile; `--no-dev` excludes development/test dependencies, and `--extra index` adds DuckDB for the capture index. Setup logs use stderr, leaving stdout for MCP. No maintainer-specific Python/Wireshark paths are embedded.
 
 Codex forwards the declared `WIRESHARK_MCP_ALLOWED_DIRS`, tool-path and result-limit variables. Claude uses its client launch environment. Configure directory/permission requirements as for the existing server; installing a plugin does not automatically authorize writes or capture. A GUI only inherits the environment of its launcher.
 

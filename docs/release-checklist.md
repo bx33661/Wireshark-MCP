@@ -113,7 +113,7 @@ After publication, confirm:
 - a clean installation can call `wireshark_open_file`, `wireshark_aggregate`, and one packet-level verification tool
 - with `pip install 'wireshark-mcp[index]'`, `wireshark_index` builds an index and the next `wireshark_aggregate` reports `coverage.source: "index"`
 - `ghcr.io/bx33661/wireshark-mcp:<version>` and `:latest` exist and `docker run … --version` prints the release version
-- the Homebrew tap (`bx33661/homebrew-wireshark-mcp`) received the formula bump; `publish.yml` only dispatches it when the `HOMEBREW_TAP_TOKEN` secret is set
+- the Homebrew tap (`bx33661/homebrew-wireshark-mcp`) opened a `chore: bump wireshark-mcp to <version>` PR (`publish.yml` only dispatches it when the `HOMEBREW_TAP_TOKEN` secret is set); merge it so the tap's bottle workflow builds and publishes the new formula
 
 ## Client plugin distribution
 

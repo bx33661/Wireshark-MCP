@@ -22,8 +22,8 @@
 | 路线 | 扩展 |
 |------|------|
 | `pip` / `uv tool install` | 方括号里写了哪些就装哪些。 |
-| 容器镜像 `ghcr.io/bx33661/wireshark-mcp` | 不含。需要时构建派生镜像，见 [部署场景](deployment-scenarios_zh.md#容器)。 |
-| Codex / Claude Code 插件 | 不含。启动器以 `--no-dev` 运行锁定的项目，不带扩展。 |
+| 容器镜像 `ghcr.io/bx33661/wireshark-mcp` | `index`（索引写到 `/index`）。`geoip` / `yara` 需要构建派生镜像，见 [部署场景](deployment-scenarios_zh.md#容器)。 |
+| Codex / Claude Code 插件 | `index`。启动器以 `--no-dev --extra index` 运行锁定的项目。 |
 
 ## 服务器参数
 
@@ -41,7 +41,7 @@
 | 变量 | 默认值 | 含义 |
 |------|--------|------|
 | `WIRESHARK_MCP_ALLOWED_DIRS` | 未设置 | 逗号分隔的已存在目录。设置后，所有抓包读取和文件写入都必须位于这些目录内。未设置时读取不受限（以当前系统用户权限为准），所有会创建文件的工具一律失败关闭。 |
-| `WIRESHARK_MCP_CASE_DIR` | 第一个允许目录下的 `.wireshark-mcp-cases` | `wireshark_case` 存放案卷的位置，必须位于允许目录内。 |
+| `WIRESHARK_MCP_CASE_DIR` | 第一个可写允许目录下的 `.wireshark-mcp-cases` | `wireshark_case` 存放案卷的位置，必须位于允许目录内。 |
 | `WIRESHARK_MCP_INDEX_DIR` | `~/.wireshark-mcp/index` | 抓包索引、Parquet 导出（`exports/`）和查询溢写文件（`.spill/`）所在目录。这是服务器自己的缓存，不受 `WIRESHARK_MCP_ALLOWED_DIRS` 约束；每个索引约占抓包大小的 15–20%，构建时还需要临时导出文件的空间。 |
 | `GEOIP_DB_PATH` | 未设置 | GeoLite2 `.mmdb` 文件路径。未设置时使用 `~/.wireshark-mcp/geoip/GeoLite2-City.mmdb`（或 `-Country`、`-ASN`）。 |
 
