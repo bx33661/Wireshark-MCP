@@ -1,6 +1,7 @@
 """Persistent investigation case files (`wireshark_case`)."""
 
 import json
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ from conftest import call_tool_text
 
 from wireshark_mcp.cases import CaseError, CaseStore, render_case_markdown, summarize_case
 from wireshark_mcp.mcp_app import WiresharkMCP
-from wireshark_mcp.tools.case import register_case_tools
+from wireshark_mcp.tools.case import register_case_tools, resolve_case_store
 from wireshark_mcp.tools.findings import finalize_findings
 from wireshark_mcp.tools.threat import make_threat_tools
 from wireshark_mcp.tshark.client import TSharkClient
@@ -131,6 +132,19 @@ async def test_case_dir_override_must_stay_inside_allowed_roots(
     monkeypatch.setenv("WIRESHARK_MCP_CASE_DIR", "/tmp/not-allowed-cases")
     text = await call_tool_text(_server([str(tmp_path)]), "wireshark_case", {"action": "list"})
     assert json.loads(text)["error"]["type"] == "PermissionDenied"
+
+
+def test_case_store_skips_a_read_only_first_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Mirrors the container layout: evidence mounted read-only first, results writable second.
+    captures, results = tmp_path / "captures", tmp_path / "results"
+    captures.mkdir()
+    results.mkdir()
+    monkeypatch.delenv("WIRESHARK_MCP_CASE_DIR", raising=False)
+    real_access = os.access
+    monkeypatch.setattr(os, "access", lambda path, mode: Path(path) != captures and real_access(path, mode))
+    store = resolve_case_store(TSharkClient(allowed_dirs=[str(captures), str(results)]))
+    assert isinstance(store, CaseStore)
+    assert store.root.resolve() == results.resolve() / ".wireshark-mcp-cases"
 
 
 @pytest.mark.skipif(shutil.which("tshark") is None, reason="tshark not installed")

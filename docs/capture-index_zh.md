@@ -10,7 +10,7 @@
 pip install 'wireshark-mcp[index]'
 ```
 
-容器镜像和 Codex / Claude Code 插件不包含该扩展；如何在这两种方式中加上它，见 [配置参考](configuration_zh.md#可选扩展)。
+容器镜像和 Codex / Claude Code 插件已包含该扩展，见 [配置参考](configuration_zh.md#可选扩展)。
 
 ## 不变的部分
 

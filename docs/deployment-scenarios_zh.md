@@ -61,29 +61,20 @@ docker run --rm -p 127.0.0.1:8080:8080 \
 默认优先离线 PCAP 分析。实时抓包需要显式配置网卡和容器 capability。
 不需要任何写文件工具时，移除 results 挂载并使用 `core` profile。
 
-`wireshark_case` 默认把案卷存放在第一个允许目录下，而上例中它是只读挂载的 `/captures`。
-加上 `-e WIRESHARK_MCP_CASE_DIR=/results/cases`，让案卷写到可写的 results 卷。
+`wireshark_case` 把案卷存放在第一个可写的允许目录下，所以上例中案卷写到
+`/results/.wireshark-mcp-cases`，不会落到只读的 `/captures`。如需换位置，把
+`WIRESHARK_MCP_CASE_DIR` 设为某个允许目录内的路径。
 
-镜像不包含可选的 `[index]` 扩展。要使用抓包索引，请构建派生镜像，并给索引单独挂一个卷，
-让它在容器退出后保留：
-
-```dockerfile
-FROM ghcr.io/bx33661/wireshark-mcp:4.0.0
-USER root
-RUN python -m pip install --no-cache-dir "duckdb>=1.3" \
-    && mkdir /index && chown wireshark-mcp:wireshark-mcp /index
-USER wireshark-mcp
-```
+镜像已包含可选的 `[index]` 扩展，索引存放在 `/index`（`WIRESHARK_MCP_INDEX_DIR`）。
+给这个路径单独挂一个卷，让索引在容器退出后保留：
 
 ```sh
-docker build -t my-wireshark-mcp-index .
 docker run --rm -p 127.0.0.1:8080:8080 \
   -v "$PWD/captures:/captures:ro" \
   -v "$PWD/results:/results" \
   -v wireshark-index:/index \
   -e WIRESHARK_MCP_ALLOWED_DIRS=/captures,/results \
-  -e WIRESHARK_MCP_INDEX_DIR=/index \
-  my-wireshark-mcp-index
+  ghcr.io/bx33661/wireshark-mcp:4.0.0
 ```
 
 写文件工具只有在 `WIRESHARK_MCP_ALLOWED_DIRS` 指向现有目录后才可运行；一旦配置，

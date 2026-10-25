@@ -10,7 +10,7 @@
   "mcpServers": {
     "wireshark-mcp": {
       "command": "uv",
-      "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}", "--locked", "--no-dev", "wireshark-mcp", "serve", "--transport", "stdio"]
+      "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}", "--locked", "--no-dev", "--extra", "index", "wireshark-mcp", "serve", "--transport", "stdio"]
     }
   }
 }

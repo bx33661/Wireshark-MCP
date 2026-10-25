@@ -62,10 +62,18 @@ def check(root: Path) -> dict:
     ]
     claude_mcp = claude["mcpServers"]["wireshark-mcp"]
     for entry in (codex_mcp, claude_mcp):
-        if entry["command"] != "uv" or not {"run", "--locked", "--no-dev", "wireshark-mcp", "stdio"} <= set(
-            entry["args"]
-        ):
-            raise ValueError("launcher must resolve the locked runtime via uv without dev dependencies")
+        if entry["command"] != "uv" or not {
+            "run",
+            "--locked",
+            "--no-dev",
+            "--extra",
+            "index",
+            "wireshark-mcp",
+            "stdio",
+        } <= set(entry["args"]):
+            raise ValueError(
+                "launcher must resolve the locked runtime via uv with the index extra and without dev dependencies"
+            )
     if codex_mcp.get("cwd") != ".":
         raise ValueError("Codex launcher must start at plugin root")
     args = claude_mcp["args"]

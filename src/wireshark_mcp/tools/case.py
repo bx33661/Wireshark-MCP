@@ -2,7 +2,7 @@
 
 One action-dispatched tool rather than six: the case operations share their
 arguments, and each extra tool would cost prefix bytes on every request. Cases
-live in a server-managed directory under the first allowed write root (or
+live in a server-managed directory under the first writable allowed root (or
 ``WIRESHARK_MCP_CASE_DIR`` when it is inside an allowed root), so the caller
 never chooses a write path and writes stay fail-closed without a configured root.
 """
@@ -37,7 +37,11 @@ def resolve_case_store(client: TSharkClient) -> CaseStore | str:
             f"{CASE_DIR_ENV}) so cases can be stored under an allowed root.",
             error_type="PermissionDenied",
         )
-    return CaseStore(Path(allowed[0]) / DEFAULT_CASE_SUBDIR)
+    # A read-only evidence mount listed first (e.g. /captures,/results in the
+    # container) must not swallow case writes; fall back to the first root so the
+    # write error still names a real path.
+    root = next((Path(d) for d in allowed if os.access(d, os.W_OK)), Path(allowed[0]))
+    return CaseStore(root / DEFAULT_CASE_SUBDIR)
 
 
 def register_case_tools(mcp: MCPServer, client: TSharkClient) -> None:
