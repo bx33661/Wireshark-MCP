@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- `wireshark_decrypt_wpa` built its `80211_keys` UAT entry as a single field (`uat:80211_keys:"wpa-pwd:<pass>:<ssid>",1`), which every tested tshark rejects with `80211_keys:1: invalid value` before any dissection happens, so the tool failed for every passphrase and SSID. It now emits the two columns tshark expects: `uat:80211_keys:"wpa-pwd","<pass>:<ssid>"`. Verified on Wireshark/TShark 4.6.10 (Windows): the old form exits 1, the new form exits 0.
 - `wireshark_case` stores cases under the first *writable* allowed directory, so a read-only evidence mount listed first (the container's `/captures,/results` layout) no longer receives case writes.
 
 ### Distribution
@@ -22,6 +23,7 @@
 
 ### 修复
 
+- `wireshark_decrypt_wpa` 把 `80211_keys` UAT 条目拼成单一字段（`uat:80211_keys:"wpa-pwd:<pass>:<ssid>",1`），实测的 tshark 版本都会在解析阶段以 `80211_keys:1: invalid value` 拒绝，任何口令与 SSID 都无法使用。现改为 tshark 期望的两列形式：`uat:80211_keys:"wpa-pwd","<pass>:<ssid>"`。已在 Wireshark/TShark 4.6.10（Windows）验证：旧形式退出码 1，新形式退出码 0。
 - `wireshark_case` 把案卷存到第一个*可写*的允许目录，排在前面的只读证据挂载（容器中的 `/captures,/results` 布局）不再被用来写案卷。
 
 ### 分发
