@@ -31,7 +31,7 @@ from mcp.server import MCPServer
 from mcp.types import CallToolResult, InputRequiredResult, TextContent
 
 from .tool_annotations import annotations_for
-from .tools.formatting import smart_truncate
+from .tools.formatting import keep_leading_lines, smart_truncate
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -233,12 +233,39 @@ def cap_result_text(text: str, max_chars: int) -> str:
 
         def render_text(preview_chars: int, *, preserve_fields: bool = True) -> str:
             envelope = (
-                dict(capped) if preserve_fields else {"success": bool(capped.get("success", True)), "truncated": True}
+                dict(capped) if preserve_fields else {"success": bool(capped.get("success")), "truncated": True}
             )
             envelope["data"] = smart_truncate(source, preview_chars)
             return json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
 
+        def render_lines(max_lines: int, *, preserve_fields: bool) -> str:
+            envelope = (
+                dict(capped) if preserve_fields else {"success": bool(capped.get("success")), "truncated": True}
+            )
+            envelope["data"] = keep_leading_lines(source, max_lines)
+            return json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
+
         preserve_fields = len(render_text(0)) <= max_chars
+
+        # Line-oriented text (TSV rows, packet lists, stream dumps) must lose its
+        # TAIL, never a hole in the middle: a caller pages with offset/limit, so a
+        # contiguous prefix keeps the next page's start where the footer says it
+        # is. smart_truncate keeps head and tail, which silently drops rows no
+        # later page can retrieve while the tool's own footer still advertises
+        # the requested page size.
+        if "\n" in source:
+            low, high = 0, source.count("\n") + 1
+            best = render_lines(0, preserve_fields=preserve_fields)
+            while low <= high:
+                mid = (low + high) // 2
+                cand = render_lines(mid, preserve_fields=preserve_fields)
+                if len(cand) <= max_chars:
+                    best = cand
+                    low = mid + 1
+                else:
+                    high = mid - 1
+            return best
+
         low, high = 0, min(len(source), max_chars)
         best = render_text(0, preserve_fields=preserve_fields)
         while low <= high:

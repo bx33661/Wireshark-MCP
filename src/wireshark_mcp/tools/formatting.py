@@ -60,6 +60,25 @@ def smart_truncate(text: str, max_chars: int = 4000) -> str:
     return result[:max_chars]
 
 
+def keep_leading_lines(text: str, max_lines: int) -> str:
+    """Keep at most ``max_lines`` complete lines from the START of ``text``.
+
+    Line-oriented results are paged with an offset/limit pair, so a capped page
+    must stay a contiguous prefix: dropping lines from the middle would put the
+    page's tail out of reach of every later page. A marker records how many
+    lines were withheld so the caller can resume from ``offset + kept``.
+    """
+    if max_lines <= 0:
+        return ""
+    lines = text.split("\n")
+    if len(lines) <= max_lines:
+        return text
+    kept = lines[:max_lines]
+    withheld = len(lines) - max_lines
+    kept.append(f"[Showing {max_lines} lines, {withheld} more withheld by the result ceiling. Use offset for pagination.]")
+    return "\n".join(kept)
+
+
 def summarize_tabular(data: str, max_rows: int = 50) -> str:
     """Truncate tabular data beyond max_rows with a hint."""
     lines = data.splitlines()

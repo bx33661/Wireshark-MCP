@@ -117,6 +117,58 @@ def test_cap_result_text_on_freeform_text_marks_truncated() -> None:
     assert parsed["truncated"] is True
 
 
+def _tsv_rows(count: int) -> str:
+    """A line-oriented payload shaped like the packet-list and field-extraction tools."""
+    header = "frame.number\t_ws.col.cls_time\t_ws.col.def_src\t_ws.col.def_dst\t_ws.col.protocol\t_ws.col.info"
+    rows = [
+        f'"{i}"\t"0.000000"\t"192.168.1.{i % 200}"\t"8.8.8.8"\t"DNS"\t"Standard query A host{i}.example.com"'
+        for i in range(1, count + 1)
+    ]
+    return "\n".join([header, *rows])
+
+
+def test_cap_result_text_keeps_line_oriented_text_contiguous() -> None:
+    """A capped page must be a prefix, not head-and-tail with a hole in the middle.
+
+    Callers page with offset/limit, so rows removed from the middle are
+    unreachable by every later page while the tool's own footer still reports
+    the requested page size.
+    """
+    raw = json.dumps({"success": True, "data": _tsv_rows(200)})
+    capped = cap_result_text(raw, max_chars=16_000)
+    assert len(capped) <= 16_000
+
+    delivered = json.loads(capped)["data"]
+    frame_numbers = [
+        int(line.split("\t")[0].strip('"')) for line in delivered.split("\n") if line.startswith('"')
+    ]
+
+    assert frame_numbers, "expected delivered rows"
+    assert frame_numbers == list(range(1, len(frame_numbers) + 1)), (
+        "rows must stay a contiguous prefix starting at the first row"
+    )
+    assert "withheld" in delivered, "the caller needs to know rows were withheld"
+
+
+def test_cap_result_text_still_uses_head_and_tail_for_prose() -> None:
+    """Text without line structure keeps the head-plus-tail form; nothing pages it."""
+    raw = json.dumps({"success": True, "data": "A" * 20_000})
+    capped = cap_result_text(raw, max_chars=2_000)
+    assert len(capped) <= 2_000
+
+    delivered = json.loads(capped)["data"]
+    assert delivered.startswith("A" * 100)
+    assert delivered.endswith("A" * 100)
+    assert "omitted" in delivered
+
+
+def test_cap_result_text_line_oriented_stays_under_the_ceiling_at_any_size() -> None:
+    for ceiling in (1_000, 4_000, 8_000, 16_000):
+        raw = json.dumps({"success": True, "data": _tsv_rows(500)})
+        capped = cap_result_text(raw, max_chars=ceiling)
+        assert len(capped) <= ceiling, f"ceiling {ceiling} exceeded"
+
+
 @pytest.mark.asyncio
 async def test_call_tool_synchronizes_is_error_flag() -> None:
     mcp = WiresharkMCP("test_mcp")
