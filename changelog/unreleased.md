@@ -12,6 +12,7 @@
 
 ### Documentation
 
+- New [DeepSeek Harness integration](../docs/deepseek-harness.md) page recording how DSH mounts this server, the settings that actually matter there, and which MCP features its bridge does not forward. It is explicitly scoped to DSH 0.2.2-rc.5, the only version tested.
 - New [configuration reference](../docs/configuration.md) listing every optional extra, server flag, environment variable (including the previously undocumented binary overrides and `GEOIP_DB_PATH`) and limit, and which install routes include extras.
 - README: a "New in 4.0" section with upgrade notes, extras in the install section, a large-capture quick-start prompt, and links to the capture index, findings and installation guides.
 - Architecture, contributing and security docs describe the capture index, findings and case files; the deployment guide shows the container's index volume and where case files go there.
@@ -30,6 +31,7 @@
 
 ### 文档
 
+- 新增 [DeepSeek Harness 集成](../docs/deepseek-harness_zh.md) 页面，记录 DSH 如何挂载本服务器、哪些设置在那里真正重要、以及它的桥接不转发哪些 MCP 能力。页面明确限定在 DSH 0.2.2-rc.5——唯一测过的版本。
 - 新增[配置参考](../docs/configuration_zh.md)，列出所有可选扩展、服务器参数、环境变量（包括此前未写入文档的程序路径覆盖和 `GEOIP_DB_PATH`）和上限，并说明各安装路线是否包含扩展。
 - README：新增"4.0 新特性"及升级说明，安装部分加入扩展，快速开始加入大抓包示例，并链接抓包索引、发现模型和安装指南。
 - 架构、贡献和安全文档补充抓包索引、发现模型与案卷；部署指南说明容器的索引卷，以及容器中案卷的存放位置。

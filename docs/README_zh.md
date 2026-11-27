@@ -14,6 +14,7 @@
 | 手动配置 MCP 客户端 | [手动配置](manual-configuration_zh.md) |
 | 查询可选扩展、环境变量和上限 | [配置参考](configuration_zh.md) |
 | 本机、SSH、WSL 或容器部署 | [部署场景](deployment-scenarios_zh.md) |
+| 接入 DeepSeek Harness（仅实测 0.2.2-rc.5） | [DeepSeek Harness 集成](deepseek-harness_zh.md) |
 | 将 2.x 部署安全迁移到 3.0 | [3.0 安全迁移](security-hardening-v3_zh.md) |
 | 写出更可靠的流量分析任务 | [提示词示例](prompt-engineering_zh.md) |
 | 计算全量计数与分布 | [聚合指南](aggregation_zh.md) |
