@@ -56,8 +56,13 @@ class TestDecryptWpa:
     @pytest.mark.asyncio
     async def test_builds_correct_command(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.decrypt_wpa_traffic("/tmp/test.pcap", wpa_keys=["mypassword:MySSID"])
-        assert "wlan.enable_decryption:TRUE" in result
-        assert "wpa-pwd:mypassword:MySSID" in result
+        command = parse_tool_result(result)["data"]
+        assert "wlan.enable_decryption:TRUE" in command
+        # 80211_keys is a two-column UAT: field-key and field-value are separate
+        # quoted arguments. Keeping "<pass>:<ssid>" inside the first field makes
+        # tshark reject the flag with "80211_keys:1: invalid value".
+        assert 'uat:80211_keys:"wpa-pwd","mypassword:MySSID"' in command
+        assert 'uat:80211_keys:"wpa-pwd:mypassword:MySSID"' not in command
 
     @pytest.mark.asyncio
     async def test_rejects_empty_keys(self, mock_client: MockTSharkClient) -> None:
