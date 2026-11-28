@@ -64,7 +64,7 @@ The server finds the suite on `PATH` and in the usual install locations. Overrid
 
 | Variable | Default | Range | Meaning |
 |----------|---------|-------|---------|
-| `WIRESHARK_MCP_MAX_RESULT_CHARS` | 8000 | ≥ 512 | Ceiling on one tool result's text. Larger output is trimmed head-and-tail; use the tool's `offset` / `limit` / `display_filter` to page. |
+| `WIRESHARK_MCP_MAX_RESULT_CHARS` | 8000 | ≥ 512 | Ceiling on one tool result's text. Line-oriented output keeps a contiguous prefix (dropping the tail) while single-line prose is trimmed head-and-tail; use the tool's `offset` / `limit` / `display_filter` to page. |
 | `WIRESHARK_MCP_AGGREGATE_SCAN_LIMIT` | 1,000,000 | 1,000–10,000,000 | Matching-row ceiling for a tshark-path `wireshark_aggregate`. An index-backed call uses a fixed 50,000,000-row ceiling instead. |
 | `WIRESHARK_MCP_AGGREGATE_TIMEOUT` | 30 s | 5–600 | Time budget for one `wireshark_aggregate` call, on either path. |
 | `WIRESHARK_MCP_INDEX_TIMEOUT` | 1800 s | 30–7200 | Time budget for the tshark pass of an index build. |
