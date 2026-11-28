@@ -293,7 +293,7 @@ class TestRunCommand:
             [
                 "tshark",
                 "-o",
-                'uat:80211_keys:"wpa-pwd:super-secret:CorpWifi",1',
+                'uat:80211_keys:"wpa-pwd","super-secret:CorpWifi"',
                 "-o",
                 "tls.keylog_file:/secret/keys.log",
             ]

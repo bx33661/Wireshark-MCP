@@ -325,8 +325,9 @@ class ExtractionMixin(_ClientProtocol):
             # The 80211_keys UAT has two columns, so a key must be given as a
             # field-key/field-value pair. Putting everything inside the quoted
             # part ("wpa-pwd:<pass>:<ssid>") makes tshark read only one column
-            # and reject the whole flag.
-            cmd.extend(["-o", f'uat:80211_keys:"wpa-pwd","{key}"'])
+            # and reject the whole flag. Escape UAT backslashes and quotes too.
+            escaped_key = key.replace("\\", "\\\\").replace('"', '\\"')
+            cmd.extend(["-o", f'uat:80211_keys:"wpa-pwd","{escaped_key}"'])
 
         cmd.extend(
             [

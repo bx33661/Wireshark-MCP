@@ -65,6 +65,15 @@ class TestDecryptWpa:
         assert 'uat:80211_keys:"wpa-pwd:mypassword:MySSID"' not in command
 
     @pytest.mark.asyncio
+    async def test_escapes_quotes_and_backslashes_in_wpa_key(self, mock_client: MockTSharkClient) -> None:
+        result = await mock_client.decrypt_wpa_traffic(
+            "/tmp/test.pcap",
+            wpa_keys=[r'pa"ss\word:My"SSID'],
+        )
+        command = parse_tool_result(result)["data"]
+        assert r'uat:80211_keys:"wpa-pwd","pa\"ss\\word:My\"SSID"' in command
+
+    @pytest.mark.asyncio
     async def test_rejects_empty_keys(self, mock_client: MockTSharkClient) -> None:
         result = await mock_client.decrypt_wpa_traffic("/tmp/test.pcap", wpa_keys=[])
         assert "InvalidParameter" in result
