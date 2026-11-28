@@ -25,6 +25,8 @@ CURRENT_DOCS = (
     ROOT / "docs" / "architecture_zh.md",
     ROOT / "docs" / "deployment-scenarios.md",
     ROOT / "docs" / "deployment-scenarios_zh.md",
+    ROOT / "docs" / "deepseek-harness.md",
+    ROOT / "docs" / "deepseek-harness_zh.md",
     ROOT / "docs" / "manual-configuration.md",
     ROOT / "docs" / "manual-configuration_zh.md",
     ROOT / "docs" / "platform-validation.md",

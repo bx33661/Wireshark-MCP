@@ -14,6 +14,7 @@ Start with the page that matches the task at hand.
 | Configure an MCP client by hand | [Manual configuration](manual-configuration.md) |
 | Look up an optional extra, environment variable or limit | [Configuration reference](configuration.md) |
 | Run locally, over SSH, in WSL, or in a container | [Deployment scenarios](deployment-scenarios.md) |
+| Connect DeepSeek Harness (measured on 0.2.2-rc.5 only) | [DeepSeek Harness integration](deepseek-harness.md) |
 | Migrate a 2.x deployment safely | [3.0 security migration](security-hardening-v3.md) |
 | Ask better packet-analysis questions | [Prompt examples](prompt-engineering.md) |
 | Compute capture-wide counts and distributions | [Aggregation guide](aggregation.md) |
