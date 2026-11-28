@@ -801,6 +801,23 @@ class TestSuiteBehavior:
         assert mock_client._last_cmd[0] == "tshark"
 
     @pytest.mark.asyncio
+    async def test_capture_backend_env_forces_tshark_over_dumpcap(self, mock_client, monkeypatch) -> None:
+        monkeypatch.setenv("WIRESHARK_MCP_CAPTURE_BACKEND", "TShark")
+
+        assert mock_client.describe_capabilities()["_meta"]["capture_backend"] == "tshark"
+        await mock_client.list_interfaces()
+        assert mock_client._last_cmd[0] == "tshark"
+        await mock_client.capture_packets("USBPcap1", "/tmp/out.pcapng", duration=10)
+        assert mock_client._last_cmd[0] == "tshark"
+
+    @pytest.mark.asyncio
+    async def test_capture_backend_env_dumpcap_or_unknown_keeps_default(self, mock_client, monkeypatch) -> None:
+        for value in ("dumpcap", "bogus"):
+            monkeypatch.setenv("WIRESHARK_MCP_CAPTURE_BACKEND", value)
+            await mock_client.list_interfaces()
+            assert mock_client._last_cmd[0] == "dumpcap"
+
+    @pytest.mark.asyncio
     async def test_capture_prefers_dumpcap_when_available(self, mock_client) -> None:
         result = await mock_client.capture_packets("en0", "/tmp/out.pcapng", duration=10)
         assert "dumpcap" in result

@@ -25,6 +25,7 @@ from wireshark_mcp.installer import (
     print_install_doctor,
     print_mcp_config,
 )
+from wireshark_mcp.installer._doctor import _build_doctor_payload
 
 
 class TestPythonEnvDetection:
@@ -399,6 +400,29 @@ class TestMachineReadableOutput:
         assert payload["wireshark_tools"]["tshark"]["available"] is True
         assert payload["wireshark_tools"]["capinfos"]["available"] is False
         assert payload["client_summary"] == {"configured": 1}
+
+    @pytest.mark.parametrize(("env_value", "expected"), [(None, "dumpcap"), ("tshark", "tshark")])
+    def test_doctor_capture_backend_honors_env_override(self, monkeypatch, env_value, expected):
+        fake_tools = {
+            "WIRESHARK_MCP_TSHARK_PATH": "/opt/tools/tshark",
+            "WIRESHARK_MCP_CAPINFOS_PATH": None,
+            "WIRESHARK_MCP_MERGECAP_PATH": None,
+            "WIRESHARK_MCP_EDITCAP_PATH": None,
+            "WIRESHARK_MCP_DUMPCAP_PATH": "/opt/tools/dumpcap",
+            "WIRESHARK_MCP_TEXT2PCAP_PATH": None,
+        }
+        if env_value is None:
+            monkeypatch.delenv("WIRESHARK_MCP_CAPTURE_BACKEND", raising=False)
+        else:
+            monkeypatch.setenv("WIRESHARK_MCP_CAPTURE_BACKEND", env_value)
+
+        with (
+            patch("wireshark_mcp.installer._clients._get_client_configs", return_value={}),
+            patch("wireshark_mcp.installer._doctor._detect_wireshark_tool_paths", return_value=fake_tools),
+        ):
+            payload = _build_doctor_payload()
+
+        assert payload["capture_backend"] == expected
 
 
 class TestPlatformConfigs:

@@ -2,6 +2,10 @@
 
 ## English
 
+### Added
+
+- `WIRESHARK_MCP_CAPTURE_BACKEND=tshark` makes live capture, `wireshark_list_interfaces` and `wireshark-mcp doctor` use `tshark` even when `dumpcap` is installed. `dumpcap` does not load extcap interfaces, so USBPcap, `sshdump`, `etwdump` and the other extcap sources could not be listed or captured before.
+
 ### Fixed
 
 - Line-oriented tool results (packet lists, field extraction, stream follows) are now capped by dropping the tail instead of removing a block from the middle. `WIRESHARK_MCP_MAX_RESULT_CHARS` used to cut these strings head-plus-tail, so the rows in between were unreachable by any later page while the tool's own footer still advertised the requested page size (a `limit=500` page reported `Showing 500/5131 lines` while delivering 143 rows with frames 496–499 appended). A capped page is now a contiguous prefix and ends with an explicit `[... N more withheld ...]` marker, so `offset + returned` is the correct next offset.
@@ -22,6 +26,10 @@
 - Compatibility matrix, roadmap and benchmark pages updated for the 4.0.0 release. The 1.0 release announcement and the 3.0 walkthrough moved to `docs/archive/`.
 
 ## 中文
+
+### 新增
+
+- 设置 `WIRESHARK_MCP_CAPTURE_BACKEND=tshark` 后，实时抓包、`wireshark_list_interfaces` 和 `wireshark-mcp doctor` 即使安装了 `dumpcap` 也会使用 `tshark`。`dumpcap` 不加载 extcap 接口，因此此前无法列出或抓取 USBPcap、`sshdump`、`etwdump` 等 extcap 来源。
 
 ### 修复
 

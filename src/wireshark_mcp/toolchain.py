@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 ToolRequirement = Literal["required", "recommended", "optional"]
@@ -34,4 +35,14 @@ WIRESHARK_TOOL_PURPOSES: dict[str, str] = {
 }
 
 WIRESHARK_CAPTURE_BACKEND_ORDER = ("dumpcap", "tshark")
+# Set to "tshark" to capture with tshark even when dumpcap is installed.
+# dumpcap does not load extcap plugins (USBPcap, sshdump, etwdump and others).
+WIRESHARK_CAPTURE_BACKEND_ENV = "WIRESHARK_MCP_CAPTURE_BACKEND"
+
+
+def capture_backend_forced_to_tshark() -> bool:
+    """Return True when the user asked for tshark as the live capture backend."""
+    return os.environ.get(WIRESHARK_CAPTURE_BACKEND_ENV, "").strip().lower() == "tshark"
+
+
 WIRESHARK_TOOL_ORDER = tuple(WIRESHARK_TOOL_ENV_VARS.keys())
