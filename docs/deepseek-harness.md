@@ -43,6 +43,10 @@ configuration-only bundle inserts one `@deepseek-ai/dsh-mcp-client` row:
         env:
           WIRESHARK_MCP_TSHARK_PATH: 'C:\path\to\Wireshark\tshark.exe'
           WIRESHARK_MCP_CAPINFOS_PATH: 'C:\path\to\Wireshark\capinfos.exe'
+          WIRESHARK_MCP_MERGECAP_PATH: 'C:\path\to\Wireshark\mergecap.exe'
+          WIRESHARK_MCP_EDITCAP_PATH: 'C:\path\to\Wireshark\editcap.exe'
+          WIRESHARK_MCP_DUMPCAP_PATH: 'C:\path\to\Wireshark\dumpcap.exe'
+          WIRESHARK_MCP_TEXT2PCAP_PATH: 'C:\path\to\Wireshark\text2pcap.exe'
           WIRESHARK_MCP_ALLOWED_DIRS: 'D:\pcaps,D:\wireshark-results'
           WIRESHARK_MCP_INDEX_DIR: 'D:\wireshark-results\index'
           PYTHONIOENCODING: 'utf-8'
@@ -54,8 +58,8 @@ not the server-side short name. The doubled word is DSH's naming contract, not a
 Two settings matter more than they look:
 
 - **Pin the binary paths.** The Windows Wireshark installer does not add its directory to
-  `PATH`. Without the six `WIRESHARK_MCP_*_PATH` overrides the server finds no engine, or
-  finds a stale one.
+  `PATH`. Pinning the six `WIRESHARK_MCP_*_PATH` overrides ensures every suite tool resolves
+  to the intended installation rather than failing or picking up a stale binary.
 - **Raise `toolCallTimeoutMs`.** DSH defaults to 60 s per `tools/call`. A DuckDB index build
   on a multi-GB capture, or a whole-capture statistic on the tshark path, does not fit.
   300 s was comfortable here; the slowest measured call was a 56 s index build.
@@ -84,8 +88,6 @@ without checking the client side does not necessarily give the caller more text.
 
 ## Known limits on the tshark 4.6.10 + DSH 0.2.2-rc.5 pairing
 
-- `wireshark_decrypt_wpa` fails on every passphrase until the `80211_keys` fix lands; use
-  the CLI form `-o 'uat:80211_keys:"wpa-pwd","<pass>:<ssid>"'` meanwhile.
 - `wireshark_geoip_enrich` needs the `geoip` extra *and* a GeoLite2 database;
   `wireshark_yara_scan` needs the `yara` extra. Both fail as `DependencyMissing` rather than
   returning an empty result, which is the honest behaviour but is still a failed call.

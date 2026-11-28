@@ -41,6 +41,10 @@ DSH 通过插件加载器挂载 MCP 服务器，而不是通过某个 JSON 客�
         env:
           WIRESHARK_MCP_TSHARK_PATH: 'C:\path\to\Wireshark\tshark.exe'
           WIRESHARK_MCP_CAPINFOS_PATH: 'C:\path\to\Wireshark\capinfos.exe'
+          WIRESHARK_MCP_MERGECAP_PATH: 'C:\path\to\Wireshark\mergecap.exe'
+          WIRESHARK_MCP_EDITCAP_PATH: 'C:\path\to\Wireshark\editcap.exe'
+          WIRESHARK_MCP_DUMPCAP_PATH: 'C:\path\to\Wireshark\dumpcap.exe'
+          WIRESHARK_MCP_TEXT2PCAP_PATH: 'C:\path\to\Wireshark\text2pcap.exe'
           WIRESHARK_MCP_ALLOWED_DIRS: 'D:\pcaps,D:\wireshark-results'
           WIRESHARK_MCP_INDEX_DIR: 'D:\wireshark-results\index'
           PYTHONIOENCODING: 'utf-8'
@@ -52,8 +56,8 @@ DSH 通过插件加载器挂载 MCP 服务器，而不是通过某个 JSON 客�
 
 有两个设置比看上去更重要：
 
-- **必须钉住程序路径。** Windows 上的 Wireshark 安装包不会把安装目录写进 `PATH`。不设那六个
-  `WIRESHARK_MCP_*_PATH` 覆盖变量，服务器要么找不到引擎，要么找到旧的引擎。
+- **显式钉住程序路径。** Windows 上的 Wireshark 安装包不会把安装目录写进 `PATH`。配齐六个
+  `WIRESHARK_MCP_*_PATH` 覆盖变量可以确保所有套件程序都指向预期安装目录，避免找不到引擎或命中旧版本。
 - **必须抬高 `toolCallTimeoutMs`。** DSH 每次 `tools/call` 默认 60 秒。多 GB 抓包的 DuckDB
   索引构建、或在 tshark 路径上做全抓包统计，都放不进这个预算。实测最慢的一次调用是 56 秒的索引
   构建，300 秒足够。
@@ -79,8 +83,6 @@ DSH 通过插件加载器挂载 MCP 服务器，而不是通过某个 JSON 客�
 
 ## tshark 4.6.10 + DSH 0.2.2-rc.5 组合下的已知限制
 
-- 在 `80211_keys` 修复合入前，`wireshark_decrypt_wpa` 对任何口令都失败；临时可用 CLI 形式
-  `-o 'uat:80211_keys:"wpa-pwd","<pass>:<ssid>"'`。
 - `wireshark_geoip_enrich` 需要 `geoip` 扩展**和**一份 GeoLite2 数据库；`wireshark_yara_scan`
   需要 `yara` 扩展。两者都以 `DependencyMissing` 失败，而不是返回空结果——这是诚实的行为，
   但仍然是一次失败的调用。
