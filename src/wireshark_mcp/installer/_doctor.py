@@ -10,6 +10,7 @@ from ..toolchain import (
     WIRESHARK_TOOL_ORDER,
     WIRESHARK_TOOL_PURPOSES,
     WIRESHARK_TOOL_REQUIREMENTS,
+    capture_backend_forced_to_tshark,
 )
 from ._detection import _detect_wireshark_tool_paths, _get_python_executable
 from ._writer import _build_client_targets_payload, _print_rows, _print_title
@@ -36,7 +37,8 @@ def _build_doctor_payload(selected_clients: list[str] | None = None) -> dict[str
             "tshark was not found. Install Wireshark CLI tools or set WIRESHARK_MCP_TSHARK_PATH before starting the MCP server."
         )
     else:
-        capture_backend = "dumpcap" if detected_tools.get("WIRESHARK_MCP_DUMPCAP_PATH") else "tshark"
+        use_dumpcap = detected_tools.get("WIRESHARK_MCP_DUMPCAP_PATH") and not capture_backend_forced_to_tshark()
+        capture_backend = "dumpcap" if use_dumpcap else "tshark"
 
     client_payload = _build_client_targets_payload(selected_clients)
     return {

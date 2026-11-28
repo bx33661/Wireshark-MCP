@@ -58,6 +58,8 @@ The server finds the suite on `PATH` and in the usual install locations. Overrid
 | `WIRESHARK_MCP_DUMPCAP_PATH` | `dumpcap` | Live capture backend (falls back to `tshark`). |
 | `WIRESHARK_MCP_TEXT2PCAP_PATH` | `text2pcap` | `wireshark_text2pcap_import`. |
 
+Live capture uses `dumpcap` when it is found and `tshark` otherwise. `dumpcap` does not load extcap interfaces (USBPcap, `sshdump`, `etwdump`, `ciscodump` and others), so set `WIRESHARK_MCP_CAPTURE_BACKEND=tshark` to list and capture them. Any other value keeps the default.
+
 `wireshark-mcp doctor` shows which binary was found for each and through which variable.
 
 ## Limits

@@ -58,6 +58,8 @@
 | `WIRESHARK_MCP_DUMPCAP_PATH` | `dumpcap` | 实时抓包后端（缺失时退回 `tshark`）。 |
 | `WIRESHARK_MCP_TEXT2PCAP_PATH` | `text2pcap` | `wireshark_text2pcap_import`。 |
 
+实时抓包在找到 `dumpcap` 时使用它，否则使用 `tshark`。`dumpcap` 不加载 extcap 接口（USBPcap、`sshdump`、`etwdump`、`ciscodump` 等），如需列出并抓取这些接口，请设置 `WIRESHARK_MCP_CAPTURE_BACKEND=tshark`。其他取值保持默认行为。
+
 `wireshark-mcp doctor` 会列出每个程序找到的位置以及是通过哪个变量找到的。
 
 ## 上限

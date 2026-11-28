@@ -17,6 +17,7 @@ from ..toolchain import (
     WIRESHARK_TOOL_ORDER,
     WIRESHARK_TOOL_PURPOSES,
     WIRESHARK_TOOL_REQUIREMENTS,
+    capture_backend_forced_to_tshark,
 )
 
 logger = logging.getLogger("wireshark_mcp")
@@ -48,6 +49,8 @@ class CapabilityMixin:
 
     def _select_capture_backend(self) -> str:
         """Pick the best available capture backend without making optional tools mandatory."""
+        if capture_backend_forced_to_tshark():
+            return "tshark"
         for tool_name in WIRESHARK_CAPTURE_BACKEND_ORDER:
             tool_path = self._tool_paths.get(tool_name)
             if self._tool_is_available(tool_path):
