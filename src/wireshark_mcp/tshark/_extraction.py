@@ -322,7 +322,12 @@ class ExtractionMixin(_ClientProtocol):
 
         cmd = [self.tshark_path, "-r", pcap_file, "-o", "wlan.enable_decryption:TRUE"]
         for key in wpa_keys:
-            cmd.extend(["-o", f'uat:80211_keys:"wpa-pwd:{key}",1'])
+            # The 80211_keys UAT has two columns, so a key must be given as a
+            # field-key/field-value pair. Putting everything inside the quoted
+            # part ("wpa-pwd:<pass>:<ssid>") makes tshark read only one column
+            # and reject the whole flag. Escape UAT backslashes and quotes too.
+            escaped_key = key.replace("\\", "\\\\").replace('"', '\\"')
+            cmd.extend(["-o", f'uat:80211_keys:"wpa-pwd","{escaped_key}"'])
 
         cmd.extend(
             [
