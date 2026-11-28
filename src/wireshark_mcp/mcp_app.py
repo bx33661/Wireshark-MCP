@@ -31,7 +31,7 @@ from mcp.server import MCPServer
 from mcp.types import CallToolResult, InputRequiredResult, TextContent
 
 from .tool_annotations import annotations_for
-from .tools.formatting import smart_truncate
+from .tools.formatting import format_leading_lines, smart_truncate, split_paginated_body
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -239,6 +239,56 @@ def cap_result_text(text: str, max_chars: int) -> str:
             return json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
 
         preserve_fields = len(render_text(0)) <= max_chars
+
+        # Line-oriented text (TSV rows, packet lists, stream dumps) must lose its
+        # TAIL, never a hole in the middle: a caller pages with offset/limit, so a
+        # contiguous prefix keeps the next page's start where the footer says it
+        # is. Fall back to character truncation only when not even one data row
+        # fits (e.g. a single multi-KB payload line), so the result is never "".
+        if "\n" in source:
+            body, base_offset, total_lines = split_paginated_body(source)
+            body_line_count = body.count("\n") + 1
+            max_candidate_lines = min(max(0, body_line_count - 1), max_chars)
+            prefix_lines = body.split("\n", max_candidate_lines)[:max_candidate_lines]
+
+            def render_lines(max_lines: int) -> str:
+                envelope = (
+                    dict(capped)
+                    if preserve_fields
+                    else {"success": bool(capped.get("success", True)), "truncated": True}
+                )
+                envelope["data"] = format_leading_lines(
+                    prefix_lines,
+                    body_line_count,
+                    max_lines,
+                    base_offset=base_offset,
+                    total_lines=total_lines,
+                    full_text=source,
+                )
+                return json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
+
+            if max_candidate_lines >= 1:
+                low, high = 1, max_candidate_lines
+                best_k = 0
+                best_lines = ""
+                while low <= high:
+                    mid = (low + high) // 2
+                    cand = render_lines(mid)
+                    if len(cand) <= max_chars:
+                        best_k = mid
+                        best_lines = cand
+                        low = mid + 1
+                    else:
+                        high = mid - 1
+                header_only_tsv = (
+                    best_k == 1
+                    and body_line_count >= 2
+                    and "\t" in prefix_lines[0]
+                    and not prefix_lines[0].startswith('"')
+                )
+                if best_k >= 1 and not header_only_tsv:
+                    return best_lines
+
         low, high = 0, min(len(source), max_chars)
         best = render_text(0, preserve_fields=preserve_fields)
         while low <= high:

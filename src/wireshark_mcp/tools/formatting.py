@@ -1,9 +1,19 @@
 """Token-efficient output formatting utilities."""
 
+import re
+
 CRIT = "[!]"
 WARN = "[W]"
 INFO = "[i]"
 OK = "[OK]"
+
+_PAGINATE_FOOTER_RE = re.compile(
+    r"\n\n(?:"
+    r"\[Showing (?P<s_limit>\d+)/(?P<s_total>\d+) lines\. Next: offset=(?P<s_next>\d+)\]"
+    r"|"
+    r"\[Displaying (?P<d_limit>\d+) lines\. (?P<d_rem>\d+) more lines available\. Use offset=(?P<d_next>\d+) to see more\.\]"
+    r")\s*\Z"
+)
 
 
 def section(title: str) -> str:
@@ -58,6 +68,78 @@ def smart_truncate(text: str, max_chars: int = 4000) -> str:
 
     result = f"{text[:head_budget]}{marker}{text[-tail_budget:] if tail_budget else ''}"
     return result[:max_chars]
+
+
+def split_paginated_body(text: str) -> tuple[str, int | None, int | None]:
+    """Strip a trailing pagination footer and return ``(body, base_offset, total_lines)``."""
+    tail_start = max(0, len(text) - 256)
+    match = _PAGINATE_FOOTER_RE.search(text, tail_start)
+    if not match:
+        return text, None, None
+    body = text[: match.start()]
+    if match.group("s_limit") is not None:
+        limit = int(match.group("s_limit"))
+        total = int(match.group("s_total"))
+        next_off = int(match.group("s_next"))
+        return body, max(0, next_off - limit), total
+    limit = int(match.group("d_limit"))
+    rem = int(match.group("d_rem"))
+    next_off = int(match.group("d_next"))
+    return body, max(0, next_off - limit), next_off + rem
+
+
+def format_leading_lines(
+    prefix_lines: list[str],
+    body_line_count: int,
+    max_lines: int,
+    *,
+    base_offset: int | None = None,
+    total_lines: int | None = None,
+    full_text: str | None = None,
+) -> str:
+    """Format the first ``max_lines`` of pre-split ``prefix_lines`` with an honest footer."""
+    if max_lines <= 0:
+        return ""
+    if max_lines >= body_line_count:
+        return full_text if full_text is not None else "\n".join(prefix_lines[:body_line_count])
+    kept = list(prefix_lines[:max_lines])
+    withheld = body_line_count - max_lines
+    if base_offset is not None and total_lines is not None:
+        next_offset = base_offset + max_lines
+        kept.append(
+            f"[Showing {max_lines}/{total_lines} lines, {withheld} more withheld by the result ceiling. "
+            f"Next: offset={next_offset}]"
+        )
+    else:
+        kept.append(
+            f"[Showing {max_lines} lines, {withheld} more withheld by the result ceiling. Use offset for pagination.]"
+        )
+    return "\n".join(kept)
+
+
+def keep_leading_lines(text: str, max_lines: int) -> str:
+    """Keep at most ``max_lines`` complete lines from the START of ``text``.
+
+    Line-oriented results are paged with an offset/limit pair, so a capped page
+    must stay a contiguous prefix: dropping lines from the middle would put the
+    page's tail out of reach of every later page. Any pre-existing pagination
+    footer is replaced so ``withheld`` and ``Next: offset=...`` stay exact.
+    """
+    if max_lines <= 0:
+        return ""
+    body, base_offset, total_lines = split_paginated_body(text)
+    body_line_count = body.count("\n") + 1
+    if max_lines >= body_line_count:
+        return text
+    prefix_lines = body.split("\n", max_lines)[:max_lines]
+    return format_leading_lines(
+        prefix_lines,
+        body_line_count,
+        max_lines,
+        base_offset=base_offset,
+        total_lines=total_lines,
+        full_text=text,
+    )
 
 
 def summarize_tabular(data: str, max_rows: int = 50) -> str:

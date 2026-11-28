@@ -117,6 +117,96 @@ def test_cap_result_text_on_freeform_text_marks_truncated() -> None:
     assert parsed["truncated"] is True
 
 
+def _tsv_rows(count: int) -> str:
+    """A line-oriented payload shaped like the packet-list and field-extraction tools."""
+    header = "frame.number\t_ws.col.cls_time\t_ws.col.def_src\t_ws.col.def_dst\t_ws.col.protocol\t_ws.col.info"
+    rows = [
+        f'"{i}"\t"0.000000"\t"192.168.1.{i % 200}"\t"8.8.8.8"\t"DNS"\t"Standard query A host{i}.example.com"'
+        for i in range(1, count + 1)
+    ]
+    return "\n".join([header, *rows])
+
+
+def test_cap_result_text_keeps_line_oriented_text_contiguous() -> None:
+    """A capped page must be a prefix, not head-and-tail with a hole in the middle.
+
+    Callers page with offset/limit, so rows removed from the middle are
+    unreachable by every later page while the tool's own footer still reports
+    the requested page size.
+    """
+    raw = json.dumps({"success": True, "data": _tsv_rows(200)})
+    capped = cap_result_text(raw, max_chars=16_000)
+    assert len(capped) <= 16_000
+
+    delivered = json.loads(capped)["data"]
+    frame_numbers = [int(line.split("\t")[0].strip('"')) for line in delivered.split("\n") if line.startswith('"')]
+
+    assert frame_numbers, "expected delivered rows"
+    assert frame_numbers == list(range(1, len(frame_numbers) + 1)), (
+        "rows must stay a contiguous prefix starting at the first row"
+    )
+    assert "withheld" in delivered, "the caller needs to know rows were withheld"
+
+
+def test_cap_result_text_still_uses_head_and_tail_for_prose() -> None:
+    """Text without line structure keeps the head-plus-tail form; nothing pages it."""
+    raw = json.dumps({"success": True, "data": "A" * 20_000})
+    capped = cap_result_text(raw, max_chars=2_000)
+    assert len(capped) <= 2_000
+
+    delivered = json.loads(capped)["data"]
+    assert delivered.startswith("A" * 100)
+    assert delivered.endswith("A" * 100)
+    assert "omitted" in delivered
+
+
+def test_cap_result_text_line_oriented_stays_under_the_ceiling_at_any_size() -> None:
+    for ceiling in (1_000, 4_000, 8_000, 16_000):
+        raw = json.dumps({"success": True, "data": _tsv_rows(500)})
+        capped = cap_result_text(raw, max_chars=ceiling)
+        assert len(capped) <= ceiling, f"ceiling {ceiling} exceeded"
+
+
+def test_cap_result_text_replaces_existing_pagination_footer_accurately() -> None:
+    """Pre-existing _paginate footers must not inflate withheld count or lose total/offset."""
+    paged = _tsv_rows(499) + "\n\n[Showing 500/5131 lines. Next: offset=644]"
+    raw = json.dumps({"success": True, "data": paged})
+    capped = cap_result_text(raw, max_chars=16_000)
+    assert len(capped) <= 16_000
+
+    delivered = json.loads(capped)["data"]
+    lines = delivered.split("\n")
+    kept_count = len(lines) - 1  # all lines before the replacement footer
+    expected_withheld = 500 - kept_count
+    expected_next_offset = (644 - 500) + kept_count
+    assert lines[-1] == (
+        f"[Showing {kept_count}/5131 lines, {expected_withheld} more withheld by the result ceiling. "
+        f"Next: offset={expected_next_offset}]"
+    )
+
+
+def test_cap_result_text_falls_back_when_first_line_exceeds_ceiling() -> None:
+    """A huge line followed by a newline must never degrade to data == ''."""
+    raw = json.dumps({"success": True, "data": "A" * 20_000 + "\nB"})
+    capped = cap_result_text(raw, max_chars=2_000)
+    assert len(capped) <= 2_000
+
+    delivered = json.loads(capped)["data"]
+    assert delivered != ""
+    assert delivered.startswith("A" * 100)
+
+
+def test_cap_result_text_falls_back_when_tsv_row_exceeds_ceiling() -> None:
+    """A TSV header + oversized row 1 must return truncated row data, not just the header."""
+    huge_tsv = "frame.number\ttcp.payload\n" + f'"1"\t"{"A" * 20_000}"'
+    raw = json.dumps({"success": True, "data": huge_tsv})
+    capped = cap_result_text(raw, max_chars=2_000)
+    assert len(capped) <= 2_000
+
+    delivered = json.loads(capped)["data"]
+    assert '"1"\t"AAAA' in delivered
+
+
 @pytest.mark.asyncio
 async def test_call_tool_synchronizes_is_error_flag() -> None:
     mcp = WiresharkMCP("test_mcp")

@@ -64,7 +64,7 @@
 
 | 变量 | 默认值 | 范围 | 含义 |
 |------|--------|------|------|
-| `WIRESHARK_MCP_MAX_RESULT_CHARS` | 8000 | ≥ 512 | 单个工具结果的文本上限。超出部分保留首尾截断；用工具的 `offset` / `limit` / `display_filter` 翻页。 |
+| `WIRESHARK_MCP_MAX_RESULT_CHARS` | 8000 | ≥ 512 | 单个工具结果的文本上限。按行组织的输出保留连续前缀（丢弃尾部），单行长文本保留首尾截断；用工具的 `offset` / `limit` / `display_filter` 翻页。 |
 | `WIRESHARK_MCP_AGGREGATE_SCAN_LIMIT` | 1,000,000 | 1,000–10,000,000 | 走 tshark 路径的 `wireshark_aggregate` 的匹配行上限。走索引时改用固定的 50,000,000 行上限。 |
 | `WIRESHARK_MCP_AGGREGATE_TIMEOUT` | 30 秒 | 5–600 | 单次 `wireshark_aggregate` 的时间预算，两条路径都适用。 |
 | `WIRESHARK_MCP_INDEX_TIMEOUT` | 1800 秒 | 30–7200 | 索引构建中 tshark 解析的时间预算。 |
